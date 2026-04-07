@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c:*)",
+      "Bash(\"E:/Seeker.Bot/.venv/Scripts/python.exe\" -c \":*)",
+      "Bash(python -c \"import ast; import sys; files=[''src/core/pipeline.py'',''src/core/memory/store.py'',''src/core/memory/extractor.py'',''src/core/memory/embeddings.py'',''src/core/memory/hierarchy.py'',''src/core/phases/deliberate.py'',''src/core/phases/deep.py'',''src/core/utils.py'',''src/providers/base.py'',''src/skills/vision/vlm_client.py'',''src/skills/vision/afk_protocol.py'',''src/skills/sense_news/goal.py'',''src/skills/viralclip_curator/curator.py'',''src/skills/revenue_hunter/miner.py'']; errors=[]; [errors.append\\(f''{f}: {e}''\\) for f in files for e in [None] if not \\(lambda: \\(ast.parse\\(open\\(f\\).read\\(\\)\\), True\\)[-1] if True else False\\)\\(\\)]; print\\(''All files parse OK'' if not errors else ''\\\\n''.join\\(errors\\)\\)\")",
+      "Bash(python -c \":*)",
+      "Bash(python -m pytest tests/test_parse_llm_json.py tests/test_decay.py tests/test_hierarchy.py tests/test_router.py -v)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''src/skills/git_automation/goal.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''src/core/goals/scheduler.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(find E:/Seeker.Bot -type d -iname *v2* -o -type d -iname *foundation*)",
+      "Bash(find E:/Seeker.Bot/src -type f -name *.py)",
+      "Bash(grep -E \"\\\\.py$\")",
+      "Bash(python -m pytest tests/ -v --tb=short -q)",
+      "Bash(wc -l /e/Seeker.Bot/src/core/phases/*.py /e/Seeker.Bot/src/core/memory/*.py /e/Seeker.Bot/src/skills/*/*.py)",
+      "Bash(xargs wc:*)",
+      "Bash(python -m pytest tests/ -q --tb=no)",
+      "Bash(python -m pytest tests/ -q --tb=short)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''src/skills/email_monitor/goal.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")"
+    ]
+  }
+}

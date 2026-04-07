@@ -1,0 +1,27 @@
+[project]
+name = "seeker-bot"
+version = "0.2.0"
+description = "Autonomous research agent with epistemological triangulation"
+requires-python = ">=3.10"
+dependencies = [
+    "aiogram>=3.0",
+    "aiosqlite>=0.19",
+    "httpx>=0.25",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.scripts]
+seeker = "src.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["src*", "config*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
