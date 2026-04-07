@@ -26,72 +26,66 @@ A arquitetura do Seeker.ai quebra o modelo tradicional de "Copilot", substituind
 
 ---
 
-## 💎 Features Principais
+## 💎 Power Skills Hub (Módulos Autônomos)
 
-- 📱 **Telegram-First Interface**: Não há dashboard web inflado. Você supervisiona o Seeker, faz triage de leads e aprova execuções irreversíveis diretamente de qualquer lugar pelo celular.
-- 🧠 **Cognitive Load Router**: Um balanceador de inteligência. Se o processamento for visual (Lumen), ele demanda modelos pesados. Se for processamento lógico natural, vai para provedores ultrarrápidos (ex: Groq).
-- ⛓️ **Memória Semântica Reflexiva**: Aprende como você gosta do código, do formato de mensagens, ou da densidade textual. Fricções geram "Regras Reflexivas" que garantem que o sistema não cometa o mesmo erro duas vezes.
-- 🛠️ **Integração MCP (Handshake)**: O Seeker conecta-se como cliente de protocolo Model Context Protocol (MCP) para requisitar serviços da sua máquina matriz ou acionar agentes terceiros na sua IDE residente.
-- 🎯 **Revenue Hunter (B2B Prospecting)**: Acompanha módulos paralelos ("Goals") que despertam a cada 1 hora para varrer a internet, capturar leads (com foco institucional ou privado), usar Inteligência Comercial para obter dossiês estruturados e mandar a oportunidade digerida para o Telegram.
+O Seeker.ai não é um script linear; é um ecossistema de **Capabilities** que operam em paralelo via `GoalScheduler`.
 
----
-
-## 🛠️ Como Instalar e Configurar (Getting Started)
-
-O Seeker.ai foi desenhado para usar as APIs mais baratas e performáticas do mercado como opção padrão, permitindo também o modo 100% gratuito.
-
-### 1. Requisitos
-- Python 3.11 ou superior
-- Git
-
-### 2. Passo a Passo
-
-```bash
-# Clone o repositório
-git clone https://github.com/4pixeltechBR/Seeker.ai.git
-
-# Acesse o diretório
-cd Seeker.ai
-
-# Crie e ative um ambiente virtual
-python -m venv .venv
-source .venv/bin/activate  # No Windows: .venv\Scripts\activate
-
-# Instale as dependências
-pip install -r requirements.txt
-```
-
-### 3. Configuração do Ambiente (Modo Gratuito Disponível)
-Renomeie o arquivo de exemplo para injetar suas chaves:
-```bash
-cp config/.env.example config/.env
-```
-
-Abra o `config/.env`. O Seeker possui uma **cascata de inteligência adaptável**. 
-Recomendamos o uso da **Cascata Gratuita** inicial para rodar o sistema a custo zero:
-- **Google Gemini** para Raciocínio (Gratuito com limites)
-- **Groq** para Roteamento Rápido (Gratuito)
-- Caso vá para produção pesada, chaves do **DeepSeek** são recomendadas pelo extremo custo-benefício.
-
-### 4. Inicialização
-
-```bash
-# Inicia O Motor do Seeker.Bot (Background ou Terminal)
-python -m src.main
-```
-
-Envie `/start` no seu Bot do Telegram e o Seeker se conectará a você!
+| Skill | Emoji | Função Técnica | Output Principal |
+| :--- | :--: | :--- | :--- |
+| **Revenue Hunter** | 🎯 | Mineração B2B/B2G em 3 fases (Discovery, Enrich, Dossier) com BANT Scoring. | Dossiê Comercial completo + PDF. |
+| **S.A.R.A (Auto-Cura)** | 🛠️ | *Systematic Automatic Retrospective Analysis*. Monitora logs e corrige bugs via patches automáticos. | Relatórios de "Raciocínio Aberto" + Auto-Fix. |
+| **SenseNews** | 📰 | Curadoria diária (10:00 AM) em 4 nichos com análise cruzada de impacto. | Relatório de Inteligência em PDF. |
+| **Vision (AFK)** | 👁️ | Monitoramento visual do desktop e protocolo de presença inteligente. | Contexto visual para decisões. |
+| **Skill Creator** | 🧬 | Meta-capacidade de programar, testar e registrar novos Goals autonomamente. | Expansão orgânica do sistema. |
+| **ViralClip Bridge** | 🎬 | Identificação de tendências virais e ponte de produção para o ecossistema ViralClip. | Pautas de vídeo validadas. |
+| **Git & OS Automator** | 💻 | Gestão de repositórios, deploy e monitoramento de saúde do sistema (HealthCheck). | Sistema 100% íntegro e atualizado. |
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## 🏗️ Arquitetura Técnica (Lumen & Arq)
 
-Para facilitar extrações de LLMs em IA Overviews (Google) ou Perplexity, segue um diagrama técnico da estrutura:
+O Seeker foi desenhado sob princípios de **Cognitividade Eficiente** e **Resiliência Extrema**.
 
-*   **`src/core/router/cognitive_load.py`**: Interceptor mestre. Define qual provider responde com base na exigência do Goal (Rápido, Raciocínio, Visão, ou Lógico).
-*   **`src/core/memory/`**: SQLite triplo (Episódica, Semântica e DecayEngine).
-*   **`src/channels/telegram/bot.py`**: O front-end headless real responsivo de botões inline e SSE streaming de notificação para o CEO (Você).
-*   **`src/skills/`**: Pasta drop-in. Desenvolva qualquer agent autônomo na sub-pasta `skills/`, implemente de `BaseGoal` e o `GoalScheduler` agendará a vida do subagente autonomamente!
+```mermaid
+graph TD
+    A[Telegram Bridge] -->|Input/Command| B(Cognitive Load Router)
+    B -->|Fast Task| C[Groq/Llama-Scout]
+    B -->|Reasoning/Vision| D[Gemini 1.5 Pro / Flash]
+    B -->|High Precision| E[DeepSeek-V3]
+    
+    F(Goal Scheduler) -->|Loop 24/7| G[Autonomous Goals]
+    G -->|Revenue Hunter| H[Web Mining Engine]
+    G -->|S.A.R.A| I[Log Audit & Self-Heal]
+    
+    H & I -->|Result| J[Memory Store / SQLite]
+    J -->|Reflexive Context| B
+    
+    G -->|Notification| A
+```
+
+### 🧠 O Motor de Decisão (Cognitive Load Router)
+Para evitar o desperdício de tokens e VRAM, o Seeker avalia a **entropia** da tarefa antes de selecionar o provedor:
+- **Fast Role**: Extração de entidades, JSON parsing e roteamento básico (Groq).
+- **Synthesis Role**: Geração de relatórios, escrita de código e análise de mercado (DeepSeek/Gemini).
+- **Vision Role**: Leitura de tela e interface com o OS (Gemini).
+
+### 💾 Memória Reflexiva
+Utilizamos um sistema de **DecayEngine** no SQLite:
+1.  **Episódica**: Eventos recentes.
+2.  **Semântica**: Fatos persistentes.
+3.  **Reflexive Rules**: Fricções de usuário que se tornam leis de comportamento, ignoradas pelo decaimento temporal.
+
+---
+
+## 🚀 Como Criar sua Própria Skill
+
+O Seeker é extensível por design. Basta criar uma pasta em `src/skills/` com um arquivo `goal.py` que implemente a factory `create_goal`.
+
+```python
+# Exemplo rápido: src/skills/my_new_skill/goal.py
+def create_goal(pipeline):
+    return MyCustomGoal(pipeline) # Herdando de AutonomousGoal
+```
 
 ---
 
