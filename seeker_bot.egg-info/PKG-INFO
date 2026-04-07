@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: seeker-bot
+Version: 0.2.0
+Summary: Autonomous research agent with epistemological triangulation
+Requires-Python: >=3.10
+Requires-Dist: aiogram>=3.0
+Requires-Dist: aiosqlite>=0.19
+Requires-Dist: httpx>=0.25
+Requires-Dist: python-dotenv>=1.0
+Requires-Dist: playwright>=1.42
+Requires-Dist: PyAutoGUI>=0.9.54
+Requires-Dist: pynput>=1.7.6
+Requires-Dist: Pillow>=10.2.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.21; extra == "dev"

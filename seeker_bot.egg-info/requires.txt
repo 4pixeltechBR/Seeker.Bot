@@ -1,0 +1,12 @@
+aiogram>=3.0
+aiosqlite>=0.19
+httpx>=0.25
+python-dotenv>=1.0
+playwright>=1.42
+PyAutoGUI>=0.9.54
+pynput>=1.7.6
+Pillow>=10.2.0
+
+[dev]
+pytest>=7.0
+pytest-asyncio>=0.21
