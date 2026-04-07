@@ -3,6 +3,7 @@
 <div align="center">
   <h3>O Agente Autônomo Self-Hosted da Era Telegram-First</h3>
   <p><em>Autonomia de Nível 5 — Operação 24/7 — Gestão Dinâmica de Contexto (Zero VRAM Waste)</em></p>
+  <p><strong>Desenvolvido via Vibe Coding 🌊</strong></p>
 </div>
 
 ---
@@ -98,4 +99,4 @@ A IA adota um modelo de **Segurança baseada em Fricção**. A classe do motor g
 
 *“Um assistente espera no seu navegador. Um partner acorda e reporta ganhos e problemas no seu Telegram antes de você perguntar.”* 
 
-**By 4PixelTech**
+**Criado por Vibe Coding — By 4PixelTech**
