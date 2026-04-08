@@ -54,6 +54,7 @@ class GoalScheduler:
         self.notifier = notifier
         self._goals: dict[str, AutonomousGoal] = {}
         self._tasks: dict[str, asyncio.Task] = {}
+        self._rethink_tasks: set = set()  # Background rethink tasks (tracked for shutdown)
         self._failure_counts: dict[str, int] = {}
         self._cycle_history: dict[str, deque] = {}
         self._global_spent_today: float = 0.0
@@ -87,16 +88,32 @@ class GoalScheduler:
     async def stop(self):
         """Para todos os goals e persiste estado."""
         self.running = False
+
+        # Aguarda rethink tasks completarem
+        if self._rethink_tasks:
+            log.info(f"[scheduler] Aguardando {len(self._rethink_tasks)} rethink tasks...")
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._rethink_tasks, return_exceptions=True),
+                    timeout=5.0
+                )
+            except asyncio.TimeoutError:
+                log.warning("[scheduler] Timeout aguardando rethink tasks (5s). Continuando...")
+
+        # Cancela goal loops
         for name, task in self._tasks.items():
             task.cancel()
             try:
                 await asyncio.wait_for(task, timeout=2.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
+
         # Persiste estado final
         for goal in self._goals.values():
             self._save_goal_state(goal)
+
         self._tasks.clear()
+        self._rethink_tasks.clear()
         log.info("[scheduler] Todos os goals parados.")
 
     def get_status_report(self) -> str:
@@ -276,14 +293,32 @@ class GoalScheduler:
                 
                 # RETHINK: Confiança Extrema. Se for o início do backoff, emite relatório proativo
                 if self._failure_counts[goal.name] == self.MAX_CONSECUTIVE_FAILURES:
-                    asyncio.create_task(self._execute_rethink_failure(goal.name, str(e), tb_str, goal.channels))
+                    self._create_tracked_task(self._execute_rethink_failure(goal.name, str(e), tb_str, goal.channels))
                 elif self._failure_counts[goal.name] == 1 and "rate" not in str(e).lower():
                     # Avisa no primeiro problema estrutural (que não seja rate limit local)
-                    asyncio.create_task(self._execute_rethink_failure(goal.name, str(e), tb_str, goal.channels))
+                    self._create_tracked_task(self._execute_rethink_failure(goal.name, str(e), tb_str, goal.channels))
 
             finally:
                 self._save_goal_state(goal)
                 await asyncio.sleep(goal.interval_seconds)
+
+    # ── Background Task Management ──────────────────────────
+    def _create_tracked_task(self, coro) -> asyncio.Task:
+        """Cria uma task e rastreia para shutdown seguro."""
+        task = asyncio.create_task(coro)
+        self._rethink_tasks.add(task)
+
+        def _on_task_done(t: asyncio.Task):
+            """Callback quando task termina (sucesso ou erro)."""
+            self._rethink_tasks.discard(t)
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc:
+                log.error(f"[rethink] Background task falhou: {exc}", exc_info=True)
+
+        task.add_done_callback(_on_task_done)
+        return task
 
     # ── Rethink (Autoavaliação de Falhas) ─────────────────
     async def _execute_rethink_failure(self, goal_name: str, error_msg: str, tb_str: str, channels: list[NotificationChannel]):
