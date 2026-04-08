@@ -132,6 +132,6 @@ Prioridades atuais:
 
 - Issues: [GitHub Issues](https://github.com/4pixeltech/Seeker.Bot/issues)
 - Discussões: [GitHub Discussions](https://github.com/4pixeltech/Seeker.Bot/discussions)
-- Email: support@4pixeltech.com
+- Email: 4pixeltech@gmail.com
 
 Obrigado por contribuir! 🙏

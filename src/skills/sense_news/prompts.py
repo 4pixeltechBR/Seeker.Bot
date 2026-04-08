@@ -3,6 +3,11 @@ Seeker.Bot — SenseNews Prompts
 src/skills/sense_news/prompts.py
 """
 
+import json
+import logging
+
+log = logging.getLogger("seeker.sensenews")
+
 NICHES = {
     "MODELOS & OPEN-WEIGHT": {
         "emoji": "🧠",
@@ -40,10 +45,10 @@ NICHES = {
             "novo framework agentic open source",
         ],
     },
-    "CRIATIVOS (VÍDEO & ÁUDIO)": {
+    "CRIAÇÃO & CONTEÚDO": {
         "emoji": "🎬",
-        "description": "TTS naturais, difusão de imagem, hooks, geração de vídeo, consistência",
-        "objective": "Munir o ViralClip OS e Gestor de Tráfego com as melhores APIs e engines locais",
+        "description": "TTS naturais, difusão de imagem, geração de vídeo, processamento de áudio",
+        "objective": "Acompanhar as melhores ferramentas e APIs para criação e automação de conteúdo",
         "search_queries": [
             "AI video generation temporal consistency",
             "new TTS model open source natural",
@@ -84,25 +89,16 @@ OBJETIVO
 Fazer uma única pesquisa diária e entregar um único relatório, curto e útil, cobrindo:
 - notícias e movimentos importantes do ecossistema de IA
 - novos modelos, updates de modelos e quantizações
-- otimizações para LLMs, runtimes e projetos
-- impacto nos meus projetos
+- otimizações para LLMs, runtimes e autonomia
+- impacto em projetos de automação e inteligência artificial
 - ideias adaptáveis
 - riscos técnicos, operacionais, legais e de segurança
 
-PROJETOS DO USUÁRIO
-1) ViralClip OS = fábrica de vídeos curtos com IA
-2) Seeker.Bot = agente para automação, percepção, memória e execução, com opção local e online
-3) Gestor de Tráfego IA = projeto para ajudar pequenos empreendedores usando IA com APIs gratuitas ou baratas
+FOCO PRINCIPAL: SEEKER.BOT
+Seeker.Bot é um agente autônomo para automação, percepção, memória e execução. Pode rodar localmente (RTX 3060 12GB) ou em cloud.
 
-HARDWARE DO USUÁRIO
-Principal: RTX 3060 12GB, Ryzen 5 3600, 32GB RAM.
-Preferência: local quando fizer sentido; online quando houver ganho real.
-
-[SEEKER.BOT — PRIORIDADES]:
+[PRIORIDADES]:
 Monitorar melhores modelos locais/online, APIs baratas, tool-use, memória, multimodalidade, OCR, UI understanding e autonomia/segurança.
-
-[GESTOR DE TRÁFEGO IA — PRIORIDADES]:
-Monitorar APIs gratuitas/baixas, modelos bons para marketing/copy/testes, automações práticas low-code para leigos, previsibilidade de custo.
 
 DADOS RECOLETADOS HOJE:
 {analyses_text}
@@ -131,21 +127,10 @@ Direto, técnico sem pedantismo, resumido, didático e sem repetição.
 *Tags:* [Ex: [LLM] [VLM] [APLICÁVEL AGORA]]
 *Fontes:* [URLs]
 
-## 3) RADAR DOS PROJETOS
-### ViralClip OS
-*   **Aplicável agora:** [Foque em geração visual/áudio, pipeline, VRAM, hooks]
-*   **Ideia adaptável:** [Ideia criativa adaptável]
-*   **Risco/Limitação:** [Limitação de hardware, monetização, plataformas]
-
-### Seeker.Bot
+## 3) RADAR DO SEEKER.BOT
 *   **Aplicável agora:** [Modelos locais/online, tool-use, memória, automação desktop]
 *   **Ideia adaptável:** [Sugestão de workflow autônomo]
 *   **Risco/Limitação:** [Segurança, telemetria, limitação de tokens API]
-
-### Gestor de Tráfego IA
-*   **Aplicável agora:** [APIs, geração copy, automação prática]
-*   **Ideia adaptável:** [Relatórios, low-code para leigo]
-*   **Risco/Limitação:** [Risco de preço, lock-in, free-tier fraco]
 
 ## 4) TOP 3 — IMPACTO DIRETO
 [Para cada 1 dos 3 maiores impactos nos projetos:]
@@ -159,9 +144,7 @@ Direto, técnico sem pedantismo, resumido, didático e sem repetição.
 ## 5) TOP 3 — IDEIAS ADAPTÁVEIS
 **[1. Notícia/Feature]**
 *Ideia Central:* [...]
-*ViralClip:* [...]
-*Seeker:* [...]
-*Gestor:* [...]
+*Aplicação no Seeker.Bot:* [...]
 
 ## 6) TEMA DO DIA: [Nome do Tema]
 *O que é / Por que existe:* [...]
@@ -181,3 +164,29 @@ Direto, técnico sem pedantismo, resumido, didático e sem repetição.
 *   💡 **1 ideia para anotar:** [...]
 *   ⚠️ **1 risco para monitorar:** [...]
 """
+
+
+def get_niches_for_user(user_niches: list[str] | None) -> dict:
+    """
+    Retorna um dicionário filtrado de NICHES baseado nas preferências do usuário.
+    Se user_niches é None (primeira vez), retorna todos os NICHES padrão.
+    Se user_niches é uma lista vazia, retorna um dicionário vazio.
+    """
+    if user_niches is None:
+        # Primeira vez: usa defaults
+        return NICHES
+
+    if not user_niches or len(user_niches) == 0:
+        # Usuário escolheu 0 nichos (improvável, mas tratamos)
+        return {}
+
+    # Filtra NICHES por nomes escolhidos
+    filtered = {}
+    for niche_name in user_niches:
+        if niche_name in NICHES:
+            filtered[niche_name] = NICHES[niche_name]
+        else:
+            log.warning(f"[sensenews] Nicho desconhecido: {niche_name}")
+
+    return filtered if filtered else NICHES  # Fallback se nenhum niche for reconhecido
+

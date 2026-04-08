@@ -21,7 +21,12 @@
       "Bash(grep -v \":0$\")",
       "Bash(wc -l /e/Seeker.Bot/tests/*.py)",
       "Bash(python -c \"import ast; ast.parse\\(open\\('src/channels/email/imap_reader.py', encoding='utf-8'\\).read\\(\\)\\); print\\('imap_reader.py OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('src/skills/self_improvement/goal.py', encoding='utf-8'\\).read\\(\\)\\); print\\('self_improvement/goal.py OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/skills/self_improvement/goal.py', encoding='utf-8'\\).read\\(\\)\\); print\\('self_improvement/goal.py OK'\\)\")",
+      "Bash(python -m py_compile src/channels/telegram/bot.py src/skills/sense_news/goal.py src/skills/sense_news/prompts.py src/core/memory/store.py)",
+      "Bash(python -m py_compile src/core/pipeline.py)",
+      "Bash(python -m py_compile src/providers/cascade.py src/core/safety_layer.py)",
+      "Bash(python -m py_compile src/skills/scout_hunter/scout.py src/skills/scout_hunter/goal.py src/skills/scout_hunter/__init__.py)",
+      "Bash(python -c ':*)"
     ]
   }
 }
