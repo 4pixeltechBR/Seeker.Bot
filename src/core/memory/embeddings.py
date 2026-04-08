@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING
 
 import httpx
 
+from src.core.memory.tfidf_search import TFIDFSearch
+
 if TYPE_CHECKING:
     from src.core.memory.protocol import MemoryProtocol
 
@@ -145,16 +147,24 @@ class SemanticSearch:
         self.embedder = embedder
         self.memory = memory
         self._vectors: dict[int, list[float]] = {}
+        self._tfidf_search = TFIDFSearch()  # Fallback offline para quando Gemini falha
         self._loaded = False
 
     async def load(self) -> None:
         """
         Carrega embeddings do SQLite. UMA query, zero API calls.
         Chamado no startup do pipeline.
+        Também carrega fatos em TF-IDF para fallback offline.
         """
         self._vectors = await self.memory.load_all_embeddings()
         self._loaded = True
         log.info(f"[semantic] {len(self._vectors)} embeddings carregados do disco")
+
+        # Carregar fatos em TF-IDF como fallback
+        facts = await self.memory.get_facts(min_confidence=0.0, limit=9999)
+        for fact in facts:
+            self._tfidf_search.add_document(fact["id"], fact["fact"])
+        log.info(f"[semantic] TF-IDF carregado com {len(facts)} documentos (fallback offline)")
 
         if len(self._vectors) > self.FAISS_WARNING_THRESHOLD:
             log.warning(
@@ -191,12 +201,14 @@ class SemanticSearch:
                 if vector:
                     self._vectors[fact["id"]] = vector
                     await self.memory.store_embedding(fact["id"], vector)
+                    # Sincronizar com TF-IDF
+                    self._tfidf_search.add_document(fact["id"], fact["fact"])
                     indexed += 1
 
         log.info(f"[semantic] {indexed} fatos indexados ({len(self._vectors)} total)")
 
     async def add(self, fact_id: int, text: str) -> None:
-        """Embeda e persiste UM fato novo (chamado após upsert_fact)."""
+        """Embeda e persiste UM fato novo (chamado após upsert_fact). Sincroniza com TF-IDF."""
         if fact_id < 0:
             return
         vector = await self.embedder.embed(text)
@@ -204,9 +216,13 @@ class SemanticSearch:
             self._vectors[fact_id] = vector
             await self.memory.store_embedding(fact_id, vector)
 
+        # Sincronizar com TF-IDF sempre (mesmo se Gemini falhar)
+        self._tfidf_search.add_document(fact_id, text)
+
     async def remove(self, fact_id: int) -> None:
-        """Remove embedding (chamado pelo DecayEngine ao deletar fato)."""
+        """Remove embedding (chamado pelo DecayEngine ao deletar fato). Remove também de TF-IDF."""
         self._vectors.pop(fact_id, None)
+        self._tfidf_search.remove_document(fact_id)  # Remover de TF-IDF também
         try:
             await self.memory.delete_embedding(fact_id)
         except Exception:
@@ -220,22 +236,34 @@ class SemanticSearch:
     ) -> list[tuple[int, float]]:
         """
         Retorna: [(fact_id, similarity)] ordenado por similaridade.
-        
+
+        Tenta Gemini primeiro; se falhar, fallback para TF-IDF offline.
         Faz cosine similarity em Python puro sobre vetores em RAM.
-        O Protocol garante que a interface não muda quando migrar pra FAISS.
         """
+        # Tentar Gemini primeiro
         query_vec = await self.embedder.embed(query)
-        if not query_vec:
-            return []
+        if query_vec:
+            scores = []
+            for fact_id, fact_vec in self._vectors.items():
+                sim = GeminiEmbedder.cosine_similarity(query_vec, fact_vec)
+                if sim >= min_similarity:
+                    scores.append((fact_id, sim))
 
-        scores = []
-        for fact_id, fact_vec in self._vectors.items():
-            sim = GeminiEmbedder.cosine_similarity(query_vec, fact_vec)
-            if sim >= min_similarity:
-                scores.append((fact_id, sim))
+            if scores:
+                scores.sort(key=lambda x: x[1], reverse=True)
+                log.debug(f"[semantic] {len(scores)} matches via Gemini")
+                return scores[:top_k]
 
-        scores.sort(key=lambda x: x[1], reverse=True)
-        return scores[:top_k]
+        # Fallback: TF-IDF quando Gemini falha ou retorna vec vazio
+        log.debug("[semantic] Gemini indisponível/vazio, usando TF-IDF fallback")
+        tfidf_results = self._tfidf_search.search(query, top_k=top_k, min_similarity=0.1)
+
+        if tfidf_results:
+            log.debug(f"[semantic] {len(tfidf_results)} matches via TF-IDF")
+        else:
+            log.debug("[semantic] Nenhum match semântico (Gemini + TF-IDF)")
+
+        return tfidf_results
 
     async def find_similar_facts(
         self,
