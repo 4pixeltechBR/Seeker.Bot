@@ -22,16 +22,10 @@ import re
 import uuid
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
-from enum import Enum
+
+from src.providers.cascade import CascadeRole
 
 log = logging.getLogger("seeker.scout")
-
-
-class CascadeRole(str, Enum):
-    """Cascade LLM roles for different task types."""
-    FAST = "FAST"
-    CREATIVE = "CREATIVE"
-    SYNTHESIS = "SYNTHESIS"
 
 
 class ScoutEngine:
