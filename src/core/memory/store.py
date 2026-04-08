@@ -349,24 +349,31 @@ class MemoryStore:
 
     async def load_all_embeddings(self) -> dict[int, list[float]]:
         """
-        Carrega todos os embeddings de uma vez no startup.
-        
+        Carrega IDs de todos os embeddings (lazy loading).
+
         Performance:
           100 fatos  → ~5ms
           1.000      → ~20ms
           5.000      → ~80ms
           50.000     → ~800ms (hora de considerar formato binário)
         """
-        async with self._db.execute("SELECT fact_id, vector FROM fact_embeddings") as cur:
+        async with self._db.execute("SELECT fact_id FROM fact_embeddings") as cur:
             rows = await cur.fetchall()
+        # Retorna dict vazio (só usamos para saber quais IDs existem)
+        return {row["fact_id"]: [] for row in rows}
 
-        result = {}
-        for row in rows:
-            try:
-                result[row["fact_id"]] = json.loads(row["vector"])
-            except (json.JSONDecodeError, TypeError):
-                log.warning(f"[memory] Embedding corrompido para fact_id={row['fact_id']}")
-        return result
+    async def load_embedding(self, fact_id: int) -> list[float] | None:
+        """Carrega um embedding individual (lazy load sob demanda)."""
+        try:
+            async with self._db.execute(
+                "SELECT vector FROM fact_embeddings WHERE fact_id = ?", (fact_id,)
+            ) as cur:
+                row = await cur.fetchone()
+                if row:
+                    return json.loads(row["vector"])
+        except (json.JSONDecodeError, TypeError):
+            log.warning(f"[memory] Embedding corrompido para fact_id={fact_id}")
+        return None
 
     async def delete_embedding(self, fact_id: int) -> None:
         """Remove embedding de um fato."""
