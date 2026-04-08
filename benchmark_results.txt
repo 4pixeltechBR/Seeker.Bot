@@ -1,0 +1,92 @@
+[benchmark] 
+\U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 
+[benchmark] PERFORMANCE BENCHMARK SUITE — FASE 7 OPTIMIZATIONS
+[benchmark] \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 \U0001f680 
+[benchmark] 
+============================================================
+[benchmark] BENCHMARK 1: Startup Time (Lazy Loading)
+[benchmark] ============================================================
+[benchmark] [mock] Inicializando BD com 5000 fatos...
+[benchmark] [mock] 5000 embeddings gerados em 276.4ms
+[seeker.memory.embeddings] [semantic] 5000 embeddings disponíveis no DB (lazy loading)
+[seeker.memory.embeddings] [semantic] TF-IDF carregado com 5000 documentos (fallback offline)
+[benchmark] 
+\u2713 Startup com lazy loading: 33497.4ms
+[benchmark]   \u2192 Metadados carregados: 5000 IDs
+[benchmark]   \u2192 Vetores em RAM: 0 (vazio)
+[benchmark]   \u2192 Target: <50ms \u2717
+[benchmark] 
+============================================================
+[benchmark] BENCHMARK 2: On-Demand Lazy Loading
+[benchmark] ============================================================
+[benchmark] [mock] Inicializando BD com 5000 fatos...
+[benchmark] [mock] 5000 embeddings gerados em 260.6ms
+[seeker.memory.embeddings] [semantic] 5000 embeddings disponíveis no DB (lazy loading)
+[seeker.memory.embeddings] [semantic] TF-IDF carregado com 5000 documentos (fallback offline)
+[benchmark] 
+\u2713 Lazy load (1 vetor): 15.1ms
+[benchmark]   \u2192 Incluindo latência BD (~1ms): 15.1ms
+[benchmark]   \u2192 Vetor carregado: 768 dimensões
+[benchmark] \u2713 Lazy load (10 vetores): 148.8ms (14.9ms/vetor)
+[benchmark] 
+============================================================
+[benchmark] BENCHMARK 3: LRU Eviction (Cache 500 vetores)
+[benchmark] ============================================================
+[benchmark] [mock] Inicializando BD com 1000 fatos...
+[benchmark] [mock] 1000 embeddings gerados em 52.9ms
+[seeker.memory.embeddings] [semantic] 1000 embeddings disponíveis no DB (lazy loading)
+[seeker.memory.embeddings] [semantic] TF-IDF carregado com 1000 documentos (fallback offline)
+[benchmark] 
+\u2713 Cache cheio: 100 vetores
+[benchmark] \u2713 Após adicionar 50 mais: 100 vetores (LRU eviction)
+[benchmark]   \u2192 Fatos 1-50 evictados: True
+[benchmark]   \u2192 Fatos 51-150 presentes: True
+[benchmark] 
+============================================================
+[benchmark] BENCHMARK 4: Semantic Search (find_similar)
+[benchmark] ============================================================
+[benchmark] [mock] Inicializando BD com 1000 fatos...
+[benchmark] [mock] 1000 embeddings gerados em 48.9ms
+[seeker.memory.embeddings] [semantic] 1000 embeddings disponíveis no DB (lazy loading)
+[seeker.memory.embeddings] [semantic] TF-IDF carregado com 1000 documentos (fallback offline)
+[benchmark] 
+\u2713 Find Similar (cold cache, 1000 fatos): 10305.6ms
+[benchmark]   \u2192 Resultados: 5 matches
+[benchmark]   \u2192 Vetores em cache: 500
+[benchmark] \u2713 Find Similar (warm cache): 11746.4ms
+[benchmark]   \u2192 Speedup: 0.9x
+[benchmark] 
+============================================================
+[benchmark] BENCHMARK 5: Memory Usage
+[benchmark] ============================================================
+[benchmark] [mock] Inicializando BD com 5000 fatos...
+[benchmark] [mock] 5000 embeddings gerados em 281.6ms
+[benchmark] 
+\u2713 Tamanho por embedding: ~3.0KB
+[seeker.memory.embeddings] [semantic] 5000 embeddings disponíveis no DB (lazy loading)
+[seeker.memory.embeddings] [semantic] TF-IDF carregado com 5000 documentos (fallback offline)
+[benchmark] \u2713 Memory após lazy load: 0.0MB (apenas IDs)
+[benchmark]   \u2192 5000 embeddings conhecidos, 0 em RAM
+[benchmark] \u2713 Memory com 500 vetores em cache: ~1.5MB
+[benchmark]   \u2192 Target: <5MB \u2713
+[benchmark] 
+============================================================
+[benchmark] RESUMO DOS RESULTADOS
+[benchmark] ============================================================
+[benchmark] 
+\u2713 Startup (lazy loading): 33497.4ms
+[benchmark]   \u2192 Target: <50ms
+[benchmark] 
+\u2713 Lazy load (per vector): 14.9ms
+[benchmark]   \u2192 100 vetores: ~1488ms
+[benchmark] 
+\u2713 Find Similar (cold cache): 10305.6ms
+[benchmark] \u2713 Find Similar (warm cache): 11746.4ms
+[benchmark] \u2713 Memory (initial): 0.0MB
+[benchmark] \u2713 Memory (500 cached): 1.5MB
+[benchmark] 
+\u2713 LRU Eviction Working: True
+[benchmark] 
+============================================================
+[benchmark] \u2705 TODOS OS BENCHMARKS COMPLETADOS
+[benchmark] ============================================================
