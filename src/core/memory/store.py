@@ -84,6 +84,31 @@ CREATE TABLE IF NOT EXISTS session_turns (
 
 CREATE INDEX IF NOT EXISTS idx_session_turns_lookup
     ON session_turns(session_id, timestamp DESC);
+
+-- ─── USER PREFERENCES ──────────────────────────────────────
+-- Armazena preferências do usuário (ex: nichos para SenseNews)
+CREATE TABLE IF NOT EXISTS user_preferences (
+    user_id INTEGER PRIMARY KEY,
+    telegram_id TEXT,
+    niches TEXT,         -- JSON array ['MODELOS & OPEN-WEIGHT', 'INFRA & OTIMIZAÇÃO', ...]
+    updated_at REAL NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_preferences_telegram ON user_preferences(telegram_id);
+
+-- ─── GOAL CYCLE HISTORY ─────────────────────────────────────
+-- Rastreia saúde dos goals (últimas 20 execuções por goal)
+CREATE TABLE IF NOT EXISTS goal_cycles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_name TEXT NOT NULL,
+    timestamp REAL NOT NULL,
+    success INTEGER DEFAULT 1,
+    cost_usd REAL DEFAULT 0.0,
+    latency_ms INTEGER DEFAULT 0,
+    summary TEXT DEFAULT ''
+);
+
+CREATE INDEX IF NOT EXISTS idx_goal_cycles_name ON goal_cycles(goal_name, timestamp DESC);
 """
 
 
@@ -447,6 +472,61 @@ class MemoryStore:
                         lines.append(f"[{f['confidence']:.0%}] {f['fact']}")
 
         return "\n".join(lines) if lines else ""
+
+    # ─── USER PREFERENCES ──────────────────────────────────────
+
+    async def get_user_niches(self, user_id: int | str) -> list[str] | None:
+        """
+        Retorna lista de nichos escolhidos pelo usuário para SenseNews.
+        Se o usuário não tem preferências registradas, retorna None.
+        """
+        if not self._db:
+            return None
+
+        # Se user_id é uma string (Telegram ID), converte para int se possível
+        if isinstance(user_id, str):
+            try:
+                user_id = int(user_id)
+            except ValueError:
+                return None
+
+        async with self._db.execute(
+            "SELECT niches FROM user_preferences WHERE user_id = ? OR telegram_id = ?",
+            (user_id, str(user_id))
+        ) as cur:
+            row = await cur.fetchone()
+            if not row:
+                return None
+
+            try:
+                niches = json.loads(row['niches'])
+                return niches if isinstance(niches, list) else None
+            except (json.JSONDecodeError, TypeError):
+                return None
+
+    async def set_user_niches(self, user_id: int, telegram_id: str, niches: list[str]) -> bool:
+        """
+        Salva nichos escolhidos pelo usuário.
+        """
+        if not self._db:
+            return False
+
+        try:
+            await self._db.execute(
+                """
+                INSERT INTO user_preferences (user_id, telegram_id, niches, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    niches = excluded.niches,
+                    updated_at = excluded.updated_at
+                """,
+                (user_id, telegram_id, json.dumps(niches), time.time())
+            )
+            await self._db.commit()
+            return True
+        except Exception as e:
+            log.error(f"Falha ao salvar preferências do usuário {user_id}: {e}")
+            return False
 
     # ─── LEGACY COMPAT ────────────────────────────────────────
     # Método antigo mantido pra não quebrar nada durante a transição.

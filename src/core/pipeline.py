@@ -35,6 +35,7 @@ from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
 from src.core.phases.deep import DeepPhase
 from src.providers.base import LLMRequest, invoke_with_fallback
+from src.providers.cascade import CascadeAdapter
 from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context
 
 log = logging.getLogger("seeker.pipeline")
@@ -92,6 +93,9 @@ class SeekerPipeline:
         self.compressor = SessionCompressor(self.model_router, self.api_keys)
         self.session = SessionManager(self.memory, compressor=self.compressor)
         self.decay_engine: DecayEngine | None = None
+
+        # Cascade Adapter — multi-tier LLM routing com fallback
+        self.cascade_adapter = CascadeAdapter(self.model_router, api_keys)
 
         # Phases — inicializadas no init()
         self._phase_reflex: ReflexPhase | None = None
@@ -240,6 +244,26 @@ class SeekerPipeline:
             "avg_facts_per_response": round(avg, 1),
         }
 
+    def format_memory_footer(self) -> str:
+        """Formata footer com métricas de memória para Telegram."""
+        stats = self.get_memory_stats()
+        rate = stats["usage_rate_pct"]
+        avg = stats["avg_facts_per_response"]
+
+        # Avalia se sistema está usando memória efetivamente
+        if rate < 5:
+            memory_status = "⚠️ (pouco utilizada)"
+        elif rate < 30:
+            memory_status = "📊 (moderada)"
+        else:
+            memory_status = "✅ (excelente)"
+
+        return (
+            f"\n---\n"
+            f"<i>Memória: {memory_status} {rate}% das respostas usam fatos. "
+            f"Média: {avg} fatos/resposta.</i>"
+        )
+
     def _spawn_background(self, coro) -> asyncio.Task:
         """Cria background task com tracking e logging de erro."""
         task = asyncio.create_task(coro)
@@ -256,37 +280,69 @@ class SeekerPipeline:
             log.error(f"[pipeline] Background task falhou: {exc}", exc_info=exc)
 
     async def close(self) -> None:
-        """Shutdown gracioso: cancela decay, aguarda tasks, fecha memória."""
-        # Cancela decay periódico
+        """
+        Shutdown gracioso com três fases:
+        1. Cancela decay periódico
+        2. Aguarda background tasks com commit final
+        3. Fecha recursos (embedder, VLM, memória)
+        """
+        # Fase 1: Cancela decay periódico
         if self._decay_task and not self._decay_task.done():
             self._decay_task.cancel()
             try:
                 await self._decay_task
             except asyncio.CancelledError:
-                pass
-            log.info("[pipeline] Decay task cancelada")
+                log.info("[pipeline] Decay task cancelada com sucesso")
+            except Exception as e:
+                log.error(f"[pipeline] Erro ao cancelar decay task: {e}", exc_info=True)
 
-        # Aguarda background tasks pendentes (max 10s)
+        # Fase 2: Aguarda background tasks pendentes com commit final (max 10s)
         if self._background_tasks:
             log.info(f"[pipeline] Aguardando {len(self._background_tasks)} background tasks...")
             done, pending = await asyncio.wait(
                 self._background_tasks, timeout=10.0
             )
-            for t in pending:
-                t.cancel()
+            if done:
+                log.info(f"[pipeline] {len(done)} background tasks completadas")
+            if pending:
+                log.warning(f"[pipeline] {len(pending)} background tasks ainda pendentes após timeout, cancelando...")
+                for t in pending:
+                    t.cancel()
+                    try:
+                        await asyncio.wait_for(asyncio.shield(t), timeout=2.0)
+                    except (asyncio.TimeoutError, asyncio.CancelledError):
+                        pass
 
+        # Fase 2b: Commit final para dados que possam estar pendentes
+        try:
+            await self.memory.commit()
+            log.info("[pipeline] Commit final da memória completo")
+        except Exception as e:
+            log.error(f"[pipeline] Erro no commit final: {e}", exc_info=True)
+
+        # Fase 3: Fecha recursos
         # Fecha embedder (httpx pool)
         if self.embedder:
-            await self.embedder.close()
+            try:
+                await self.embedder.close()
+            except Exception as e:
+                log.error(f"[pipeline] Erro ao fechar embedder: {e}", exc_info=True)
 
         # Fecha VLM client se existir
         vlm = getattr(self, "vlm_client", None)
         if vlm:
-            await vlm.close()
+            try:
+                await vlm.close()
+            except Exception as e:
+                log.error(f"[pipeline] Erro ao fechar VLM client: {e}", exc_info=True)
 
         # Fecha memória
-        await self.memory.close()
-        log.info("[pipeline] Shutdown completo")
+        try:
+            await self.memory.close()
+        except Exception as e:
+            log.error(f"[pipeline] Erro ao fechar memória: {e}", exc_info=True)
+
+        log.info("[pipeline] Shutdown gracioso completo")
 
     # ─────────────────────────────────────────────────────────
     # PRIVATE
@@ -412,20 +468,68 @@ class SeekerPipeline:
             log.warning(f"[memory] Falha ao registrar: {e}")
 
     async def _periodic_decay(self) -> None:
-        """Roda decay a cada 6 horas em background."""
-        try:
-            while True:
-                await asyncio.sleep(6 * 3600)
-                try:
-                    if self.decay_engine:
-                        stats = await self.decay_engine.run()
-                        log.info(f"[decay] Periódico: {stats}")
+        """
+        Roda decay a cada 6 horas em background com tratamento robusto de erros.
 
-                        # Re-indexa embeddings se houve remoções
-                        if self.semantic_search and stats["removed"] > 0:
+        Garante que:
+        1. Erros não matam a task
+        2. CancelledError é propagado para shutdown gracioso
+        3. Logs explicam falhas para debug
+        """
+        try:
+            iteration = 0
+            while True:
+                try:
+                    # Sleep com interrupção graciosa
+                    await asyncio.sleep(6 * 3600)
+                    iteration += 1
+
+                    if not self.decay_engine:
+                        log.warning("[decay] Decay engine não inicializado")
+                        continue
+
+                    # Roda decay
+                    stats = await self.decay_engine.run()
+                    log.info(
+                        f"[decay] Ciclo #{iteration} completo: "
+                        f"{stats['total']} avaliados, "
+                        f"{stats['decayed']} decayed, "
+                        f"{stats['removed']} removidos"
+                    )
+
+                    # Re-indexa embeddings se houve remoções
+                    if self.semantic_search and stats["removed"] > 0:
+                        try:
                             await self.semantic_search.ensure_indexed()
+                            log.info("[decay] Embeddings re-indexados após remoções")
+                        except Exception as e:
+                            log.warning(
+                                f"[decay] Falha ao re-indexar embeddings: {e}",
+                                exc_info=True
+                            )
+
+                except asyncio.CancelledError:
+                    # Propagate para que o close() saiba que foi cancelado
+                    log.info(
+                        f"[decay] Task cancelada após {iteration} ciclos "
+                        f"(shutdown gracioso)"
+                    )
+                    raise
+
                 except Exception as e:
-                    log.warning(f"[decay] Periódico falhou: {e}")
+                    # Erros na execução do decay não devem matar a task
+                    log.error(
+                        f"[decay] Erro no ciclo #{iteration}: {e}",
+                        exc_info=True
+                    )
+                    # Continua no próximo ciclo
+
         except asyncio.CancelledError:
-            log.info("[decay] Task de decay cancelada (shutdown)")
+            # Re-raise para respeitarasyncio.CancelledError como sinalizador
+            raise
+        except Exception as e:
+            log.error(
+                f"[decay] Task encerrada por erro fatal: {e}",
+                exc_info=True
+            )
             raise

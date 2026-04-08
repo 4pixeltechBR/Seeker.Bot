@@ -16,6 +16,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, BotCommand, BufferedInputFile
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.client.default import DefaultBotProperties
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config.models import build_default_router, CognitiveRole
 from src.core.pipeline import SeekerPipeline, PipelineResult
@@ -27,6 +28,7 @@ from src.skills.vision.afk_protocol import AFKProtocol
 # Goal Engine
 from src.core.goals import GoalScheduler, GoalNotifier, discover_goals
 from src.channels.email.client import EmailClient
+from src.skills.sense_news.prompts import NICHES
 
 log = logging.getLogger("seeker.telegram")
 
@@ -94,7 +96,9 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
         BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
-        BotCommand(command="/crm", description="Lista histórico de leads qualificados")
+        BotCommand(command="/scout", description="Dispara campanha B2B Scout (leads qualificados)"),
+        BotCommand(command="/crm", description="Lista histórico de leads qualificados"),
+        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews")
     ]
     await bot.set_my_commands(commands)
 
@@ -105,7 +109,12 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     async def cmd_start(message: Message):
         if not _is_allowed(message, allowed_users):
             return
-        await message.answer(
+
+        user_id = message.from_user.id
+        user_niches = await pipeline.memory.get_user_niches(user_id)
+
+        # Mensagem inicial comum
+        help_text = (
             "<b>Seeker.Bot, seu agente inteligente.</b>\n\n"
             "Manda qualquer mensagem que eu decido a profundidade.\n"
             "⚡ <i>reflex</i> · 🧠 <i>deliberate</i> · 🔬 <i>deep</i>\n\n"
@@ -121,9 +130,130 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/memory — o que eu aprendi sobre você\n"
             "/rate — status dos limites de API\n"
             "/habits — padrões de decisão aprendidos\n"
-            "/decay — limpeza manual de memória",
+            "/decay — limpeza manual de memória\n"
+            "/configure_news — personaliza notícias do SenseNews"
+        )
+
+        await message.answer(help_text, parse_mode=ParseMode.HTML)
+
+        # Se primeira vez (sem preferências), oferece menu de nichos
+        if user_niches is None:
+            await _show_niches_menu(message, user_id)
+
+    async def _show_niches_menu(message: Message, user_id: int):
+        """Mostra menu de seleção de nichos para SenseNews"""
+        niche_names = list(NICHES.keys())
+
+        # Cria keyboard com botões para cada nicho
+        buttons = []
+        for niche in niche_names:
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"✓ {niche}",
+                    callback_data=f"niche_toggle:{niche}"
+                )
+            ])
+
+        # Botão "Confirmar"
+        buttons.append([
+            InlineKeyboardButton(text="✅ Confirmar Seleção", callback_data="niches_done")
+        ])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        await message.answer(
+            "<b>📰 Personalize seu SenseNews</b>\n\n"
+            "Escolha quais nichos de notícias te interessam:\n\n"
+            "<i>Clique para selecionar/desselecionar, depois confirme.</i>",
+            reply_markup=keyboard,
             parse_mode=ParseMode.HTML
         )
+
+    @dp.callback_query(F.data.startswith("niche_toggle:"))
+    async def cb_niche_toggle(query: CallbackQuery):
+        """Callback para alternar seleção de nicho"""
+        if not _is_allowed_callback(query, allowed_users):
+            return
+
+        niche = query.data.split(":", 1)[1]
+        user_id = query.from_user.id
+
+        # Recupera seleção atual
+        selected = await pipeline.memory.get_user_niches(user_id) or []
+
+        # Alterna seleção
+        if niche in selected:
+            selected.remove(niche)
+        else:
+            selected.append(niche)
+
+        # Salva estado temporário em storage (callback data ou chat data)
+        dp["niche_selection"] = dp.get("niche_selection", {})
+        dp["niche_selection"][user_id] = selected
+
+        # Reconstrói keyboard com status atualizado
+        niche_names = list(NICHES.keys())
+        buttons = []
+        for n in niche_names:
+            check = "✅" if n in selected else "☐"
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"{check} {n}",
+                    callback_data=f"niche_toggle:{n}"
+                )
+            ])
+
+        # Botão "Confirmar"
+        buttons.append([
+            InlineKeyboardButton(text="✅ Confirmar Seleção", callback_data="niches_done")
+        ])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        await query.message.edit_reply_markup(reply_markup=keyboard)
+        await query.answer()
+
+    @dp.callback_query(F.data == "niches_done")
+    async def cb_niches_done(query: CallbackQuery):
+        """Callback para confirmar seleção de nichos"""
+        if not _is_allowed_callback(query, allowed_users):
+            return
+
+        user_id = query.from_user.id
+
+        # Pega seleção temporária
+        niche_selection = dp.get("niche_selection", {})
+        selected = niche_selection.get(user_id, [])
+
+        if not selected:
+            await query.answer("Selecione pelo menos um nicho!", show_alert=True)
+            return
+
+        # Salva permanentemente no BD
+        telegram_id = str(query.from_user.id)
+        success = await pipeline.memory.set_user_niches(user_id, telegram_id, selected)
+
+        if success:
+            niche_list = "\n  ".join([f"• {n}" for n in selected])
+            await query.message.edit_text(
+                f"<b>✅ Preferências Salvas!</b>\n\n"
+                f"<b>Seus nichos:</b>\n  {niche_list}\n\n"
+                f"Suas notícias personalizadas virão todo dia às 10:00 AM.",
+                parse_mode=ParseMode.HTML
+            )
+            # Limpa seleção temporária
+            if user_id in niche_selection:
+                del niche_selection[user_id]
+        else:
+            await query.answer("Erro ao salvar preferências. Tente novamente.", show_alert=True)
+
+    @dp.message(F.text == "/configure_news")
+    async def cmd_configure_news(message: Message):
+        """Permite usuário reconfigurar preferências de SenseNews"""
+        if not _is_allowed(message, allowed_users):
+            return
+
+        await _show_niches_menu(message, message.from_user.id)
 
     @dp.message(F.text.startswith("/search "))
     async def cmd_search(message: Message):
@@ -200,6 +330,68 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
         final_text = "\n".join(out)
         await message.answer(final_text, parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/scout"))
+    async def cmd_scout(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        await message.answer("🎯 Disparando campanha Scout B2B...", parse_mode=ParseMode.HTML)
+
+        try:
+            # Tenta obter Scout skill do pipeline
+            scout_goal = None
+            if hasattr(pipeline, '_goals'):
+                for goal in pipeline._goals:
+                    if hasattr(goal, 'name') and goal.name == 'scout_hunter':
+                        scout_goal = goal
+                        break
+
+            if not scout_goal:
+                await message.answer(
+                    "❌ Scout skill não foi encontrada ou não está ativa.\n"
+                    "Execute `/saude` para verificar o status dos goals.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Dispara um ciclo da Scout
+            result = await scout_goal.run_cycle()
+
+            # Formata resposta
+            summary = result.summary or "Campanha concluída"
+            cost = f"💰 Custo: ${result.cost_usd:.4f}" if result.cost_usd > 0 else ""
+
+            response_lines = [
+                "✅ <b>Scout Campaign Executada</b>\n",
+                f"📋 {summary}",
+            ]
+
+            if result.data:
+                data = result.data
+                if data.get('campaign_id'):
+                    response_lines.append(f"🆔 Campaign ID: <code>{data['campaign_id'][:12]}</code>")
+                if data.get('total_scraped'):
+                    response_lines.append(f"📊 Leads Raspados: {data['total_scraped']}")
+                if data.get('qualified'):
+                    response_lines.append(f"✅ Qualificados: {data['qualified']}")
+                if data.get('written'):
+                    response_lines.append(f"📝 Com Copy: {data['written']}")
+                if data.get('rejected'):
+                    response_lines.append(f"❌ Rejeitados: {data['rejected']}")
+
+            if cost:
+                response_lines.append(cost)
+
+            final_response = "\n".join(response_lines)
+            await message.answer(final_response, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scout] Erro ao disparar campanha: {e}", exc_info=True)
+            await message.answer(
+                f"❌ Erro ao executar Scout: <code>{str(e)[:100]}</code>",
+                parse_mode=ParseMode.HTML
+            )
 
     @dp.message(F.text == "/status")
     async def cmd_status(message: Message):
@@ -571,11 +763,13 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                 badge = "🔴 GOD MODE"
 
             footer = format_cost_line(result)
+            memory_footer = pipeline.format_memory_footer()
             formatted = md_to_telegram_html(result.response)
             if not formatted.strip():
                 formatted = result.response
             response_text = f"{badge}\n\n{formatted}" if badge else formatted
             response_text += f"\n\n<i>{footer}</i>"
+            response_text += memory_footer
 
             if result.image_bytes:
                 from aiogram.types import BufferedInputFile
@@ -616,6 +810,14 @@ def _is_allowed(message: Message, allowed_users: set[int]) -> bool:
     if not allowed_users:
         return True
     if message.from_user and message.from_user.id in allowed_users:
+        return True
+    return False
+
+
+def _is_allowed_callback(query: CallbackQuery, allowed_users: set[int]) -> bool:
+    if not allowed_users:
+        return True
+    if query.from_user and query.from_user.id in allowed_users:
         return True
     return False
 
