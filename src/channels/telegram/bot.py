@@ -965,7 +965,7 @@ async def main():
     )
 
     # ── Scheduler + Auto-discovery de Goals ───────────────
-    scheduler = GoalScheduler(notifier, memory=pipeline.memory)
+    scheduler = GoalScheduler(notifier)
     dp["scheduler"] = scheduler
 
     try:
