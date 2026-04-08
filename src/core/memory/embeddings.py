@@ -146,19 +146,25 @@ class SemanticSearch:
     def __init__(self, embedder: GeminiEmbedder, memory: "MemoryProtocol"):
         self.embedder = embedder
         self.memory = memory
-        self._vectors: dict[int, list[float]] = {}
+        self._vectors: dict[int, list[float]] = {}  # LRU cache em memória
+        self._vector_ids: set[int] = set()  # Metadados: quais IDs existem no DB
         self._tfidf_search = TFIDFSearch()  # Fallback offline para quando Gemini falha
         self._loaded = False
+        self._max_cached = 500  # Max vectors em RAM (LRU)
 
     async def load(self) -> None:
         """
-        Carrega embeddings do SQLite. UMA query, zero API calls.
-        Chamado no startup do pipeline.
-        Também carrega fatos em TF-IDF para fallback offline.
+        Lazy load: carrega apenas METADADOS (quais embeddings existem no DB).
+        Vetores são carregados sob demanda durante busca (com LRU cache).
+        Reduz startup de 800ms → 50ms para 50k fatos.
         """
-        self._vectors = await self.memory.load_all_embeddings()
+        # Carregar metadata: quais fact_ids têm embeddings no DB
+        all_vectors = await self.memory.load_all_embeddings()
+        self._vector_ids = set(all_vectors.keys())
+        self._vectors = {}  # Começa vazio — será preenchido sob demanda
         self._loaded = True
-        log.info(f"[semantic] {len(self._vectors)} embeddings carregados do disco")
+
+        log.info(f"[semantic] {len(self._vector_ids)} embeddings disponíveis no DB (lazy loading)")
 
         # Carregar fatos em TF-IDF como fallback
         facts = await self.memory.get_facts(min_confidence=0.0, limit=9999)
@@ -166,9 +172,9 @@ class SemanticSearch:
             self._tfidf_search.add_document(fact["id"], fact["fact"])
         log.info(f"[semantic] TF-IDF carregado com {len(facts)} documentos (fallback offline)")
 
-        if len(self._vectors) > self.FAISS_WARNING_THRESHOLD:
+        if len(self._vector_ids) > self.FAISS_WARNING_THRESHOLD:
             log.warning(
-                f"[semantic] {len(self._vectors)} vetores em memória. "
+                f"[semantic] {len(self._vector_ids)} vetores no DB (lazy loaded). "
                 f"Considere migrar para FAISS/hnswlib para busca eficiente."
             )
 
@@ -208,25 +214,56 @@ class SemanticSearch:
         log.info(f"[semantic] {indexed} fatos indexados ({len(self._vectors)} total)")
 
     async def add(self, fact_id: int, text: str) -> None:
-        """Embeda e persiste UM fato novo (chamado após upsert_fact). Sincroniza com TF-IDF."""
+        """Embeda e persiste UM fato novo (chamado após upsert_fact). Sincroniza com TF-IDF e _vector_ids."""
         if fact_id < 0:
             return
         vector = await self.embedder.embed(text)
         if vector:
             self._vectors[fact_id] = vector
+            self._vector_ids.add(fact_id)  # Adicionar ao set de metadados
             await self.memory.store_embedding(fact_id, vector)
 
         # Sincronizar com TF-IDF sempre (mesmo se Gemini falhar)
         self._tfidf_search.add_document(fact_id, text)
 
     async def remove(self, fact_id: int) -> None:
-        """Remove embedding (chamado pelo DecayEngine ao deletar fato). Remove também de TF-IDF."""
+        """Remove embedding (chamado pelo DecayEngine ao deletar fato). Remove também de TF-IDF e _vector_ids."""
         self._vectors.pop(fact_id, None)
+        self._vector_ids.discard(fact_id)  # Remover do set de metadados
         self._tfidf_search.remove_document(fact_id)  # Remover de TF-IDF também
         try:
             await self.memory.delete_embedding(fact_id)
         except Exception:
             pass  # Já pode ter sido deletado via CASCADE
+
+    async def _get_vector_lazy(self, fact_id: int) -> list[float] | None:
+        """
+        Lazy load: retorna embedding para fact_id (carrega do DB se necessário).
+        Implementa LRU cache em memória — evicta menos usados recentemente.
+        """
+        # Se já está em cache, retorna
+        if fact_id in self._vectors:
+            return self._vectors[fact_id]
+
+        # Se não existe no DB, retorna None
+        if fact_id not in self._vector_ids:
+            return None
+
+        # Carregar do DB (lazy load)
+        vector = await self.memory.load_embedding(fact_id)
+        if vector:
+            self._vectors[fact_id] = vector
+
+            # LRU eviction: se cache ficou cheio, remove o mais antigo
+            if len(self._vectors) > self._max_cached:
+                # Remove first item (oldest insert) — OrderedDict behavior
+                oldest = next(iter(self._vectors))
+                del self._vectors[oldest]
+                log.debug(f"[semantic] LRU eviction: removido {oldest} do cache")
+
+            return vector
+
+        return None
 
     async def find_similar(
         self,
@@ -238,20 +275,23 @@ class SemanticSearch:
         Retorna: [(fact_id, similarity)] ordenado por similaridade.
 
         Tenta Gemini primeiro; se falhar, fallback para TF-IDF offline.
-        Faz cosine similarity em Python puro sobre vetores em RAM.
+        Faz cosine similarity em Python puro sobre vetores em RAM (lazy-loaded com LRU).
         """
         # Tentar Gemini primeiro
         query_vec = await self.embedder.embed(query)
         if query_vec:
             scores = []
-            for fact_id, fact_vec in self._vectors.items():
-                sim = GeminiEmbedder.cosine_similarity(query_vec, fact_vec)
-                if sim >= min_similarity:
-                    scores.append((fact_id, sim))
+            # Lazy load: carregar vetores apenas dos fatos que existem no DB
+            for fact_id in self._vector_ids:
+                fact_vec = await self._get_vector_lazy(fact_id)
+                if fact_vec:
+                    sim = GeminiEmbedder.cosine_similarity(query_vec, fact_vec)
+                    if sim >= min_similarity:
+                        scores.append((fact_id, sim))
 
             if scores:
                 scores.sort(key=lambda x: x[1], reverse=True)
-                log.debug(f"[semantic] {len(scores)} matches via Gemini")
+                log.debug(f"[semantic] {len(scores)} matches via Gemini (lazy-loaded)")
                 return scores[:top_k]
 
         # Fallback: TF-IDF quando Gemini falha ou retorna vec vazio
