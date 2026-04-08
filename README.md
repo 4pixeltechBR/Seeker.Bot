@@ -1,4 +1,4 @@
-# 🌌 Seeker.ai
+# 🌌 Seeker.Bot
 
 <div align="center">
   <h3>O Agente Autônomo Self-Hosted da Era Telegram-First</h3>
@@ -8,17 +8,17 @@
 
 ---
 
-## ⚡ What is Seeker.ai?
+## ⚡ What is Seeker.Bot?
 
-**Seeker.ai** is an open-source, self-hosted autonomous AI agent that operates as a persistent background process. Unlike traditional chat assistants that wait for prompts in browser tabs, Seeker.ai lives on your local machine or VPS, communicates directly via Telegram, and proactively executes complex workflows (like web mining, API orchestration, and code review) using a cascaded multi-LLM routing system.
+**Seeker.Bot** is an open-source, self-hosted autonomous AI agent that operates as a persistent background process. Unlike traditional chat assistants that wait for prompts in browser tabs, Seeker.Bot lives on your local machine or VPS, communicates directly via Telegram, and proactively executes complex workflows (like web mining, API orchestration, and code review) using a cascaded multi-LLM routing system.
 
 Construído em **Python 3.12+**, ele foi desenhado para contornar a "Barreira do Claw", atuando não apenas como um executor de scripts, mas como um sistema auto-adaptável com Memória Reflexiva e resiliência a falhas incorporada.
 
-## 🚀 Por que escolher o Seeker.ai? (Diferenciais)
+## 🚀 Por que escolher o Seeker.Bot? (Diferenciais)
 
-A arquitetura do Seeker.ai quebra o modelo tradicional de "Copilot", substituindo-o pelo paradigma de "Autonomous Operation".
+A arquitetura do Seeker.Bot quebra o modelo tradicional de "Copilot", substituindo-o pelo paradigma de "Autonomous Operation".
 
-| Tradicional (Ex: ChatGPT/Claude) | Seeker.ai (Autonomous Framework) |
+| Tradicional (Ex: ChatGPT/Claude) | Seeker.Bot (Autonomous Framework) |
 | :--- | :--- |
 | **Reativo**: Fica aguardando sua tela ou aba aberta. | **Proativo**: Roda 24/7 silenciosamente no background. |
 | **Modelo Único**: Usa o modelo principal para todas as tarefas. | **Motor Multi-LLM**: Usa Groq (gratuito/rápido) para triagem e Gemini/DeepSeek para cognição, economizando 90% dos custos. |
@@ -29,7 +29,7 @@ A arquitetura do Seeker.ai quebra o modelo tradicional de "Copilot", substituind
 
 ## 💎 Power Skills Hub (Módulos Autônomos)
 
-O Seeker.ai não é um script linear; é um ecossistema de **Capabilities** que operam em paralelo via `GoalScheduler`.
+O Seeker.Bot não é um script linear; é um ecossistema de **Capabilities** que operam em paralelo via `GoalScheduler`.
 
 | Skill | Emoji | Função Técnica | Output Principal |
 | :--- | :--: | :--- | :--- |
