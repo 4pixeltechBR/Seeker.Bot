@@ -5,6 +5,7 @@ src/channels/telegram/bot.py
 Executar: python -m src
 """
 
+import json
 import asyncio
 import logging
 import os
@@ -92,7 +93,8 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/habits", description="Padrões de decisão aprendidos"),
         BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
-        BotCommand(command="/watchoff", description="Desativa vigilância de tela")
+        BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
+        BotCommand(command="/crm", description="Lista histórico de leads qualificados")
     ]
     await bot.set_my_commands(commands)
 
@@ -148,18 +150,56 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                     f"{html.escape(r.title[:60])}</a>\n"
                     f"  <i>{html.escape(r.snippet[:150])}</i>\n"
                 )
-            lines.append(f"\n<i>via {results.backend}</i>")
-            await message.answer("\n".join(lines), parse_mode=ParseMode.HTML,
-                                 disable_web_page_preview=True)
+            await message.answer("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
         except Exception as e:
-            await message.answer(f"❌ Erro: {e}")
+            await message.answer(f"❌ Erro na busca: {e}")
         finally:
             stop_typing.set()
-            typing_task.cancel()
             try:
                 await typing_task
             except asyncio.CancelledError:
                 pass
+
+    @dp.message(F.text.startswith("/crm"))
+    async def cmd_crm(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        args = message.text.split()
+        limit = 5  # Default: 5 últimos leads
+        if len(args) > 1 and args[1].isdigit():
+            limit = int(args[1])
+            
+        leads = await pipeline.memory.get_leads(limit=limit)
+        
+        if not leads:
+            await message.answer("📭 Nenhum lead qualificado no CRM ainda.")
+            return
+            
+        header = f"🎯 <b>CRM SEEKER — ÚLTIMOS {len(leads)} LEADS</b>\n\n"
+        out = [header]
+        
+        for i, lead in enumerate(leads, 1):
+            name = lead.get("name", "Desconhecido")
+            score = lead.get("score", 0)
+            city = lead.get("city", "GO")
+            contacts = json.loads(lead.get("contact_info", "{}"))
+            
+            # Formata contatos
+            c_links = []
+            if contacts.get("whatsapp"): c_links.append("WA")
+            if contacts.get("instagram"): c_links.append("IG")
+            if contacts.get("website"): c_links.append("WEB")
+            c_str = " | ".join(c_links) if c_links else "S/ Contato"
+            
+            out.append(
+                f"<b>{i}. {name}</b> ({city})\n"
+                f"Score: <code>{score}</code> | {c_str}\n"
+                f"Sinais: <i>{lead.get('hiring_signs', 'N/A')[:100]}...</i>\n"
+            )
+            
+        final_text = "\n".join(out)
+        await message.answer(final_text, parse_mode=ParseMode.HTML)
 
     @dp.message(F.text == "/status")
     async def cmd_status(message: Message):
@@ -669,7 +709,7 @@ async def main():
     )
 
     # ── Scheduler + Auto-discovery de Goals ───────────────
-    scheduler = GoalScheduler(notifier)
+    scheduler = GoalScheduler(notifier, memory=pipeline.memory)
     dp["scheduler"] = scheduler
 
     try:
