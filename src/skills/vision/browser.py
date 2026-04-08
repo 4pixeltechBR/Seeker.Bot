@@ -120,7 +120,7 @@ class StealthBrowser:
                     )
                     await asyncio.sleep(wait)
 
-        log.error(f"[browser] Todas as tentativas falharam para {url}: {last_error}")
+        log.error(f"[browser] Todas as tentativas falharam para {url}: {last_error}", exc_info=True)
         raise last_error
 
     async def click_coordinate(self, x: int, y: int):

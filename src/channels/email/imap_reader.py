@@ -49,12 +49,12 @@ class IMAPReader:
         try:
             res, _ = await client.login(self.user, self.password)
             if res != 'OK':
-                log.error(f"[imap] Falha no login: {res}")
+                log.error(f"[imap] Falha no login: {res}", exc_info=True)
                 return []
 
             res, _ = await client.select("INBOX")
             if res != 'OK':
-                log.error("[imap] Falha ao selecionar INBOX")
+                log.error("[imap] Falha ao selecionar INBOX", exc_info=True)
                 return []
 
             # Busca emails não lidos
@@ -130,7 +130,8 @@ class IMAPReader:
             if isinstance(part, bytes):
                 try:
                     decoded_parts.append(part.decode(charset or 'utf-8', errors='replace'))
-                except:
+                except (UnicodeDecodeError, LookupError) as e:
+                    log.debug(f"[imap] Charset fallback (charset={charset}): {e}")
                     decoded_parts.append(part.decode('latin1', errors='replace'))
             else:
                 decoded_parts.append(part)
@@ -146,12 +147,13 @@ class IMAPReader:
                 if content_type == "text/plain" and "attachment" not in content_disposition:
                     try:
                         return part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
-                    except:
-                        pass
+                    except (UnicodeDecodeError, AttributeError, TypeError) as e:
+                        log.debug(f"[imap] Falha ao extrair parte plaintext: {e}")
+                        continue
         else:
             if msg.get_content_type() == "text/plain":
                 try:
                     return msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
-                except:
-                    pass
+                except (UnicodeDecodeError, AttributeError, TypeError) as e:
+                    log.debug(f"[imap] Falha ao extrair body simples: {e}")
         return "(Apenas conteúdo HTML ou anexos)"

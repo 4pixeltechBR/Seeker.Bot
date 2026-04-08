@@ -527,7 +527,7 @@ async def main():
 
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     if not token:
-        log.error("TELEGRAM_BOT_TOKEN não configurado")
+        log.error("TELEGRAM_BOT_TOKEN não configurado", exc_info=True)
         raise SystemExit(1)
 
     api_keys = {
@@ -593,7 +593,7 @@ async def main():
         for goal in goals:
             scheduler.register(goal)
     except Exception as e:
-        log.error(f"[scheduler] Falha no discovery de goals: {e}")
+        log.error(f"[scheduler] Falha no discovery de goals: {e}", exc_info=True)
 
     if scheduler._goals:
         await scheduler.start()

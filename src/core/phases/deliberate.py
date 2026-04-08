@@ -167,7 +167,7 @@ class DeliberatePhase:
             total_cost += response.cost_usd
             llm_calls += 1
         except asyncio.TimeoutError:
-            log.error("[deliberate] Síntese principal sofreu timeout fatal longo (>180s)")
+            log.error("[deliberate] Síntese principal sofreu timeout fatal longo (>180s)", exc_info=True)
             return PhaseResult(
                 response="[Seeker] Pipeline abortado por timeout na malha de fallbacks (Fase de síntese).",
                 cost_usd=total_cost,
@@ -175,7 +175,7 @@ class DeliberatePhase:
                 image_bytes=image_bytes,
             )
         except Exception as e:
-            log.error(f"[deliberate] Síntese principal falhou fatalmente: {e}")
+            log.error(f"[deliberate] Síntese principal falhou fatalmente: {e}", exc_info=True)
             raise
 
         return PhaseResult(

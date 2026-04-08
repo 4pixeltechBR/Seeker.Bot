@@ -16,7 +16,12 @@
       "Bash(xargs wc:*)",
       "Bash(python -m pytest tests/ -q --tb=no)",
       "Bash(python -m pytest tests/ -q --tb=short)",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''src/skills/email_monitor/goal.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''src/skills/email_monitor/goal.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(xargs grep:*)",
+      "Bash(grep -v \":0$\")",
+      "Bash(wc -l /e/Seeker.Bot/tests/*.py)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/channels/email/imap_reader.py', encoding='utf-8'\\).read\\(\\)\\); print\\('imap_reader.py OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('src/skills/self_improvement/goal.py', encoding='utf-8'\\).read\\(\\)\\); print\\('self_improvement/goal.py OK'\\)\")"
     ]
   }
 }

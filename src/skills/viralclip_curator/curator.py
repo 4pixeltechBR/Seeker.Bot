@@ -312,4 +312,4 @@ class ViralClipCurator:
             log.info(f"[curator] Pautas salvas: {filepath}")
 
         except Exception as e:
-            log.error(f"[curator] Falha ao salvar arquivo local: {e}")
+            log.error(f"[curator] Falha ao salvar arquivo local: {e}", exc_info=True)

@@ -117,7 +117,7 @@ class GitBackupGoal:
                         log.warning("[git] Push falhou — verifique GITHUB_TOKEN e GITHUB_REPO")
                 except Exception as ex:
                     pushed = "❌ Falha de auth no push"
-                    log.error(f"[git] Falha no push: {type(ex).__name__}")
+                    log.error(f"[git] Falha no push: {type(ex).__name__}", exc_info=True)
             else:
                 # Tenta push com credenciais nativas do Windows (GCM)
                 push_res = subprocess.run(
@@ -139,7 +139,7 @@ class GitBackupGoal:
 
         except Exception as e:
             self._status = GoalStatus.ERROR
-            log.error(f"[git] Erro no fluxo de auto-backup: {e}")
+            log.error(f"[git] Erro no fluxo de auto-backup: {e}", exc_info=True)
             return GoalResult(
                 success=False,
                 summary=f"Falha de versionamento: {e}",

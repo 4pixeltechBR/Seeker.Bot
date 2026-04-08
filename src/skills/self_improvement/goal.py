@@ -68,7 +68,7 @@ class SelfImprovementGoal:
                 new_logs = f.read()
                 self.last_log_byte_parsed = f.tell()
         except Exception as e:
-            log.error(f"[self_improvement] Erro de I/O: {e}")
+            log.error(f"[self_improvement] Erro de I/O: {e}", exc_info=True)
             self._status = GoalStatus.ERROR
             return GoalResult(success=False, summary=f"Falha ao ler log: {e}", cost_usd=0.0)
 
@@ -106,8 +106,9 @@ class SelfImprovementGoal:
         try:
             with open(target_file, "r", encoding="utf-8") as f:
                 source_code = f.read()
-        except:
-             return GoalResult(success=True, summary="Falha ao ler arquivo afetado para o SARA.", cost_usd=0.0)
+        except (FileNotFoundError, IOError, UnicodeDecodeError) as e:
+            log.error(f"[self_improvement] Falha ao ler {target_file}: {e}", exc_info=True)
+            return GoalResult(success=True, summary="Falha ao ler arquivo afetado para o SARA.", cost_usd=0.0)
 
         prompt = (
             "Você é o S.A.R.A (Systematic Automatic Retrospective Analysis), o motor de auto-cura Nível 5 do Seeker.Bot.\n"
@@ -190,7 +191,7 @@ class SelfImprovementGoal:
                 )
 
             except Exception as parse_e:
-                log.error(f"[sara] Falha no parser SARA: {parse_e}")
+                log.error(f"[sara] Falha no parser SARA: {parse_e}", exc_info=True)
                 self._status = GoalStatus.ERROR
                 return GoalResult(success=False, summary=f"Falha de parser SARA: {parse_e}", cost_usd=cycle_cost)
 
