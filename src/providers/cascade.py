@@ -144,12 +144,11 @@ class CascadeAdapter:
                 "elapsed_ms": int,
             }
         """
-        # Handle role conversion: CascadeRole is already a valid enum member, or convert string
-        if isinstance(role, str) and not isinstance(role, CascadeRole):
+        # Handle role conversion: pass through enum members, convert plain strings
+        if not isinstance(role, CascadeRole):
             try:
-                role = CascadeRole(role)
+                role = CascadeRole(str(role).lower())
             except ValueError:
-                # If conversion fails, default to FAST
                 log.warning(f"[cascade] Invalid role '{role}', defaulting to FAST")
                 role = CascadeRole.FAST
 
@@ -167,7 +166,7 @@ class CascadeAdapter:
                     continue
 
                 log.info(
-                    f"[cascade] Tier {tier}: {provider}/{model.name} "
+                    f"[cascade] Tier {tier}: {provider}/{model.display_name} "
                     f"(role={role.value})"
                 )
 
@@ -189,7 +188,7 @@ class CascadeAdapter:
                     return {
                         "content": result.text,
                         "provider": provider,
-                        "model": model.name,
+                        "model": model.display_name,
                         "tier": tier,
                         "elapsed_ms": elapsed_ms,
                     }
