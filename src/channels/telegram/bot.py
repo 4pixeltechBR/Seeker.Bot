@@ -17,7 +17,7 @@ from aiogram.enums import ParseMode, ChatAction
 from aiogram.client.default import DefaultBotProperties
 
 from config.models import build_default_router, CognitiveRole
-from src.core.pipeline import SeekerPipeline
+from src.core.pipeline import SeekerPipeline, PipelineResult
 from src.core.router.cognitive_load import CognitiveDepth
 from src.channels.telegram.formatter import md_to_telegram_html
 from src.providers.base import _rate_limiters, cleanup_client_pool
@@ -52,7 +52,7 @@ def split_message(text: str, max_length: int = MAX_MSG_LENGTH) -> list[str]:
     return parts
 
 
-def format_cost_line(result) -> str:
+def format_cost_line(result: PipelineResult) -> str:
     parts = []
     if result.total_cost_usd > 0:
         parts.append(f"${result.total_cost_usd:.4f}")
@@ -409,7 +409,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
         await _process_and_reply(message, user_input, pipeline, dp)
 
-    async def _process_and_reply(message: Message, user_input: str, pipeline, dp):
+    async def _process_and_reply(message: Message, user_input: str, pipeline: SeekerPipeline, dp: Dispatcher) -> None:
 
         # God mode check
         god_users: set = dp.get("god_mode_users", set())

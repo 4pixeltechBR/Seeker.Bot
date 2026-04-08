@@ -20,6 +20,7 @@ import os
 import time
 from collections import deque
 from datetime import date
+from typing import Any, Coroutine
 
 from src.core.goals.protocol import (
     AutonomousGoal,
@@ -64,7 +65,7 @@ class GoalScheduler:
 
         os.makedirs(STATE_DIR, exist_ok=True)
 
-    def register(self, goal: AutonomousGoal):
+    def register(self, goal: AutonomousGoal) -> None:
         """Registra um goal e carrega estado persistido se existir."""
         self._goals[goal.name] = goal
         self._failure_counts[goal.name] = 0
@@ -77,7 +78,7 @@ class GoalScheduler:
             f"canais={[c.value for c in goal.channels]}"
         )
 
-    async def start(self):
+    async def start(self) -> None:
         """Inicia todos os goals registrados em tasks independentes."""
         self.running = True
         for name, goal in self._goals.items():
@@ -85,7 +86,7 @@ class GoalScheduler:
             self._tasks[name] = task
         log.info(f"[scheduler] {len(self._goals)} goals iniciados.")
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Para todos os goals e persiste estado."""
         self.running = False
 
@@ -189,7 +190,7 @@ class GoalScheduler:
 
     # ── Loop principal por goal ───────────────────────────
 
-    async def _run_goal_loop(self, goal: AutonomousGoal):
+    async def _run_goal_loop(self, goal: AutonomousGoal) -> None:
         """Loop independente para um goal. Roda até stop()."""
         await asyncio.sleep(10)  # Respira pós-boot
 
@@ -303,7 +304,7 @@ class GoalScheduler:
                 await asyncio.sleep(goal.interval_seconds)
 
     # ── Background Task Management ──────────────────────────
-    def _create_tracked_task(self, coro) -> asyncio.Task:
+    def _create_tracked_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
         """Cria uma task e rastreia para shutdown seguro."""
         task = asyncio.create_task(coro)
         self._rethink_tasks.add(task)
@@ -321,7 +322,7 @@ class GoalScheduler:
         return task
 
     # ── Rethink (Autoavaliação de Falhas) ─────────────────
-    async def _execute_rethink_failure(self, goal_name: str, error_msg: str, tb_str: str, channels: list[NotificationChannel]):
+    async def _execute_rethink_failure(self, goal_name: str, error_msg: str, tb_str: str, channels: list[NotificationChannel]) -> None:
         """Analisa a exceção ocorrida em um Goal e gera um relatório humanizado proativo antes do backoff."""
         prompt = (
             f"O Goal Autônomo '{goal_name}' acabou de falhar. Você é o módulo de RETHINK.\n"
@@ -360,7 +361,7 @@ class GoalScheduler:
 
     # ── Persistência ──────────────────────────────────────
 
-    def _save_goal_state(self, goal: AutonomousGoal):
+    def _save_goal_state(self, goal: AutonomousGoal) -> None:
         path = os.path.join(STATE_DIR, f"{goal.name}.json")
         try:
             state = goal.serialize_state()
@@ -374,7 +375,7 @@ class GoalScheduler:
         except Exception as e:
             log.error(f"[scheduler] Falha ao salvar {goal.name}: {e}", exc_info=True)
 
-    def _load_goal_state(self, goal: AutonomousGoal):
+    def _load_goal_state(self, goal: AutonomousGoal) -> None:
         path = os.path.join(STATE_DIR, f"{goal.name}.json")
         if not os.path.exists(path):
             return
@@ -417,8 +418,8 @@ class GoalNotifier:
         goal_name: str,
         content: str,
         channels: list[NotificationChannel],
-        data: dict | None = None,
-    ):
+        data: dict[str, Any] | None = None,
+    ) -> None:
         """Despacha notificação para os canais configurados."""
         for channel in channels:
             if channel in (NotificationChannel.TELEGRAM, NotificationChannel.BOTH):
@@ -426,12 +427,12 @@ class GoalNotifier:
             if channel in (NotificationChannel.EMAIL, NotificationChannel.BOTH):
                 await self._send_email(goal_name, content)
 
-    async def _send_telegram(self, goal_name: str, content: str, data: dict | None = None):
+    async def _send_telegram(self, goal_name: str, content: str, data: dict[str, Any] | None = None) -> None:
         if not self.bot:
             return
-            
+
         import re
-        def clean_html(raw_html):
+        def clean_html(raw_html: str) -> str:
             cleanr = re.compile('<.*?>')
             return re.sub(cleanr, '', raw_html)
             
@@ -461,7 +462,7 @@ class GoalNotifier:
             except Exception as e:
                 log.error(f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True)
 
-    async def _send_email(self, goal_name: str, content: str):
+    async def _send_email(self, goal_name: str, content: str) -> None:
         if not self.email_client or not self.email_recipients:
             return
         try:
