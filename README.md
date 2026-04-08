@@ -43,6 +43,53 @@ O Seeker.ai não é um script linear; é um ecossistema de **Capabilities** que 
 
 ---
 
+## 🚀 Quick Start
+
+### Pré-requisitos
+- **Python 3.10+**
+- **Telegram Bot** (crie em @BotFather)
+- **API Keys** de pelo menos um LLM provider (Groq é gratuito)
+
+### Instalação (5 minutos)
+
+```bash
+# 1. Clone
+git clone https://github.com/4pixeltech/Seeker.Bot.git
+cd Seeker.Bot
+
+# 2. Ambiente virtual
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# 3. Dependências
+pip install -e ".[dev]"
+
+# 4. Configure .env
+cp .env.example .env
+# Edite .env com suas chaves de API:
+#   - TELEGRAM_BOT_TOKEN (obrigatório)
+#   - GEMINI_API_KEY (para embeddings)
+#   - GROQ_API_KEY ou NVIDIA_NIM_API_KEY (para respostas)
+
+# 5. Rode!
+python -m src
+```
+
+### Primeiros Comandos
+
+Abra seu Telegram e mande mensagens para seu bot:
+
+```
+/start              # Menu de ajuda
+/saude              # Dashboard de goals
+/status             # Status dos providers
+/search Python      # Busca na web
+/memory             # Fatos sobre você
+/god                # Força análise profunda
+```
+
+---
+
 ## 🏗️ Arquitetura Técnica (Lumen & Arq)
 
 O Seeker foi desenhado sob princípios de **Cognitividade Eficiente** e **Resiliência Extrema**.
@@ -97,6 +144,44 @@ A IA adota um modelo de **Segurança baseada em Fricção**. A classe do motor g
 
 ---
 
-*“Um assistente espera no seu navegador. Um partner acorda e reporta ganhos e problemas no seu Telegram antes de você perguntar.”* 
+---
+
+## 📚 Documentação
+
+- **[CLAUDE.md](CLAUDE.md)** — Diretrizes de desenvolvimento (para Claude Code)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Como contribuir
+- **[LICENSE](LICENSE)** — MIT License
+
+---
+
+## 🤝 Contribuições
+
+Seeker.Bot é open-source! Se quer ajudar:
+1. Fork este repositório
+2. Crie uma branch (`git checkout -b feature/sua-feature`)
+3. Commit suas mudanças
+4. Abra um Pull Request
+
+Veja [CONTRIBUTING.md](CONTRIBUTING.md) para detalhes.
+
+---
+
+## 🐛 Reportar Bugs / Sugerir Features
+
+- **Bugs**: [GitHub Issues](https://github.com/4pixeltech/Seeker.Bot/issues)
+- **Discussões**: [GitHub Discussions](https://github.com/4pixeltech/Seeker.Bot/discussions)
+
+---
+
+## 📊 Status do Projeto
+
+- ✅ **v2.1**: Audited, hardened, production-ready
+- ✅ **54+ unit tests** (100% passing)
+- ✅ **Health dashboard** para monitoramento em tempo real
+- 🚀 **v3.0**: Planned — Web dashboard, mais providers, integração com mais canais
+
+---
+
+*”Um assistente espera no seu navegador. Um partner acorda e reporta ganhos e problemas no seu Telegram antes de você perguntar.”* 
 
 **Criado por Vibe Coding — By 4PixelTech**
