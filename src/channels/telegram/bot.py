@@ -83,6 +83,7 @@ async def setup_commands(bot: Bot):
     commands = [
         BotCommand(command="/start", description="Menu de ajuda e inicialização"),
         BotCommand(command="/status", description="Painel de providers, memória e metas"),
+        BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
         BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
         BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
         BotCommand(command="/search", description="Busca direta e forçada na web"),
@@ -114,6 +115,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/watchoff — desativa vigilância\n\n"
             "<b>Sistema:</b>\n"
             "/status — painel de performance e metas\n"
+            "/saude — dashboard detalhado de saúde dos goals\n"
             "/memory — o que eu aprendi sobre você\n"
             "/rate — status dos limites de API\n"
             "/habits — padrões de decisão aprendidos\n"
@@ -199,10 +201,97 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             scheduler = dp.get("scheduler")
             if scheduler:
                 lines.append(f"\n{scheduler.get_status_report()}")
-                
+
         except Exception:
             lines.append(f"\n<b>Memória:</b> inicializando...")
         await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text == "/saude")
+    async def cmd_saude(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            scheduler = dp.get("scheduler")
+            if not scheduler:
+                await message.answer("❌ Goal scheduler não inicializado.", parse_mode=ParseMode.HTML)
+                return
+
+            dashboard = scheduler.get_health_dashboard()
+            lines = ["<b>📊 Health Dashboard dos Goals</b>\n"]
+
+            # Global summary
+            lines.append(f"<b>🌍 Global:</b>")
+            lines.append(
+                f"  Total: {dashboard['summary']['total_goals']} goals | "
+                f"Taxa média: {dashboard['summary']['avg_success_rate']:.1f}% | "
+                f"Custo: ${dashboard['summary']['total_cost_today']:.4f}"
+            )
+
+            # Budget
+            spent = dashboard["global_budget"]["spent"]
+            limit = dashboard["global_budget"]["limit"]
+            pct = spent / limit * 100 if limit > 0 else 0
+            emoji = "🔴" if pct > 80 else ("🟡" if pct > 50 else "🟢")
+            lines.append(f"\n<b>💰 Budget Global:</b> {emoji} ${spent:.4f}/${limit} ({pct:.0f}%)")
+
+            # Per-goal metrics
+            lines.append(f"\n<b>📈 Goals Detalhados:</b>")
+            for goal_name, metrics in sorted(dashboard["goals"].items()):
+                m = metrics["metrics"]
+                status_emoji = {
+                    "RUNNING": "🟢",
+                    "IDLE": "⏸",
+                    "PAUSED": "🟡",
+                    "ERROR": "🔴",
+                }.get(metrics["status"], "⚪")
+
+                # Trend sparkline
+                trend_emoji = m.get("trend", "➡️")
+
+                # Success rate with recent comparison
+                recent = m.get("recent_5_success_rate", 0)
+                rate = m["success_rate"]
+                rate_str = f"{rate:.0f}% ({recent:.0f}% recent)"
+
+                lines.append(
+                    f"  {status_emoji} <b>{goal_name}</b> {trend_emoji}\n"
+                    f"    ✅ Taxa: {rate_str} | "
+                    f"⏱️ Latência: {m['avg_latency']:.2f}s | "
+                    f"💵 Total: ${m['total_cost']:.4f}\n"
+                    f"    📊 Ciclos: {m['total_cycles']} | "
+                    f"🔴 Falhas: {m['consecutive_failures']}"
+                )
+
+                # Budget per-goal
+                budget = metrics["budget"]
+                budget_pct = budget["spent_today"] / budget["limit"] * 100 if budget["limit"] > 0 else 0
+                budget_emoji = "🔴" if budget_pct > 80 else ("🟡" if budget_pct > 50 else "🟢")
+                lines.append(f"    {budget_emoji} Budget: ${budget['spent_today']:.4f}/${budget['limit']} ({budget_pct:.0f}%)")
+
+            # Friction metrics
+            friction = dashboard["friction_metrics"]
+            if sum(friction.values()) > 0:
+                lines.append(f"\n<b>🛡️ Fricção Controlada:</b>")
+                if friction["rethinks_blocked"] > 0:
+                    lines.append(f"  🛑 Rethinks: {friction['rethinks_blocked']}")
+                if friction["sara_edits"] > 0:
+                    lines.append(f"  🛠️ SARA Edits: {friction['sara_edits']}")
+                if friction["rate_limits"] > 0:
+                    lines.append(f"  🚷 Rate Limits: {friction['rate_limits']}")
+
+            # Last update timestamp
+            import datetime
+            ts = datetime.datetime.fromtimestamp(dashboard["timestamp"])
+            lines.append(f"\n<i>Atualizado em: {ts.strftime('%H:%M:%S')}</i>")
+
+            msg = "\n".join(lines)
+
+            # Split if too long
+            for part in split_message(msg):
+                await message.answer(part, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            await message.answer(f"❌ Erro ao carregar dashboard: {str(e)[:100]}", parse_mode=ParseMode.HTML)
 
     @dp.message(F.text == "/memory")
     async def cmd_memory(message: Message):
