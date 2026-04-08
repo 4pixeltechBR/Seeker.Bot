@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS idx_semantic_category ON semantic(category);
 CREATE INDEX IF NOT EXISTS idx_semantic_confidence ON semantic(confidence DESC);
 CREATE INDEX IF NOT EXISTS idx_semantic_category_confidence ON semantic(category, confidence DESC);
 CREATE INDEX IF NOT EXISTS idx_semantic_last_seen ON semantic(last_seen DESC);
-CREATE INDEX IF NOT EXISTS idx_semantic_fact ON semantic(fact(100));
+CREATE INDEX IF NOT EXISTS idx_semantic_fact ON semantic(fact);
 
 -- ─── EMBEDDINGS ────────────────────────────────────────────
 -- Persistidos: sobrevivem a restart sem re-chamar API
