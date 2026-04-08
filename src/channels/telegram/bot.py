@@ -701,7 +701,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             # Buscando o AFK Protocol no Dispatcher (setado no start)
             afk_protocol = dp.get("afk_protocol")
             if afk_protocol:
-                afk_protocol.resolve_request(result, tier)
+                await afk_protocol.resolve_request(result, tier)
                 
             await callback.message.edit_text(
                 f"{callback.message.text}\n\n<b>➔ Resposta do Usuário: {'✅ Autorizado' if result == 'yes' else '❌ Negado'}</b>"

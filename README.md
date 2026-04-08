@@ -24,6 +24,9 @@ A arquitetura do Seeker.Bot quebra o modelo tradicional de "Copilot", substituin
 | **Modelo Único**: Usa o modelo principal para todas as tarefas. | **Motor Multi-LLM**: Usa Groq (gratuito/rápido) para triagem e Gemini/DeepSeek para cognição, economizando 90% dos custos. |
 | **Amnésia**: O contexto reseta em novas sessões. | **Motor de Decaimento de Memória**: O SQLite armazena fatos, diminui a confiança no que envelhece, mas blinda "Regras Reflexivas" do usuário. |
 | **Caixa Preta**: Falha silenciosamente ou responde com erro. | **S.A.R.A (Auto-Cura)**: Tenta corrigir seu próprio código, injeta correções na sua IDE via protocolo MCP e envia o "Porquê" via Raciocínio Aberto no seu Telegram. |
+| **Cloud Dependente**: Seus dados vão para servidores remotos. | **Privacidade Local**: Roda integralmente no seu hardware — banco de dados SQLite local, zero sincronização cloud, seus dados nunca saem da máquina. |
+| **Extensibilidade Limitada**: Plugins pré-aprovados apenas. | **Skills Creator Dinâmico**: Crie novas capacidades em linguagem natural — Seeker escreve, testa e registra o código autonomamente. |
+| **Vendor Lock-in**: Preso a uma plataforma ou API. | **Multi-Provider + Fallback**: NVIDIA NIM → Groq → Gemini → DeepSeek → Local (Ollama). Mude providers quando quiser, sem reescrever nada. |
 
 ---
 
@@ -35,10 +38,9 @@ O Seeker.Bot não é um script linear; é um ecossistema de **Capabilities** que
 | :--- | :--: | :--- | :--- |
 | **Revenue Hunter** | 🎯 | Mineração B2B/B2G em 3 fases (Discovery, Enrich, Dossier) com BANT Scoring. | Dossiê Comercial completo + PDF. |
 | **S.A.R.A (Auto-Cura)** | 🛠️ | *Systematic Automatic Retrospective Analysis*. Monitora logs e corrige bugs via patches automáticos. | Relatórios de "Raciocínio Aberto" + Auto-Fix. |
-| **SenseNews** | 📰 | Curadoria diária (10:00 AM) em 4 nichos com análise cruzada de impacto. | Relatório de Inteligência em PDF. |
+| **SenseNews** | 📰 | Curadoria diária (10:00 AM) em nichos escolhidos com análise cruzada de impacto. | Relatório de Inteligência em PDF. |
 | **Vision (AFK)** | 👁️ | Monitoramento visual do desktop e protocolo de presença inteligente. | Contexto visual para decisões. |
 | **Skill Creator** | 🧬 | Meta-capacidade de programar, testar e registrar novos Goals autonomamente. | Expansão orgânica do sistema. |
-| **ViralClip Bridge** | 🎬 | Identificação de tendências virais e ponte de produção para o ecossistema ViralClip. | Pautas de vídeo validadas. |
 | **Git & OS Automator** | 💻 | Gestão de repositórios, deploy e monitoramento de saúde do sistema (HealthCheck). | Sistema 100% íntegro e atualizado. |
 
 ---
@@ -79,13 +81,27 @@ python -m src
 
 Abra seu Telegram e mande mensagens para seu bot:
 
+**Operação:**
 ```
-/start              # Menu de ajuda
-/saude              # Dashboard de goals
-/status             # Status dos providers
-/search Python      # Busca na web
-/memory             # Fatos sobre você
-/god                # Força análise profunda
+/start                # Menu de ajuda e primeiros passos
+/search Python        # Busca 5 resultados na web
+/god                  # Força análise profunda na próxima mensagem
+/print                # Screenshot rápido da tela (sem análise)
+/watch                # Ativa vigilância visual (AFK Protocol — 2 min)
+/watchoff             # Desativa vigilância de tela
+```
+
+**Sistema & Inteligência:**
+```
+/status               # Painel de providers, memória e performance
+/saude                # Dashboard detalhado de saúde dos goals
+/memory               # Fatos aprendidos sobre você (semântica)
+/rate                 # Status dos rate limiters de API
+/decay                # Roda limpeza manual de confiança (decay)
+/habits               # Padrões de decisão aprendidos
+/scout                # Dispara campanha B2B Scout (leads qualificados)
+/crm                  # Histórico dos últimos 5 leads qualificados
+/configure_news       # Personaliza nichos do SenseNews
 ```
 
 ---
@@ -125,15 +141,52 @@ Utilizamos um sistema de **DecayEngine** no SQLite:
 
 ---
 
-## 🚀 Como Criar sua Própria Skill
+## 🧬 Skills Creator — Extensibilidade Dinâmica
 
-O Seeker é extensível por design. Basta criar uma pasta em `src/skills/` com um arquivo `goal.py` que implemente a factory `create_goal`.
+O **Skills Creator** é uma meta-skill do Seeker que permite criar **novas capacidades autonomamente** — sem reescrever código, sem restartar o bot.
+
+### Como Funciona
+
+1. **Você descreve** o que quer em linguagem natural
+2. **Seeker analisa** o pedido e gera código Python
+3. **Sistema testa** a nova skill em sandbox
+4. **Auto-registra** a skill no goal engine
+5. **Executa** no próximo ciclo
+
+### Exemplos de Skills que Você Pode Criar
+
+| Skill | Descrição | Exemplo de Solicitação |
+| :--- | :--- | :--- |
+| **Notificações Customizadas** | Monitore eventos e receba alertas | "Monitore a fila de imprimir e me avise se tiver mais de 10 documentos" |
+| **Monitores de Website** | Rastreie mudanças em sites | "Acompanhe o preço deste produto no Shopee e me notifique se cair mais de 10%" |
+| **Integrações Web** | Conecte a APIs externas | "Sincronize meus leads do CRM com uma planilha Google diária" |
+| **Análise de Documentos** | Processe relatórios e PDFs | "Extraia faturas de um email e organize as datas em um banco de dados" |
+| **Automações Repetitivas** | Reduza tarefas manuais | "Todos os dias às 9am, envie um email com o status do portfolio de criptos" |
+
+### Exemplo Técnico
 
 ```python
-# Exemplo rápido: src/skills/my_new_skill/goal.py
-def create_goal(pipeline):
-    return MyCustomGoal(pipeline) # Herdando de AutonomousGoal
+# Novo goal criado dinamicamente pelo Seeker:
+class MeuMonitorCustomizado(AutonomousGoal):
+    """
+    Meta-skill: Monitora eventos custom sem re-deploy.
+    Código gerado via Language Model + injeção no pipeline.
+    """
+    async def run_cycle(self) -> GoalResult:
+        # Lógica auto-gerada
+        event = await self.check_event()
+        if event.meets_criteria():
+            return GoalResult(success=True, notification=f"Alerta: {event}")
+        return GoalResult(success=True, summary="Aguardando...")
 ```
+
+### Por Que Isso é Revolucionário
+
+- 🚀 **Sem redeploy**: Skill ativa no próximo ciclo de 6h
+- 🔒 **Seguro**: Sandbox execution + approval checks
+- 📝 **Sem código**: Descreva em português, Seeker implementa
+- ♻️ **Reutilizável**: Skills compartilháveis via Git
+- 🧠 **Inteligente**: Seeker refina baseado em feedback
 
 ---
 

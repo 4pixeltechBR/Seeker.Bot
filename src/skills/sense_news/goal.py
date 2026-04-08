@@ -2,11 +2,8 @@
 Seeker.Bot — SenseNews Goal
 src/skills/sense_news/goal.py
 
-Curadoria diária de notícias dos 4 nichos de conteúdo.
+Curadoria diária de notícias nos nichos escolhidos pelo usuário.
 Gera relatório em PDF e envia como anexo no Telegram às 10:00.
-
-Diferente do ViralClip Curator (que sugere pautas de vídeo),
-o SenseNews entrega análise e contexto — relatório de pesquisa.
 """
 
 import asyncio
@@ -21,9 +18,10 @@ from src.providers.base import LLMRequest, invoke_with_fallback
 from src.core.goals.protocol import (
     AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
 )
-from src.skills.sense_news.prompts import NICHES, ANALYSIS_PROMPT, REPORT_PROMPT
+from src.skills.sense_news.prompts import NICHES, ANALYSIS_PROMPT, REPORT_PROMPT, get_niches_for_user
 from src.skills.sense_news.pdf_builder import build_sense_news_pdf
 from config.models import CognitiveRole
+import os
 
 log = logging.getLogger("seeker.sensenews")
 
@@ -115,8 +113,26 @@ class SenseNewsGoal:
         all_analyses: list[dict] = []
         year = now.year
 
-        # Varre os 4 nichos
-        for niche_name, niche_config in NICHES.items():
+        # Tenta obter preferências de nichos do usuário
+        # Usa o primeiro user_id do environment ou default
+        user_niches = None
+        try:
+            allowed_users_str = os.getenv("TELEGRAM_ALLOWED_USERS", "")
+            if allowed_users_str:
+                # Pega o primeiro user_id da lista
+                user_id = int(allowed_users_str.split(",")[0].strip())
+                user_niches = await self.pipeline.memory.get_user_niches(user_id)
+                if user_niches:
+                    log.info(f"[sensenews] Usando nichos personalizados do usuário: {user_niches}")
+        except Exception as e:
+            log.debug(f"[sensenews] Não conseguiu carregar preferências: {e}")
+            # Continua com defaults
+
+        # Usa nichos personalizados ou defaults
+        niches_to_use = get_niches_for_user(user_niches)
+
+        # Varre os nichos
+        for niche_name, niche_config in niches_to_use.items():
             try:
                 analyses, cost = await self._research_niche(niche_name, niche_config, year)
                 total_cost += cost

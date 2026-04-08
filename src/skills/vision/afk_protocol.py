@@ -34,8 +34,10 @@ class AFKProtocol:
 
         # Lock serializa requests concorrentes de permissão
         self._lock = asyncio.Lock()
-        self._current_request_event = asyncio.Event()
-        self._current_result = None
+
+        # Dicionário: request_id → Future (suporta múltiplos requests em fila)
+        self._requests: dict[str, asyncio.Future] = {}
+        self._request_counter = 0
 
         # Fila de ações deferidas aguardando segundo timeout
         self._deferred_queue: list[dict] = []
@@ -56,14 +58,18 @@ class AFKProtocol:
             Tier 2 + write:           Timeout = EXPIRED (nunca auto-approve escrita)
             Tier 2 + read:            Timeout = DEFERRED → segundo ciclo → AFK
         """
-        async with self._lock:
-            return await self._request_permission_inner(reason, tier, action_type)
+        return await self._request_permission_inner(reason, tier, action_type)
 
     async def _request_permission_inner(
         self, reason: str, tier: int, action_type: str
     ) -> PermissionResult:
-        self._current_result = None
-        self._current_request_event.clear()
+        # Cria Future individual para este request (evita race condition)
+        # Lock protege apenas a criação e registro
+        async with self._lock:
+            self._request_counter += 1
+            request_id = f"req_{self._request_counter}"
+            future = asyncio.Future()
+            self._requests[request_id] = future
 
         # Monta mensagem com contexto claro do que vai acontecer no timeout
         msg = f"<b>🚨 AUTORIZAÇÃO VISUAL: Tier {tier}</b>\n\n{reason}\n\n"
@@ -131,23 +137,27 @@ class AFKProtocol:
         )
 
         try:
-            await asyncio.wait_for(
-                self._current_request_event.wait(), timeout=timeout
+            return await asyncio.wait_for(
+                future, timeout=timeout
             )
-            return self._current_result
         except asyncio.TimeoutError:
             log.info(f"[AFK] Primeiro timeout — resultado: {timeout_result.name}")
             if timeout_result == PermissionResult.DEFERRED:
-                return await self._handle_deferred(reason, tier)
+                return await self._handle_deferred(reason, tier, request_id)
+            # Limpa request do dicionário
+            async with self._lock:
+                self._requests.pop(request_id, None)
             return timeout_result
 
-    async def _handle_deferred(self, reason: str, tier: int) -> PermissionResult:
+    async def _handle_deferred(self, reason: str, tier: int, request_id: str) -> PermissionResult:
         """
         Segundo ciclo: notifica que a ação foi enfileirada e espera mais 30 minutos.
         Se o humano não responder nesse período, assume AFK real e auto-aprova leitura.
         """
-        self._current_result = None
-        self._current_request_event.clear()
+        # Cria novo Future para segundo ciclo (reutiliza request_id)
+        async with self._lock:
+            future = asyncio.Future()
+            self._requests[request_id] = future
 
         msg = (
             f"<b>⏸ AÇÃO ENFILEIRADA (Tier {tier})</b>\n\n"
@@ -178,11 +188,10 @@ class AFKProtocol:
         )
 
         try:
-            await asyncio.wait_for(
-                self._current_request_event.wait(),
+            return await asyncio.wait_for(
+                future,
                 timeout=self.SECOND_TIMEOUT_SECONDS,
             )
-            return self._current_result
         except asyncio.TimeoutError:
             log.info("[AFK] Segundo timeout — AFK confirmado. Auto-aprovando leitura.")
             # Notifica que entrou em modo AFK
@@ -195,17 +204,35 @@ class AFKProtocol:
                     )
                 except Exception:
                     pass
+            # Limpa request do dicionário
+            async with self._lock:
+                self._requests.pop(request_id, None)
             return PermissionResult.AFK
 
-    def resolve_request(self, result: str, tier: str, goal_name: str = "", action_type: str = "read"):
-        """Chamado pelo Dispatcher do Telegram Action."""
-        approved = result == "yes"
-        if result == "yes":
-            self._current_result = PermissionResult.APPROVED
-        else:
-            self._current_result = PermissionResult.DENIED
-        self._current_request_event.set()
+    async def resolve_request(self, result: str, tier: str, goal_name: str = "", action_type: str = "read"):
+        """Chamado pelo Dispatcher do Telegram Action. Protegido por lock."""
+        async with self._lock:
+            # Busca primeira request em fila (FIFO)
+            if not self._requests:
+                log.warning(f"[AFK] resolve_request sem requests pendentes (result={result})")
+                return
 
-        # Registra decisão no Habit Tracker
-        if goal_name:
-            self.habits.record(goal_name, action_type, approved=approved)
+            # Pega primeiro request da fila (order de criação)
+            request_id = next(iter(self._requests))
+            future = self._requests.pop(request_id)
+
+            if future.done():
+                log.warning(f"[AFK] Future já completado (request_id={request_id}, result={result})")
+                return
+
+            approved = result == "yes"
+            permission_result = (
+                PermissionResult.APPROVED if result == "yes" else PermissionResult.DENIED
+            )
+
+            # Set Future com resultado (thread-safe)
+            future.set_result(permission_result)
+
+            # Registra decisão no Habit Tracker
+            if goal_name:
+                self.habits.record(goal_name, action_type, approved=approved)
