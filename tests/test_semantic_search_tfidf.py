@@ -12,7 +12,17 @@ class MockMemoryProtocol:
     """Mock MemoryProtocol for testing."""
 
     async def load_all_embeddings(self):
-        return {1: [0.1, 0.2, 0.3], 2: [0.4, 0.5, 0.6]}
+        # Returns metadata only (empty vectors for lazy loading)
+        return {1: [], 2: [], 3: []}
+
+    async def load_embedding(self, fact_id: int):
+        """Load individual embedding on demand (for lazy loading)."""
+        embeddings = {
+            1: [0.1, 0.2, 0.3],
+            2: [0.4, 0.5, 0.6],
+            3: [0.7, 0.8, 0.9],
+        }
+        return embeddings.get(fact_id)
 
     async def get_facts(self, min_confidence=0.0, limit=9999):
         return [
@@ -29,6 +39,12 @@ class MockMemoryProtocol:
 
     async def search_facts(self, query: str, limit: int = 5):
         return []
+
+    async def commit(self):
+        pass
+
+    async def close(self):
+        pass
 
 
 class MockEmbedderThatFails(GeminiEmbedder):

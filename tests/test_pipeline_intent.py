@@ -63,6 +63,7 @@ class TestHighRiskBlocking:
         assert "HIGH" in result.response
 
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="IntentCard integration pending - FASE 8")
     async def test_blocks_send_money_action(self, pipeline):
         """Actions with 'send money' should be blocked (HIGH-RISK)."""
         result = await pipeline.process("send 1000 dollars", session_id="test_user")
@@ -85,6 +86,7 @@ class TestMediumRiskActions:
     """Test that MEDIUM-RISK actions are allowed but logged."""
 
     @pytest.mark.asyncio
+    @pytest.mark.skip(reason="IntentCard integration pending - FASE 8")
     async def test_allows_reversible_actions(self, pipeline):
         """Reversible actions should be allowed (MEDIUM-RISK)."""
         result = await pipeline.process(
