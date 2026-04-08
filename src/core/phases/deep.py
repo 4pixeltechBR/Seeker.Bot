@@ -144,7 +144,7 @@ class DeepPhase:
             total_cost += response.cost_usd
             llm_calls += 1
         except asyncio.TimeoutError:
-            log.error("[deep] Síntese principal sofreu timeout (60s)")
+            log.error("[deep] Síntese principal sofreu timeout (60s)", exc_info=True)
             return PhaseResult(
                 response="[Seeker] Pipeline abortado por timeout na fase de síntese.",
                 cost_usd=total_cost,
@@ -152,7 +152,7 @@ class DeepPhase:
                 arbitrage=arb,
             )
         except Exception as e:
-            log.error(f"[deep] Síntese principal falhou fatalmente: {e}")
+            log.error(f"[deep] Síntese principal falhou fatalmente: {e}", exc_info=True)
             raise
 
         # ── Fase 4: Verification Gate ────────────────────────

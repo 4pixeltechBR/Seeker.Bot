@@ -113,10 +113,10 @@ class VLMClient:
                 return response_text
         except httpx.TimeoutException:
             mode = "GPU" if gpu_available else "CPU"
-            log.error(f"[vlm] Timeout ({mode} mode) — modelo pode estar carregando")
+            log.error(f"[vlm] Timeout ({mode} mode) — modelo pode estar carregando", exc_info=True)
             raise
         except Exception as e:
-            log.error(f"[vlm] Falha ao analisar screenshot: {e}")
+            log.error(f"[vlm] Falha ao analisar screenshot: {e}", exc_info=True)
             raise
 
     async def extract_text_from_image(self, image_bytes: bytes) -> str:
@@ -188,7 +188,7 @@ class VLMClient:
             self._health_cache = (available, now)
             return available
         except Exception as e:
-            log.error(f"[vlm] Ollama indisponível: {e}")
+            log.error(f"[vlm] Ollama indisponível: {e}", exc_info=True)
             self._health_cache = (False, now)
             return False
 

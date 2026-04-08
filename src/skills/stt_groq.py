@@ -12,7 +12,7 @@ async def transcribe_audio_groq(audio_bytes: bytes, filename: str = "audio.ogg")
     """
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        log.error("[stt] GROQ_API_KEY não configurada no .env")
+        log.error("[stt] GROQ_API_KEY não configurada no .env", exc_info=True)
         return ""
 
     url = "https://api.groq.com/openai/v1/audio/transcriptions"
@@ -42,5 +42,5 @@ async def transcribe_audio_groq(audio_bytes: bytes, filename: str = "audio.ogg")
             return text
             
     except Exception as e:
-        log.error(f"[stt] Falha na transcrição: {e}")
+        log.error(f"[stt] Falha na transcrição: {e}", exc_info=True)
         return ""

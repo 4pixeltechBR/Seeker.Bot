@@ -130,7 +130,7 @@ class HabitTracker:
             with open(HABITS_PATH, "w", encoding="utf-8") as f:
                 json.dump(dict(self._data), f, indent=2, ensure_ascii=False)
         except Exception as e:
-            log.error(f"[habits] Falha ao salvar: {e}")
+            log.error(f"[habits] Falha ao salvar: {e}", exc_info=True)
 
     def _load(self):
         if not os.path.exists(HABITS_PATH):

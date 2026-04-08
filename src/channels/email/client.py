@@ -103,7 +103,7 @@ class EmailClient:
             log.info(f"[email] Enviado: '{subject}' → {to}")
             return True
         except Exception as e:
-            log.error(f"[email] Falha ao enviar '{subject}': {e}")
+            log.error(f"[email] Falha ao enviar '{subject}': {e}", exc_info=True)
             return False
 
     async def health_check(self) -> bool:
@@ -118,5 +118,5 @@ class EmailClient:
             await smtp.quit()
             return True
         except Exception as e:
-            log.error(f"[email] Health check falhou: {e}")
+            log.error(f"[email] Health check falhou: {e}", exc_info=True)
             return False

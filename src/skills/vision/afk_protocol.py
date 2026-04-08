@@ -123,7 +123,7 @@ class AFKProtocol:
                     uid, msg, reply_markup=markup, parse_mode="HTML"
                 )
             except Exception as e:
-                log.error(f"[AFK] Falha envio {uid}: {e}")
+                log.error(f"[AFK] Falha envio {uid}: {e}", exc_info=True)
 
         log.info(
             f"[AFK] Aguardando consentimento Tier {tier}/{action_type} "
@@ -171,7 +171,7 @@ class AFKProtocol:
                     uid, msg, reply_markup=markup, parse_mode="HTML"
                 )
             except Exception as e:
-                log.error(f"[AFK] Falha envio deferred {uid}: {e}")
+                log.error(f"[AFK] Falha envio deferred {uid}: {e}", exc_info=True)
 
         log.info(
             f"[AFK] Segundo timeout iniciado ({self.SECOND_TIMEOUT_SECONDS}s)..."

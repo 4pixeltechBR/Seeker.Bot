@@ -40,7 +40,7 @@ class VisionAudit:
             await self._flush()
             log.info(f"[Audit] Salvo {frame_name}.png")
         except Exception as e:
-            log.error(f"[Audit] Falha ao salvar log de visão: {e}")
+            log.error(f"[Audit] Falha ao salvar log de visão: {e}", exc_info=True)
 
     async def _flush(self):
         meta_path = os.path.join(self.session_dir, "metadata.json")

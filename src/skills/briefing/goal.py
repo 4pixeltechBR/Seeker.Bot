@@ -153,7 +153,7 @@ class DailyNewsGoal:
             )
         except Exception as e:
             self._status = GoalStatus.ERROR
-            log.error(f"[dailynews] Falha cognitiva: {e}")
+            log.error(f"[dailynews] Falha cognitiva: {e}", exc_info=True)
             raise e
 
         # Finaliza com sucesso

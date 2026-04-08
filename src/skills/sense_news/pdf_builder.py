@@ -81,7 +81,7 @@ def build_sense_news_pdf(
         return pdf_path
 
     except Exception as e:
-        log.error(f"[sensenews] Falha ao gerar PDF: {e}")
+        log.error(f"[sensenews] Falha ao gerar PDF: {e}", exc_info=True)
         # Fallback: gera PDF simples sem formatação markdown
         return _fallback_pdf(analyses, date_label, pdf_path)
 
@@ -223,5 +223,5 @@ def _fallback_pdf(
         log.info(f"[sensenews] PDF fallback gerado: {pdf_path}")
         return pdf_path
     except Exception as e:
-        log.error(f"[sensenews] Falha no fallback PDF: {e}")
+        log.error(f"[sensenews] Falha no fallback PDF: {e}", exc_info=True)
         return ""

@@ -60,7 +60,7 @@ class SkillCreatorEngine:
                 api_keys=api_keys,
             )
         except Exception as e:
-            log.error(f"[coder] Falha na chamada ao LLM: {e}")
+            log.error(f"[coder] Falha na chamada ao LLM: {e}", exc_info=True)
             return f"❌ Falha na geração de código: {e}"
 
         # Parse do JSON retornado pelo LLM
@@ -80,7 +80,7 @@ class SkillCreatorEngine:
             explicacao = payload["explicacao"]
             codigo = payload["code"]
         except Exception as e:
-            log.error(f"[coder] Falha estrutural JSON. Texto retornado:\n{res.text}")
+            log.error(f"[coder] Falha estrutural JSON. Texto retornado:\n{res.text}", exc_info=True)
             return f"❌ Falha ao interpretar a estrutura do LLM: {e}"
 
         # Pede aprovação humana via Telegram (Tier 1 = irreversível)

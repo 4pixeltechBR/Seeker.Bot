@@ -270,7 +270,8 @@ class GoalScheduler:
                 })
                 log.error(
                     f"[scheduler/{goal.name}] Falha "
-                    f"#{self._failure_counts[goal.name]}: {e}"
+                    f"#{self._failure_counts[goal.name]}: {e}",
+                    exc_info=True
                 )
                 
                 # RETHINK: Confiança Extrema. Se for o início do backoff, emite relatório proativo
@@ -320,7 +321,7 @@ class GoalScheduler:
             self.friction_metrics["rethinks_blocked"] += 1
             await self.notifier.send(goal_name, report, channels)
         except Exception as rethink_ex:
-            log.error(f"[rethink] Falhou ao explicar o erro: {rethink_ex}")
+            log.error(f"[rethink] Falhou ao explicar o erro: {rethink_ex}", exc_info=True)
 
     # ── Persistência ──────────────────────────────────────
 
@@ -336,7 +337,7 @@ class GoalScheduler:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            log.error(f"[scheduler] Falha ao salvar {goal.name}: {e}")
+            log.error(f"[scheduler] Falha ao salvar {goal.name}: {e}", exc_info=True)
 
     def _load_goal_state(self, goal: AutonomousGoal):
         path = os.path.join(STATE_DIR, f"{goal.name}.json")
@@ -423,7 +424,7 @@ class GoalNotifier:
                     else:
                         await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML)
             except Exception as e:
-                log.error(f"[notifier/{goal_name}] Telegram falhou {uid}: {e}")
+                log.error(f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True)
 
     async def _send_email(self, goal_name: str, content: str):
         if not self.email_client or not self.email_recipients:
@@ -436,4 +437,4 @@ class GoalNotifier:
                 body_html=content,
             )
         except Exception as e:
-            log.error(f"[notifier/{goal_name}] Email falhou: {e}")
+            log.error(f"[notifier/{goal_name}] Email falhou: {e}", exc_info=True)

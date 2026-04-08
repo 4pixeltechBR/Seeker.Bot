@@ -52,5 +52,5 @@ class AppLauncher:
             return f"[OS] Tentativa de inicialização via Shell: {target}"
 
         except Exception as e:
-            log.error(f"[launcher] Falha ao abrir '{target}': {e}")
+            log.error(f"[launcher] Falha ao abrir '{target}': {e}", exc_info=True)
             return f"[OS Falha] Erro ao abrir {target}: {e}"
