@@ -169,17 +169,10 @@ class SelfImprovementGoal:
                 )
                 log.info(f"[sara] Curado: {target_file}")
                 
-                # Handshake MCP: Aciona o Antigravity para revisão via trigger ativo
-                try:
-                    import subprocess
-                    import sys
-                    mcp_path = r"E:\Seeker.ai Project\src\seeker\mcp_server.py"
-                    if os.path.exists(mcp_path):
-                        prompt = f"O seeker acabou de curar o arquivo {os.path.basename(target_file)} via mecanismo S.A.R.A. Motivo: {rationale}. Por favor, faça um code review deste arquivo agora para garantir a segurança."
-                        subprocess.Popen([sys.executable, mcp_path, "trigger", prompt], creationflags=subprocess.CREATE_NO_WINDOW)
-                        log.info("[sara] Handshake disparado para Antigravity via MCP.")
-                except Exception as ex_mcp:
-                    log.warning(f"[sara] Falha no Handshake MCP com Antigravity: {ex_mcp}")
+                # TODO: Handshake MCP para revisão de código
+                # (Pode ser conectado a um MCP externo conforme necessário)
+                # Exemplo: Antigravity ou outro serviço de code review
+                # Este seria configurado via env var ou config externa, não hardcoded
                 
                 self._status = GoalStatus.IDLE
                 return GoalResult(
