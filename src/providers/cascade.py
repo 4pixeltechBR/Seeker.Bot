@@ -144,10 +144,14 @@ class CascadeAdapter:
                 "elapsed_ms": int,
             }
         """
-        # Handle role conversion: check CascadeRole FIRST because it inherits from str
-        if not isinstance(role, CascadeRole):
-            # Convert string or other types to CascadeRole
-            role = CascadeRole(role)
+        # Handle role conversion: CascadeRole is already a valid enum member, or convert string
+        if isinstance(role, str) and not isinstance(role, CascadeRole):
+            try:
+                role = CascadeRole(role)
+            except ValueError:
+                # If conversion fails, default to FAST
+                log.warning(f"[cascade] Invalid role '{role}', defaulting to FAST")
+                role = CascadeRole.FAST
 
         t0 = time.perf_counter()
         route = self.role_routes.get(role, [CognitiveRole.SYNTHESIS, CognitiveRole.FAST])
