@@ -95,7 +95,7 @@ class GitBackupGoal:
 
             # 5. Push com autenticação segura (token nunca persiste em .git/config)
             github_token = os.environ.get("GITHUB_TOKEN", "")
-            repo_slug = os.environ.get("GITHUB_REPO", "4pixeltechBR/Seeker.ai")
+            repo_slug = os.environ.get("GITHUB_REPO", "")  # Ex: "4pixeltechBR/Seeker.Bot"
 
             pushed = "💾 apenas local (sem remote/token configurado)"
             if github_token:
