@@ -51,6 +51,7 @@ CATEGORY_TO_LAYER = {
     "seeker": MemoryLayer.PROJECT,
     "viralclip": MemoryLayer.PROJECT,
     "session": MemoryLayer.SESSION,
+    "reflexive_rule": MemoryLayer.OVERRIDE, # regras de comportamento do bot (prioridade absoluta)
     "correction": MemoryLayer.OVERRIDE,
     "override": MemoryLayer.OVERRIDE,
 }
