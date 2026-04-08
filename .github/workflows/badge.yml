@@ -1,0 +1,14 @@
+name: Badge Status
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Create badge
+      run: echo "Test Badge Created"
