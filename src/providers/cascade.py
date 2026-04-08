@@ -74,7 +74,7 @@ class CascadeAdapter:
                 CognitiveRole.FAST,
             ],
             CascadeRole.VISION: [
-                CognitiveRole.VISION,         # Gemini Flash
+                CognitiveRole.FAST,           # Gemini Flash (vision doesn't need deep reasoning)
             ],
             CascadeRole.CREATIVE: [
                 CognitiveRole.FAST,           # Groq (rápido)
