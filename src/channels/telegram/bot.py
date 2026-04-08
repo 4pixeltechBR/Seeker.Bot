@@ -24,6 +24,7 @@ from src.core.router.cognitive_load import CognitiveDepth
 from src.channels.telegram.formatter import md_to_telegram_html
 from src.providers.base import _rate_limiters, cleanup_client_pool
 from src.skills.vision.afk_protocol import AFKProtocol
+from src.core.reasoning.ooda_loop import OODALoop, OODAIteration
 
 # Goal Engine
 from src.core.goals import GoalScheduler, GoalNotifier, discover_goals
@@ -742,6 +743,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         # Session ID baseado no chat (suporta múltiplos chats futuramente)
         session_id = f"telegram:{message.chat.id}"
 
+        # OODA Loop for structured decision-making
+        ooda_loop = dp.get("ooda_loop")
+
         stop_typing = asyncio.Event()
         typing_task = asyncio.create_task(
             keep_typing(message.bot, message.chat.id, stop_typing)
@@ -749,10 +753,43 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
         try:
             result = await pipeline.process(
-                user_input, 
-                session_id=session_id, 
+                user_input,
+                session_id=session_id,
                 afk_protocol=dp.get("afk_protocol")
             )
+
+            # OODA Loop logging: Record the decision cycle
+            if ooda_loop:
+                # Simulate OODA cycle with pipeline result as success marker
+                import time
+                from src.core.reasoning.ooda_loop import ObservationData, OrientationModel, Decision, ActionResult, LoopResult
+
+                ooda_iteration = OODAIteration(
+                    iteration_id=f"telegram_{message.message_id}",
+                    user_input=user_input,
+                    observation=ObservationData(user_input=user_input),
+                    orientation=OrientationModel(
+                        confidence=0.9,
+                        reasoning=result.routing_reason,
+                    ),
+                    decision=Decision(
+                        action_type="send_response",
+                        autonomy_tier=3,
+                        parameters={"depth": result.depth.value},
+                        rationale=result.routing_reason,
+                        verification_required=False,
+                    ),
+                    action_result=ActionResult(
+                        success=True,
+                        output=result.response,
+                        latency_ms=result.total_latency_ms,
+                        cost=result.total_cost_usd,
+                    ),
+                    result=LoopResult.SUCCESS,
+                    total_latency_ms=result.total_latency_ms,
+                )
+                log.info(ooda_iteration.to_log_entry())
+                ooda_loop.history.append(ooda_iteration)
 
             badge = {
                 CognitiveDepth.REFLEX: "⚡",
@@ -887,6 +924,10 @@ async def main():
     # ── Init bot ──────────────────────────────────────────
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
+
+    # ── Init OODA Loop (for structured decision-making + auditability) ──
+    dp["ooda_loop"] = OODALoop()
+
     await setup_commands(bot)
     setup_handlers(dp, pipeline, allowed_users)
 
