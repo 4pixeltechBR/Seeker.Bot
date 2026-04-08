@@ -144,9 +144,9 @@ class CascadeAdapter:
                 "elapsed_ms": int,
             }
         """
-        if isinstance(role, str):
-            role = CascadeRole(role)
-        elif not isinstance(role, CascadeRole):
+        # Handle role conversion: check CascadeRole FIRST because it inherits from str
+        if not isinstance(role, CascadeRole):
+            # Convert string or other types to CascadeRole
             role = CascadeRole(role)
 
         t0 = time.perf_counter()
