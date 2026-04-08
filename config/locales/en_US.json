@@ -1,0 +1,56 @@
+{
+  "app.name": "Seeker.Bot",
+  "app.description": "Autonomous research agent with structured reasoning",
+  "app.welcome": "Welcome to Seeker.Bot! 🤖",
+
+  "cmd.start": "/start — Main menu",
+  "cmd.search": "/search — Web search",
+  "cmd.crm": "/crm — Qualified leads",
+  "cmd.status": "/status — Provider status",
+  "cmd.saude": "/saude — Goals dashboard",
+  "cmd.memory": "/memory — Learned facts",
+  "cmd.god": "/god — Force deep analysis",
+  "cmd.rate": "/rate — Rate limiter status",
+  "cmd.decay": "/decay — Confidence cleanup",
+  "cmd.habits": "/habits — Decision patterns",
+  "cmd.watch": "/watch — Enable AFK Protocol",
+  "cmd.watchoff": "/watchoff — Disable surveillance",
+  "cmd.print": "/print — Quick screenshot",
+  "cmd.scout": "/scout — Trigger B2B Scout campaign",
+  "cmd.configure_news": "/configure_news — Customize SenseNews niches",
+
+  "skill.sense_news": "Daily News Curation",
+  "skill.revenue_hunter": "B2B Lead Generator",
+  "skill.desktop_watch": "Desktop Surveillance",
+  "skill.email_monitor": "Email Monitor",
+  "skill.git_automation": "Git Automation",
+  "skill.briefing": "Morning Briefing",
+  "skill.skill_creator": "Skill Creator",
+
+  "niches.models": "🧠 Models & Open-Weight",
+  "niches.infra": "⚙️ Infrastructure & Optimization",
+  "niches.tools": "🛠️ Tools & Products",
+  "niches.research": "🔬 Research & Papers",
+  "niches.events": "📅 Events & Conferences",
+  "niches.startups": "🚀 Startups & Funding",
+
+  "menu.help": "📖 Help Menu",
+  "menu.niches": "Choose your interests:",
+  "menu.preferences": "Your preferences have been saved! ✅",
+
+  "error.not_authorized": "You are not authorized to use this command.",
+  "error.provider_down": "Provider unavailable. Trying fallback...",
+  "error.api_key_missing": "API key not configured.",
+
+  "status.providers": "Provider Status",
+  "status.online": "Online ✅",
+  "status.offline": "Offline ❌",
+  "status.memory": "Semantic Memory",
+  "status.facts": "Stored facts",
+  "status.episodes": "Recorded episodes",
+
+  "messages.processing": "Processing... ⏳",
+  "messages.success": "Complete! ✅",
+  "messages.error": "Error processing ❌",
+  "messages.loading": "Loading... 📥"
+}

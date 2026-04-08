@@ -10,9 +10,9 @@ log = logging.getLogger("seeker.vision.vlm")
 class VLMClient:
     """
     Cliente para Qwen3.5 4B (multimodal) via Ollama.
-    
+
     v2:
-    - Integração com semáforo de GPU (VRAM compartilhada com ViralClip/Flux)
+    - Integração com semáforo de GPU (VRAM compartilhada com skills locais)
     - keep_alive dinâmico: 5m quando GPU livre, 0 quando ocupada
     - Fallback CPU (num_gpu=0) quando VRAM indisponível
     - Parsing centralizado de bounding boxes
@@ -28,7 +28,7 @@ class VLMClient:
         self.model = model
         self.generate_endpoint = f"{self.base_url}/api/generate"
 
-        # Semáforo compartilhado com ViralClip
+        # Semáforo compartilhado de GPU com outras skills
         # Se None, assume GPU sempre disponível (standalone mode)
         self._gpu_semaphore = gpu_semaphore
 
@@ -86,7 +86,7 @@ class VLMClient:
         if not gpu_available:
             payload["options"]["num_gpu"] = 0
             log.info(
-                f"[vlm] GPU ocupada (ViralClip ativo) → rodando na CPU/RAM. "
+                f"[vlm] GPU ocupada (semáforo ativo) → rodando na CPU/RAM. "
                 f"Latência estimada: 10-20s"
             )
         else:
@@ -156,7 +156,7 @@ class VLMClient:
         return await self.analyze_screenshot(image_bytes, prompt)
 
     async def unload_model(self):
-        """Força descarregamento do modelo da VRAM (libera para ViralClip)."""
+        """Força descarregamento do modelo da VRAM (libera para outras skills)."""
         try:
             payload = {
                 "model": self.model,

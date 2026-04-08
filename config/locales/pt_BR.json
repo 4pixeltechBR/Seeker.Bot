@@ -1,0 +1,56 @@
+{
+  "app.name": "Seeker.Bot",
+  "app.description": "Agente autônomo de pesquisa com raciocínio estruturado",
+  "app.welcome": "Bem-vindo ao Seeker.Bot! 🤖",
+
+  "cmd.start": "/start — Menu principal",
+  "cmd.search": "/search — Buscar na web",
+  "cmd.crm": "/crm — Leads qualificados",
+  "cmd.status": "/status — Status dos providers",
+  "cmd.saude": "/saude — Dashboard de goals",
+  "cmd.memory": "/memory — Fatos aprendidos",
+  "cmd.god": "/god — Análise profunda forçada",
+  "cmd.rate": "/rate — Status dos rate limiters",
+  "cmd.decay": "/decay — Limpeza de confiança",
+  "cmd.habits": "/habits — Padrões de decisão",
+  "cmd.watch": "/watch — Ativa AFK Protocol",
+  "cmd.watchoff": "/watchoff — Desativa vigilância",
+  "cmd.print": "/print — Screenshot rápido",
+  "cmd.scout": "/scout — Dispara campanha B2B Scout",
+  "cmd.configure_news": "/configure_news — Personaliza nichos do SenseNews",
+
+  "skill.sense_news": "Curadoria Diária de Notícias",
+  "skill.revenue_hunter": "Gerador de Leads B2B",
+  "skill.desktop_watch": "Vigilância de Desktop",
+  "skill.email_monitor": "Monitor de Email",
+  "skill.git_automation": "Automação Git",
+  "skill.briefing": "Briefing Matinal",
+  "skill.skill_creator": "Criador de Skills",
+
+  "niches.models": "🧠 Modelos & Open-Weight",
+  "niches.infra": "⚙️ Infra & Otimização",
+  "niches.tools": "🛠️ Ferramentas & Produtos",
+  "niches.research": "🔬 Pesquisa & Papers",
+  "niches.events": "📅 Eventos & Conferências",
+  "niches.startups": "🚀 Startups & Funding",
+
+  "menu.help": "📖 Menu de Ajuda",
+  "menu.niches": "Escolha seus interesses:",
+  "menu.preferences": "Suas preferências foram salvas! ✅",
+
+  "error.not_authorized": "Você não está autorizado a usar este comando.",
+  "error.provider_down": "Provider indisponível. Tentando fallback...",
+  "error.api_key_missing": "API key não configurada.",
+
+  "status.providers": "Status dos Providers",
+  "status.online": "Online ✅",
+  "status.offline": "Offline ❌",
+  "status.memory": "Memória Semântica",
+  "status.facts": "Fatos armazenados",
+  "status.episodes": "Episódios registrados",
+
+  "messages.processing": "Processando... ⏳",
+  "messages.success": "Completo! ✅",
+  "messages.error": "Erro ao processar ❌",
+  "messages.loading": "Carregando... 📥"
+}
