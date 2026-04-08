@@ -8,9 +8,9 @@ prioridade por proximidade.
 
 Camadas (mais genérica → mais específica):
     SYSTEM(10)   — fatos sobre o mundo
-    DOMAIN(20)   — fatos sobre um domínio (eventos GO, etc.)
+    DOMAIN(20)   — fatos sobre um domínio (eventos, contexto externo)
     USER(30)     — fatos sobre o Victor
-    PROJECT(40)  — fatos sobre um projeto (Seeker, ViralClip)
+    PROJECT(40)  — fatos sobre projetos ativos (Seeker, etc.)
     SESSION(50)  — fatos da conversa atual
     OVERRIDE(100)— correções explícitas (prioridade absoluta)
 
@@ -49,7 +49,6 @@ CATEGORY_TO_LAYER = {
     "pattern": MemoryLayer.USER,            # comportamentos recorrentes
     "project": MemoryLayer.PROJECT,
     "seeker": MemoryLayer.PROJECT,
-    "viralclip": MemoryLayer.PROJECT,
     "session": MemoryLayer.SESSION,
     "reflexive_rule": MemoryLayer.OVERRIDE, # regras de comportamento do bot (prioridade absoluta)
     "correction": MemoryLayer.OVERRIDE,
