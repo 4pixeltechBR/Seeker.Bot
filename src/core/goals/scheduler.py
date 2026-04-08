@@ -188,6 +188,110 @@ class GoalScheduler:
         )
         return "\n".join(lines)
 
+    def get_health_dashboard(self) -> dict[str, Any]:
+        """Retorna dashboard completo de saúde de todos os goals com métricas avançadas."""
+        today = date.today().isoformat()
+        now = time.time()
+
+        goals_health = {}
+        for name, goal in self._goals.items():
+            goals_health[name] = self.get_goal_metrics(name)
+
+        return {
+            "timestamp": now,
+            "date": today,
+            "global_budget": {
+                "spent": self._global_spent_today,
+                "limit": self.GLOBAL_DAILY_BUDGET_USD,
+            },
+            "friction_metrics": dict(self.friction_metrics),
+            "goals": goals_health,
+            "summary": {
+                "total_goals": len(self._goals),
+                "avg_success_rate": sum(g["metrics"]["success_rate"] for g in goals_health.values()) / len(goals_health) if goals_health else 0,
+                "total_cost_today": sum(goal.budget.spent_today_usd for goal in self._goals.values()),
+            }
+        }
+
+    def get_goal_metrics(self, goal_name: str) -> dict[str, Any]:
+        """Retorna métricas detalhadas de um goal específico."""
+        if goal_name not in self._goals:
+            return {}
+
+        goal = self._goals[goal_name]
+        history = list(self._cycle_history.get(goal_name, []))
+        failures = self._failure_counts.get(goal_name, 0)
+        now = time.time()
+
+        if not history:
+            return {
+                "name": goal_name,
+                "status": goal.get_status().value,
+                "metrics": {
+                    "success_rate": 0.0,
+                    "total_cycles": 0,
+                    "avg_latency": 0.0,
+                    "total_cost": 0.0,
+                    "consecutive_failures": failures,
+                },
+                "history": [],
+            }
+
+        # Calcula métricas
+        ok_count = sum(1 for c in history if c["ok"])
+        success_rate = ok_count / len(history) * 100
+
+        latencies = [c["latency"] for c in history if c["latency"] > 0]
+        avg_latency = sum(latencies) / len(latencies) if latencies else 0.0
+
+        total_cost = sum(c["cost"] for c in history)
+
+        # Trend: últimas 5 vs anteriores
+        recent_5 = history[-5:]
+        recent_success = sum(1 for c in recent_5 if c["ok"]) / len(recent_5) * 100 if recent_5 else 0.0
+
+        earlier = history[:-5]
+        earlier_success = sum(1 for c in earlier if c["ok"]) / len(earlier) * 100 if earlier else 0.0
+
+        trend = "📈" if recent_success > earlier_success else ("📉" if recent_success < earlier_success else "➡️")
+
+        return {
+            "name": goal_name,
+            "status": goal.get_status().value,
+            "budget": {
+                "spent_today": goal.budget.spent_today_usd,
+                "limit": goal.budget.max_daily_usd,
+            },
+            "metrics": {
+                "success_rate": round(success_rate, 1),
+                "recent_5_success_rate": round(recent_success, 1),
+                "trend": trend,
+                "total_cycles": len(history),
+                "avg_latency": round(avg_latency, 2),
+                "min_latency": min(latencies) if latencies else 0.0,
+                "max_latency": max(latencies) if latencies else 0.0,
+                "total_cost": round(total_cost, 4),
+                "consecutive_failures": failures,
+            },
+            "last_run": {
+                "timestamp": history[-1]["ts"],
+                "age_seconds": now - history[-1]["ts"],
+                "success": history[-1]["ok"],
+                "cost": history[-1]["cost"],
+                "latency": history[-1]["latency"],
+                "summary": history[-1]["summary"],
+            },
+            "history": [
+                {
+                    "ts": c["ts"],
+                    "ok": c["ok"],
+                    "cost": c["cost"],
+                    "latency": c["latency"],
+                }
+                for c in history[-10:]  # Últimas 10 execuções
+            ],
+        }
+
     # ── Loop principal por goal ───────────────────────────
 
     async def _run_goal_loop(self, goal: AutonomousGoal) -> None:
@@ -370,6 +474,8 @@ class GoalScheduler:
                 "budget_reset_date": goal.budget.budget_reset_date,
             }
             state["_failures"] = self._failure_counts.get(goal.name, 0)
+            # Persiste histórico de ciclos (últimas 20)
+            state["_cycle_history"] = list(self._cycle_history.get(goal.name, []))
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2, ensure_ascii=False)
         except Exception as e:
@@ -386,6 +492,12 @@ class GoalScheduler:
             budget_data = state.pop("_budget", {})
             goal.budget.spent_today_usd = budget_data.get("spent_today_usd", 0.0)
             goal.budget.budget_reset_date = budget_data.get("budget_reset_date", "")
+            # Restaura histórico de ciclos
+            cycle_history = state.pop("_cycle_history", [])
+            if cycle_history:
+                self._cycle_history[goal.name] = deque(cycle_history, maxlen=20)
+            # Restaura contagem de falhas
+            self._failure_counts[goal.name] = state.pop("_failures", 0)
             # Restaura failures
             self._failure_counts[goal.name] = state.pop("_failures", 0)
             # Restaura estado do goal
