@@ -435,6 +435,19 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             if scheduler:
                 lines.append(f"\n{scheduler.get_status_report()}")
 
+            # OODA Loop statistics (FASE 4)
+            ooda_loop = dp.get("ooda_loop")
+            if ooda_loop:
+                ooda_stats = ooda_loop.get_stats()
+                if ooda_stats["total_iterations"] > 0:
+                    lines.append(f"\n<b>🔄 OODA Loop:</b>")
+                    lines.append(f"  {ooda_stats['total_iterations']} iterações")
+                    lines.append(
+                        f"  Success rate: {ooda_stats['success_rate']:.0%} "
+                        f"| Bloqueadas: {ooda_stats['blocked_count']}"
+                    )
+                    lines.append(f"  Latência média: {ooda_stats['avg_latency_ms']:.0f}ms")
+
         except Exception:
             lines.append(f"\n<b>Memória:</b> inicializando...")
         await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
