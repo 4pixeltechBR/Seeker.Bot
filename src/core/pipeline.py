@@ -30,6 +30,7 @@ from src.core.memory.extractor import FactExtractor
 from src.core.memory.embeddings import GeminiEmbedder, SemanticSearch
 from src.core.memory.session import SessionManager
 from src.core.memory.compressor import SessionCompressor
+from src.core.intent_card import IntentClassifier, IntentCard
 from src.core.phases.base import PhaseContext, PhaseResult
 from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
@@ -69,6 +70,7 @@ class SeekerPipeline:
         self.api_keys = api_keys
         self.model_router = build_default_router()
         self.cognitive_router = CognitiveLoadRouter()
+        self.intent_classifier = IntentClassifier()  # Intent classification + autonomy tiers
         self.extractor = FactExtractor(self.model_router, api_keys)
 
         # Search
@@ -186,6 +188,29 @@ class SeekerPipeline:
             f"web={decision.needs_web}"
         )
 
+        # ── 2.5. Intent Classification + Safety Check ─────────
+        intent_card = self.intent_classifier.classify(user_input, user_id=session_id)
+        log.info(intent_card.to_log_entry())
+
+        # Bloquear ações HIGH-RISK antes de continuar
+        if intent_card.requires_approval():
+            blocked_response = (
+                f"⚠️ **Ação bloqueada por segurança**\n\n"
+                f"**Tipo:** {intent_card.intent_type.name}\n"
+                f"**Risco:** {intent_card.risk_level.name}\n"
+                f"**Motivo:** {intent_card.reasoning}\n\n"
+                f"_Esta ação requer aprovação manual._"
+            )
+            log.warning(f"[intent] Bloqueada: {intent_card.reasoning}")
+
+            await self.session.add_turn(session_id, "assistant", blocked_response)
+            return PipelineResult(
+                response=blocked_response,
+                depth=CognitiveDepth.REFLEX,
+                routing_reason="Bloqueada por IntentCard (HIGH-RISK)",
+                total_latency_ms=int((time.perf_counter() - start) * 1000),
+            )
+
         # ── 3. Dispatch pra fase ──────────────────────────────
         ctx = PhaseContext(
             user_input=user_input,
@@ -193,6 +218,7 @@ class SeekerPipeline:
             memory_prompt=memory_prompt,
             session_context=session_context,
             afk_protocol=afk_protocol or self.afk_protocol,
+            intent_card=intent_card,  # Disponível para fases se precisarem
         )
 
         if decision.depth == CognitiveDepth.REFLEX:
