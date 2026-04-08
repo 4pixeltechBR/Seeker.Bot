@@ -61,39 +61,28 @@ class DeepPhase:
         total_cost = 0.0
         llm_calls = 0
 
-        # ── Fase 1: Evidence Arbitrage ───────────────────────
-        log.info("[deep] Fase 1: Arbitrage...")
+        # ── Fase 1+2: Arbitrage ∥ Web Search (PARALELO) ──────
+        log.info("[deep] Fase 1+2: Arbitrage + Web em paralelo...")
         arb = None
         evidence = "Arbitragem indisponível."
+        web_context = ""
 
-        try:
-            arb = await asyncio.wait_for(
-                self.arbitrage.arbitrate(ctx.user_input),
-                timeout=45.0
-            )
+        arb_result, web_result = await asyncio.gather(
+            self._safe_arbitrage(ctx.user_input),
+            self._safe_web_search(ctx.user_input),
+            return_exceptions=False,
+        )
+
+        # Processa Arbitrage
+        if arb_result is not None:
+            arb = arb_result
             total_cost += arb.total_cost_usd
             llm_calls += len(arb.models_consulted)
             evidence = arb.to_summary()
-        except asyncio.TimeoutError:
-            log.warning("[deep] Arbitrage falhou por timeout (45s)")
-            evidence = "Arbitragem indisponível (Timeout)."
-        except Exception as e:
-            log.warning(f"[deep] Arbitrage falhou: {e}")
 
-        # ── Fase 2: Web Search ───────────────────────────────
-        log.info("[deep] Fase 2: Web Search...")
-        web_context = ""
-        try:
-            web_context = await asyncio.wait_for(
-                self._web_search(ctx.user_input),
-                timeout=25.0
-            )
-            if web_context:
-                llm_calls += 1  # query generation
-        except asyncio.TimeoutError:
-            log.warning("[deep] Web search falhou por timeout (25s)")
-        except Exception as e:
-            log.warning(f"[deep] Web search falhou: {e}")
+        # Processa Web
+        if web_result:
+            web_context = web_result
 
         # ── Fase 2.5: Research Loops (NOVO) ──────────────────
         if arb and arb.has_conflicts:
@@ -191,10 +180,37 @@ class DeepPhase:
             verdict=verdict,
         )
 
-    async def _web_search(self, user_input: str) -> str:
-        """Gera queries otimizadas e busca na web."""
+    async def _safe_arbitrage(self, user_input: str) -> "ArbitrageResult | None":
+        """Wrapper com timeout e error handling pro gather."""
         try:
-            search_queries = await self._generate_search_queries(user_input)
+            return await asyncio.wait_for(
+                self.arbitrage.arbitrate(user_input), timeout=45.0
+            )
+        except asyncio.TimeoutError:
+            log.warning("[deep] Arbitrage falhou por timeout (45s)")
+            return None
+        except Exception as e:
+            log.warning(f"[deep] Arbitrage falhou: {e}")
+            return None
+
+    async def _safe_web_search(self, user_input: str) -> str:
+        """Wrapper com timeout e error handling pro gather."""
+        try:
+            return await asyncio.wait_for(
+                self._web_search(user_input), timeout=25.0
+            )
+        except asyncio.TimeoutError:
+            log.warning("[deep] Web search falhou por timeout (25s)")
+            return ""
+        except Exception as e:
+            log.warning(f"[deep] Web search falhou: {e}")
+            return ""
+
+    async def _web_search(self, user_input: str) -> str:
+        """Gera queries determinísticas e busca na web."""
+        from src.core.phases.deliberate import DeliberatePhase
+        try:
+            search_queries = DeliberatePhase._build_search_queries(user_input)
             search_results = await self.searcher.search_multiple(
                 search_queries, max_results_per_query=3
             )
@@ -254,33 +270,4 @@ class DeepPhase:
 
         return existing_web
 
-    async def _generate_search_queries(self, user_input: str) -> list[str]:
-        """Gera 2-3 queries de busca otimizadas (em inglês) via modelo FAST."""
-        try:
-            response = await invoke_with_fallback(
-                role=CognitiveRole.FAST,
-                request=LLMRequest(
-                    messages=[{
-                        "role": "user",
-                        "content": (
-                            f"Gere 2-3 queries de busca web curtas e específicas (em inglês, "
-                            f"pra melhores resultados) para investigar esta pergunta:\n\n"
-                            f"{user_input}\n\n"
-                            f'Retorne APENAS JSON: {{"queries": ["query1", "query2"]}}'
-                        ),
-                    }],
-                    max_tokens=200,
-                    temperature=0.0,
-                    response_format="json",
-                ),
-                router=self.router,
-                api_keys=self.api_keys,
-            )
-            data = parse_llm_json(response.text)
-            queries = data.get("queries", [])
-            if queries and isinstance(queries, list):
-                return [q for q in queries if isinstance(q, str) and len(q) > 3][:3]
-        except Exception as e:
-            log.warning(f"[deep] Falha ao gerar queries: {e}")
-
-        return [user_input[:100]]
+    # _generate_search_queries removido — usa DeliberatePhase._build_search_queries (DRY)
