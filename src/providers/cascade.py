@@ -213,19 +213,13 @@ class CascadeAdapter:
         }
 
     async def _call_provider(self, model, req: LLMRequest) -> Optional[LLMResponse]:
-        """Chama provider com timeout."""
+        """Chama provider diretamente pelo modelo selecionado."""
         try:
-            # Importa dinamicamente o invoke_with_fallback
-            from src.providers.base import invoke_with_fallback
+            from src.providers.base import create_provider
 
-            # Adapta para usar o provider específico
+            provider_instance = create_provider(model, self.api_keys)
             resp = await asyncio.wait_for(
-                invoke_with_fallback(
-                    role=self._cognitive_role_from_provider(model.provider),
-                    request=req,
-                    model_router=self.model_router,
-                    api_keys=self.api_keys,
-                ),
+                provider_instance.complete(req),
                 timeout=45.0,
             )
             return resp if resp and resp.text else None
@@ -234,16 +228,5 @@ class CascadeAdapter:
             log.warning(f"[cascade] Timeout em {model.provider}")
             return None
         except Exception as e:
-            log.debug(f"[cascade] Erro em {model.provider}: {e}")
+            log.warning(f"[cascade] Erro em {model.provider}/{model.display_name}: {e}")
             return None
-
-    def _cognitive_role_from_provider(self, provider: str) -> CognitiveRole:
-        """Map provider string to CognitiveRole."""
-        provider_to_role = {
-            "groq": CognitiveRole.FAST,
-            "gemini": CognitiveRole.SYNTHESIS,
-            "deepseek": CognitiveRole.SYNTHESIS,
-            "nvidia": CognitiveRole.SYNTHESIS,
-            "mistral": CognitiveRole.SYNTHESIS,
-        }
-        return provider_to_role.get(provider, CognitiveRole.SYNTHESIS)
