@@ -146,6 +146,8 @@ class CascadeAdapter:
         """
         if isinstance(role, str):
             role = CascadeRole(role)
+        elif not isinstance(role, CascadeRole):
+            role = CascadeRole(role)
 
         t0 = time.perf_counter()
         route = self.role_routes.get(role, [CognitiveRole.SYNTHESIS, CognitiveRole.FAST])
