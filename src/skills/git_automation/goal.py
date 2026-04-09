@@ -104,7 +104,7 @@ class GitBackupGoal:
                     # Usa lista de args (sem shell=True) para evitar exposição em ps/logs
                     push_url = f"https://x-access-token:{github_token}@github.com/{repo_slug}.git"
                     push_res = subprocess.run(
-                        ["git", "push", "-u", push_url, "main"],
+                        ["git", "push", "--force", push_url, "main"],
                         cwd=self.repo_dir,
                         capture_output=True,
                         text=True,

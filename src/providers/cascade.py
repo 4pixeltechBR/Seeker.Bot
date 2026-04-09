@@ -155,14 +155,24 @@ class CascadeAdapter:
         t0 = time.perf_counter()
         route = self.role_routes.get(role, [CognitiveRole.SYNTHESIS, CognitiveRole.FAST])
 
-        for tier, cognitive_role in enumerate(route, start=1):
-            try:
-                model = self.model_router.get(cognitive_role)
-                provider = model.provider
+        # Monta request uma vez
+        req = LLMRequest(
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
-                # Skip se circuit está aberto
+        tier = 0
+        for cognitive_role in route:
+            # Tenta primary + fallbacks de cada cognitive_role
+            primary = self.model_router.get(cognitive_role)
+            fallbacks = self.model_router.get_fallbacks(cognitive_role)
+            for model in [primary] + fallbacks:
+                provider = model.provider
+                tier += 1
+
                 if self._is_circuit_open(provider):
-                    log.debug(f"[cascade] Tier {tier}: {provider} está em circuit breaker, pulando")
+                    log.debug(f"[cascade] Tier {tier}: {provider} em circuit breaker, pulando")
                     continue
 
                 log.info(
@@ -170,21 +180,17 @@ class CascadeAdapter:
                     f"(role={role.value})"
                 )
 
-                # Monta request
-                req = LLMRequest(
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-
-                # Chama provider
-                result = await self._call_provider(model, req)
+                try:
+                    result = await self._call_provider(model, req)
+                except Exception as e:
+                    self._record_failure(provider)
+                    log.warning(f"[cascade] Tier {tier} exceção: {e}")
+                    continue
 
                 if result:
                     self._record_success(provider)
                     elapsed_ms = int((time.perf_counter() - t0) * 1000)
                     log.info(f"[cascade] ✅ Tier {tier} ({provider}) respondeu em {elapsed_ms}ms")
-
                     return {
                         "content": result.text,
                         "provider": provider,
@@ -195,11 +201,6 @@ class CascadeAdapter:
                 else:
                     self._record_failure(provider)
                     log.debug(f"[cascade] Tier {tier}: {provider} falhou, tentando próximo")
-
-            except Exception as e:
-                self._record_failure(provider)
-                log.warning(f"[cascade] Tier {tier} exceção: {e}")
-                continue
 
         # Fallback final: sem resposta
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
@@ -222,7 +223,14 @@ class CascadeAdapter:
                 provider_instance.complete(req),
                 timeout=45.0,
             )
-            return resp if resp and resp.text else None
+            if not resp:
+                return None
+            # Alguns modelos (ex: Nemotron) retornam só <think> — extrair conteúdo raw
+            if not resp.text and resp.raw:
+                raw_content = resp.raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if raw_content:
+                    resp.text = raw_content
+            return resp if resp.text else None
 
         except asyncio.TimeoutError:
             log.warning(f"[cascade] Timeout em {model.provider}")
