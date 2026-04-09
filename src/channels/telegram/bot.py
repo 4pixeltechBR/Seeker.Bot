@@ -629,32 +629,30 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     @dp.message(F.text == "/perf_detailed")
     async def cmd_perf_detailed(message: Message):
-        """Métricas detalhadas de performance por fase"""
+        """Métricas detalhadas de performance por fase + Sprint 11 Optimizations"""
         if not _is_allowed(message, allowed_users):
             return
         try:
+            # Relatório Sprint 11 (Cascade + Cache + Batch)
+            sprint11_report = pipeline.get_sprint11_report()
+
+            # Dashboard geral
             dashboard = pipeline.get_performance_dashboard()
             goals = dashboard["goals"]
 
-            if not goals:
-                await message.answer(
-                    "⏳ Sem dados de performance ainda.\n"
-                    "Aguarde alguns ciclos de processamento para coletar métricas.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
+            lines = [sprint11_report]
 
-            # Formata por goal
-            lines = ["<b>📈 DETAILED PERFORMANCE METRICS</b>\n"]
-            for goal_id, metrics in goals.items():
-                lines.append(
-                    f"<b>{goal_id}</b>\n"
-                    f"  Cycles: {metrics['cycles']} | Success: {metrics['success_rate']}\n"
-                    f"  Cost: {metrics['total_cost']} | Avg Latency: {metrics['avg_latency_ms']}ms\n"
-                    f"  Tokens: {metrics['tokens']}"
-                )
+            if goals:
+                # Formata por goal
+                lines.append("<b>📊 GOALS PERFORMANCE</b>\n")
+                for goal_id, metrics in list(goals.items())[:5]:  # Top 5 goals
+                    lines.append(
+                        f"<b>{goal_id}</b>\n"
+                        f"  Cycles: {metrics['cycles']} | Success: {metrics['success_rate']}\n"
+                        f"  Cost: {metrics['total_cost']} | Avg Latency: {metrics['avg_latency_ms']}ms\n"
+                    )
 
-            detailed = "\n".join(lines)
+            detailed = "".join(lines)
 
             # Dividir em chunks se muito grande
             for part in split_message(detailed):
