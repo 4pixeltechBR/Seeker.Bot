@@ -90,6 +90,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
         BotCommand(command="/perf", description="Dashboard de performance e latência"),
         BotCommand(command="/perf_detailed", description="Métricas detalhadas por fase"),
+        BotCommand(command="/cascade_status", description="Status detalhado da API Cascade (6 tiers)"),
         BotCommand(command="/recovery", description="Status de circuit breakers e degradação"),
         BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
         BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
@@ -662,6 +663,57 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
             log.error(f"[cmd_perf_detailed] Erro: {e}", exc_info=True)
 
+    @dp.message(F.text == "/cascade_status")
+    async def cmd_cascade_status(message: Message):
+        """Status detalhado da API Cascade — 6 tiers com health checks"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            # Health status de cada tier
+            health = pipeline.cascade_adapter.get_health_status()
+            cost_analysis = pipeline.cascade_adapter.get_cost_analysis()
+
+            # Formatar status dos tiers
+            lines = ["<b>🔀 API CASCADE STATUS (6 Tiers)</b>\n"]
+            lines.append(f"<b>Timestamp:</b> {health['timestamp'][:19]}\n")
+            lines.append(f"<b>Overall Health:</b> {health['overall_health']}\n\n")
+
+            lines.append("<b>📊 TIER BREAKDOWN:</b>\n")
+            for tier_name, tier_status in health["tiers"].items():
+                health_emoji = "✅" if tier_status["is_healthy"] else "⚠️"
+                lines.append(
+                    f"{health_emoji} <b>{tier_name.upper()}</b>\n"
+                    f"  Success Rate: {tier_status['success_rate']}\n"
+                    f"  Avg Latency: {tier_status['avg_latency_ms']}ms\n"
+                    f"  Cost/Call: {tier_status['avg_cost_usd']}\n"
+                    f"  Fallbacks: {tier_status['fallback_count']}\n"
+                )
+                if tier_status["last_error"]:
+                    lines.append(f"  Last Error: {tier_status['last_error'][:50]}...\n")
+
+            lines.append("\n<b>💰 COST ANALYSIS:</b>\n")
+            lines.append(f"Total Calls: {cost_analysis['total_calls']}\n")
+            lines.append(f"Total Cost: ${cost_analysis['total_cost_usd']}\n")
+            lines.append(f"Avg Cost/Call: ${cost_analysis['average_cost_per_call']}\n")
+            lines.append(f"Savings vs NIM: {cost_analysis['estimated_savings_vs_nim']}\n")
+
+            # Error breakdown
+            if cost_analysis.get("error_breakdown"):
+                lines.append("\n<b>🔴 ERROR BREAKDOWN:</b>\n")
+                for tier_name, errors in cost_analysis["error_breakdown"].items():
+                    if errors:
+                        lines.append(f"<b>{tier_name}:</b> {errors}\n")
+
+            status_msg = "".join(lines)
+
+            # Dividir em chunks se muito grande
+            for part in split_message(status_msg):
+                await message.answer(part, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            await message.answer(f"❌ Erro ao gerar status cascade: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_cascade_status] Erro: {e}", exc_info=True)
+
     @dp.message(F.text == "/recovery")
     async def cmd_recovery(message: Message):
         """Status de recuperação de erros, circuit breakers e degradação"""
@@ -1207,6 +1259,13 @@ async def main():
     pipeline = SeekerPipeline(api_keys)
     await pipeline.init()
 
+    # ── Init API Cascade Health Checks (Sprint 7.1) ─────────
+    try:
+        await pipeline.cascade_adapter.start_health_checks(interval_seconds=30)
+        log.info("  API Cascade health checks iniciados (interval=30s)")
+    except Exception as e:
+        log.warning(f"Erro ao iniciar health checks: {e}")
+
     # ── Init bot ──────────────────────────────────────────
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
@@ -1278,6 +1337,12 @@ async def main():
         scheduler = dp.get("scheduler")
         if scheduler:
             await scheduler.stop()
+
+        # Cleanup: API Cascade health checks (Sprint 7.1)
+        try:
+            pipeline.cascade_adapter.stop_health_checks()
+        except Exception as e:
+            log.warning(f"Erro ao parar health checks: {e}")
 
         # Cleanup: pipeline (cancela decay, aguarda tasks, fecha memória)
         await pipeline.close()
