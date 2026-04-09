@@ -488,6 +488,7 @@ class ScoutEngine:
                 )
 
                 score = 50
+                reason = ""
                 try:
                     raw = qual_res.get("content", "{}")
                     s = raw.find("{")
@@ -495,11 +496,14 @@ class ScoutEngine:
                     if s != -1 and e > s:
                         data = json.loads(raw[s:e])
                         score = int(data.get("score", 50))
+                        reason = data.get("reason", "")
                 except Exception as parse_err:
                     log.warning(f"[scout] Parse error for lead {lead_id}: {parse_err}")
 
-                # Copy generation if score is high
-                if score >= 70:
+                log.debug(f"[scout] Lead {lead_id} ({lead.get('name', 'Unknown')}): score={score} ({reason})")
+
+                # Copy generation if score is high (>= 60 é mais realista que 70)
+                if score >= 60:
                     results["qualified"] += 1
 
                     copy_prompt = (

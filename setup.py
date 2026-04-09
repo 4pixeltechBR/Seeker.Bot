@@ -1,19 +1,66 @@
 #!/usr/bin/env python3
 """
 Seeker.Bot Interactive Setup
-Instalador bilíngue (Português/English) com configuração automática.
+Instalador bilíngue (Português/English) com configuração automática e validação.
 """
 
 import os
 import sys
 import subprocess
 import json
+import shutil
+import sqlite3
 from pathlib import Path
+from packaging import version
 
 
 def clear_screen():
     """Limpa a tela do terminal."""
     os.system("cls" if os.name == "nt" else "clear")
+
+
+def check_prerequisites(lang):
+    """Verifica pré-requisitos do sistema."""
+    clear_screen()
+    if lang == "pt_BR":
+        print("=" * 60)
+        print("🔍 Verificando pré-requisitos...")
+        print("=" * 60)
+        print()
+    else:
+        print("=" * 60)
+        print("🔍 Checking prerequisites...")
+        print("=" * 60)
+        print()
+
+    # Check Python version
+    py_version = sys.version_info
+    if py_version < (3, 10):
+        if lang == "pt_BR":
+            print(f"❌ Python 3.10+ obrigatório (você tem {py_version.major}.{py_version.minor})")
+        else:
+            print(f"❌ Python 3.10+ required (you have {py_version.major}.{py_version.minor})")
+        sys.exit(1)
+    if lang == "pt_BR":
+        print(f"✅ Python {py_version.major}.{py_version.minor}.{py_version.micro}")
+    else:
+        print(f"✅ Python {py_version.major}.{py_version.minor}.{py_version.micro}")
+
+    # Check Git
+    try:
+        result = subprocess.run(['git', '--version'], capture_output=True, text=True, check=True)
+        if lang == "pt_BR":
+            print(f"✅ {result.stdout.strip()}")
+        else:
+            print(f"✅ {result.stdout.strip()}")
+    except:
+        if lang == "pt_BR":
+            print("❌ Git não encontrado. Instale em https://git-scm.com/")
+        else:
+            print("❌ Git not found. Install from https://git-scm.com/")
+        sys.exit(1)
+
+    print()
 
 
 def get_language():
@@ -95,64 +142,170 @@ def get_api_keys(lang):
 
     prompts = {
         "pt_BR": {
-            "groq": "Groq API Key (https://console.groq.com): ",
-            "gemini": "Google Gemini API Key (https://makersuite.google.com): ",
-            "deepseek": "DeepSeek API Key (https://platform.deepseek.com): ",
-            "tavily": "Tavily Search API Key (https://tavily.com): ",
-            "telegram": "Telegram Bot Token (BotFather): ",
+            "nvidia": ("NVIDIA NIM API Key (https://build.nvidia.com): ", True),
+            "groq": ("Groq API Key (https://console.groq.com): ", True),
+            "gemini": ("Google Gemini API Key (https://aistudio.google.com): ", True),
+            "deepseek": ("DeepSeek API Key (https://platform.deepseek.com): ", False),
+            "mistral": ("Mistral API Key (https://console.mistral.ai): ", False),
+            "tavily": ("Tavily Search API Key (https://tavily.com): ", False),
+            "telegram": ("Telegram Bot Token (@BotFather): ", True),
+            "telegram_user": ("Your Telegram User ID: ", True),
+            "github_token": ("GitHub Token (for auto-backup): ", False),
+            "github_repo": ("GitHub Repo (owner/repo): ", False),
         },
         "en_US": {
-            "groq": "Groq API Key (https://console.groq.com): ",
-            "gemini": "Google Gemini API Key (https://makersuite.google.com): ",
-            "deepseek": "DeepSeek API Key (https://platform.deepseek.com): ",
-            "tavily": "Tavily Search API Key (https://tavily.com): ",
-            "telegram": "Telegram Bot Token (BotFather): ",
+            "nvidia": ("NVIDIA NIM API Key (https://build.nvidia.com): ", True),
+            "groq": ("Groq API Key (https://console.groq.com): ", True),
+            "gemini": ("Google Gemini API Key (https://aistudio.google.com): ", True),
+            "deepseek": ("DeepSeek API Key (https://platform.deepseek.com): ", False),
+            "mistral": ("Mistral API Key (https://console.mistral.ai): ", False),
+            "tavily": ("Tavily Search API Key (https://tavily.com): ", False),
+            "telegram": ("Telegram Bot Token (@BotFather): ", True),
+            "telegram_user": ("Your Telegram User ID: ", True),
+            "github_token": ("GitHub Token (for auto-backup): ", False),
+            "github_repo": ("GitHub Repo (owner/repo): ", False),
         }
     }
 
-    for key_name, prompt_text in prompts[lang].items():
-        value = input(prompt_text).strip()
-        if value:
-            keys[key_name] = value
+    for key_name, (prompt_text, is_required) in prompts[lang].items():
+        while True:
+            value = input(prompt_text).strip()
+            if is_required and not value:
+                if lang == "pt_BR":
+                    print(f"  ⚠️  {key_name} é obrigatório!")
+                else:
+                    print(f"  ⚠️  {key_name} is required!")
+                continue
+            if value:
+                keys[key_name] = value
+            break
 
     return keys
 
 
 def create_env_file(lang, keys):
-    """Cria arquivo .env com configurações."""
-    env_path = Path(".env")
+    """Cria arquivo .env com configurações em config/.env"""
+    config_dir = Path("config")
+    config_dir.mkdir(exist_ok=True)
+
+    env_path = config_dir / ".env"
 
     if env_path.exists():
-        return  # Já existe, não sobrescrever
+        if lang == "pt_BR":
+            print(f"⚠️  {env_path} já existe. Atualizando...")
+        else:
+            print(f"⚠️  {env_path} already exists. Updating...")
 
-    env_content = f"""# Seeker.Bot Configuration
+    env_content = f"""# Seeker.Bot — Configuration
 # Auto-generated by setup.py
 
-# Idioma / Language
-LANGUAGE={lang}
-
-# API Keys
+# ── Providers ──
+NVIDIA_API_KEY={keys.get('nvidia', '')}
 GROQ_API_KEY={keys.get('groq', '')}
 GEMINI_API_KEY={keys.get('gemini', '')}
 DEEPSEEK_API_KEY={keys.get('deepseek', '')}
+MISTRAL_API_KEY={keys.get('mistral', '')}
+
+# ── Search ──
+SEARCH_PROVIDER=tavily
 TAVILY_API_KEY={keys.get('tavily', '')}
+BRAVE_API_KEY=
 
-# Telegram
+# ── Telegram ──
 TELEGRAM_BOT_TOKEN={keys.get('telegram', '')}
-TELEGRAM_ADMIN_USER_ID=1234567890
+TELEGRAM_ALLOWED_USERS={keys.get('telegram_user', '')}
 
-# Database
-DATABASE_PATH=data/seeker_memory.db
+# ── Email (Gmail) ──
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+EMAIL_RECIPIENTS=
+IMAP_SERVER=imap.gmail.com
+IMAP_USER=
+IMAP_PASSWORD=
 
-# Logging
+# ── GitHub Auto-Backup ──
+GITHUB_TOKEN={keys.get('github_token', '')}
+GITHUB_REPO={keys.get('github_repo', '')}
+
+# ── System ──
 LOG_LEVEL=INFO
-
-# Ollama (para fallback local)
-OLLAMA_BASE_URL=http://localhost:11434
 """
 
-    with open(env_path, "w") as f:
-        f.write(env_content)
+    try:
+        with open(env_path, "w") as f:
+            f.write(env_content)
+
+        if lang == "pt_BR":
+            print(f"✅ Configuração salva em {env_path}")
+        else:
+            print(f"✅ Configuration saved to {env_path}")
+
+        return True
+    except Exception as e:
+        if lang == "pt_BR":
+            print(f"❌ Erro ao salvar .env: {e}")
+        else:
+            print(f"❌ Error saving .env: {e}")
+        return False
+
+
+def create_directories(lang):
+    """Cria diretórios necessários."""
+    dirs = [
+        Path("data"),
+        Path("logs"),
+        Path("config"),
+        Path("cache"),
+    ]
+
+    for dir_path in dirs:
+        try:
+            dir_path.mkdir(exist_ok=True)
+        except Exception as e:
+            if lang == "pt_BR":
+                print(f"⚠️  Erro ao criar {dir_path}: {e}")
+            else:
+                print(f"⚠️  Error creating {dir_path}: {e}")
+
+
+def init_database(lang):
+    """Inicializa banco de dados SQLite."""
+    db_path = Path("data") / "seeker_memory.db"
+
+    if db_path.exists():
+        if lang == "pt_BR":
+            print(f"✅ Database já existe em {db_path}")
+        else:
+            print(f"✅ Database already exists at {db_path}")
+        return
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Cria tabela simples para testar
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_status (
+                id INTEGER PRIMARY KEY,
+                initialized_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("INSERT INTO system_status DEFAULT VALUES")
+        conn.commit()
+        conn.close()
+
+        if lang == "pt_BR":
+            print(f"✅ Database criado em {db_path}")
+        else:
+            print(f"✅ Database created at {db_path}")
+    except Exception as e:
+        if lang == "pt_BR":
+            print(f"❌ Erro ao inicializar database: {e}")
+        else:
+            print(f"❌ Error initializing database: {e}")
 
 
 def install_dependencies(lang):
@@ -326,17 +479,51 @@ def main():
     lang = get_language()
     show_welcome(lang)
 
-    keys = get_api_keys(lang)
-    create_env_file(lang, keys)
+    # Check prerequisites
+    check_prerequisites(lang)
 
+    # Create directories
+    if lang == "pt_BR":
+        print("📁 Criando diretórios...")
+    else:
+        print("📁 Creating directories...")
+    create_directories(lang)
+    print()
+
+    # Get API keys
+    keys = get_api_keys(lang)
+
+    # Create .env file
+    if lang == "pt_BR":
+        print("\n💾 Salvando configuração...")
+    else:
+        print("\n💾 Saving configuration...")
+    if not create_env_file(lang, keys):
+        sys.exit(1)
+
+    # Install dependencies
     install_dependencies(lang)
+
+    # Initialize database
+    if lang == "pt_BR":
+        print("🗄️  Inicializando database...")
+    else:
+        print("🗄️  Initializing database...")
+    init_database(lang)
+    print()
+
+    # Test providers
     test_providers(lang, keys)
+
+    # Show summary
     show_summary(lang, keys)
 
+    input("Press Enter to continue / Pressione Enter para continuar...")
+
     if lang == "pt_BR":
-        print("Obrigado por usar Seeker.Bot! 🚀")
+        print("\nObrigado por usar Seeker.Bot! 🚀")
     else:
-        print("Thank you for using Seeker.Bot! 🚀")
+        print("\nThank you for using Seeker.Bot! 🚀")
 
 
 if __name__ == "__main__":

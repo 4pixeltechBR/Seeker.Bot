@@ -210,7 +210,9 @@ class DeepPhase:
         """Gera queries determinísticas e busca na web."""
         from src.core.phases.deliberate import DeliberatePhase
         try:
-            search_queries = DeliberatePhase._build_search_queries(user_input)
+            # Cria instância de DeliberatePhase pra acessar _generate_search_queries
+            deliberate = DeliberatePhase(self.router, self.api_keys, self.searcher)
+            search_queries = await deliberate._generate_search_queries(user_input)
             search_results = await self.searcher.search_multiple(
                 search_queries, max_results_per_query=3
             )
