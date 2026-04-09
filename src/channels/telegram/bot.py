@@ -96,6 +96,12 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/search", description="Busca direta e forçada na web"),
         BotCommand(command="/rate", description="Exibe status dos rate limiters"),
         BotCommand(command="/decay", description="Roda limpeza de confiança manual"),
+        BotCommand(command="/budget", description="Gastos de hoje por provedor"),
+        BotCommand(command="/budget_monthly", description="Gastos do mês por provedor"),
+        BotCommand(command="/data_stats", description="Estatisticas do armazem de dados"),
+        BotCommand(command="/data_clean", description="Executa limpeza de dados antigos"),
+        BotCommand(command="/dashboard", description="Dashboard financeiro com status atual"),
+        BotCommand(command="/forecast", description="Previsoes de custos para proximos 7 e 30 dias"),
         BotCommand(command="/habits", description="Padrões de decisão aprendidos"),
         BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
@@ -744,6 +750,141 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             )
         except Exception as e:
             await message.answer(f"❌ Erro: {e}")
+
+    @dp.message(F.text == "/budget")
+    async def cmd_budget(message: Message):
+        """Mostra resumo de gastos do dia"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            relatorio = pipeline.cost_tracker.formatar_relatorio_custos()
+            await message.answer(relatorio, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await message.answer(f"Erro ao recuperar custos: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_budget] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/budget_monthly")
+    async def cmd_budget_monthly(message: Message):
+        """Mostra resumo de gastos do mês"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            resumo = pipeline.cost_tracker.obter_resumo_mensal()
+
+            linhas = ["<b>Gastos - Resumo Mensal</b>\n"]
+            linhas.append(f"Mes: {resumo['mes']}")
+            linhas.append(f"Total: ${resumo['custo_total']:.2f}")
+            linhas.append(f"Limite: ${resumo['limite']:.2f}")
+            linhas.append(f"Porcentagem: {resumo['porcentagem_limite']:.0f}%\n")
+
+            linhas.append("<b>Por Provedor:</b>")
+            for prov, custo in sorted(
+                resumo['provedores'].items(),
+                key=lambda x: x[1],
+                reverse=True
+            ):
+                if custo > 0:
+                    linhas.append(f"  {prov}: ${custo:.4f}")
+
+            await message.answer(
+                "\n".join(linhas),
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_budget_monthly] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/data_stats")
+    async def cmd_data_stats(message: Message):
+        """Mostra estatísticas do armazém de dados"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            stats = await pipeline.data_store.estatisticas()
+
+            linhas = ["<b>Armazem de Dados - Estatisticas</b>\n"]
+            linhas.append(f"Total de fatos: {stats['total_fatos']}")
+            linhas.append(f"Confianca media: {stats['confianca_media']:.2f}")
+            linhas.append(f"Categorias: {len(stats['categorias'])}\n")
+
+            linhas.append("<b>Por Categoria:</b>")
+            for cat, qtd in stats['quantidade_por_categoria'].items():
+                linhas.append(f"  {cat}: {qtd}")
+
+            await message.answer(
+                "\n".join(linhas),
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_data_stats] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/data_clean")
+    async def cmd_data_clean(message: Message):
+        """Executa limpeza de dados antigos"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            await message.answer("Executando limpeza de dados...")
+            resultado = await pipeline.data_gerenciador.limpar_dados(simular=False)
+
+            linhas = ["<b>Limpeza de Dados Concluida</b>\n"]
+            linhas.append(f"Total deletado: {resultado['total_deletados']}")
+            linhas.append(f"  Idade maxima: {resultado['por_motivo']['idade_maxima']}")
+            linhas.append(f"  Confianca baixa: {resultado['por_motivo']['confianca_baixa']}")
+            linhas.append(f"  Nunca utilizado: {resultado['por_motivo']['nunca_utilizado']}")
+
+            await message.answer(
+                "\n".join(linhas),
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_data_clean] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/dashboard")
+    async def cmd_dashboard(message: Message):
+        """Mostra dashboard financeiro com status atual"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            relatorio = await pipeline.analytics_reporter.gerar_relatorio_diario()
+            await message.answer(relatorio.conteudo_html, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_dashboard] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/forecast")
+    async def cmd_forecast(message: Message):
+        """Mostra previsoes de custos para proximos 7 e 30 dias"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            previsoes = await pipeline.analytics_forecaster.obter_resumo_previsoes()
+
+            linhas = ["<b>Previsoes de Custos</b>\n"]
+            linhas.append("<b>Proximos 7 Dias</b>")
+            linhas.append(f"Total: ${previsoes['previsao_7d']['total']:.2f}")
+            linhas.append(f"Media/Dia: ${previsoes['previsao_7d']['media_diaria']:.2f}")
+            linhas.append(f"Range: ${previsoes['previsao_7d']['min']:.2f} - ${previsoes['previsao_7d']['max']:.2f}\n")
+
+            linhas.append("<b>Proximos 30 Dias</b>")
+            linhas.append(f"Total: ${previsoes['previsao_30d']['total']:.2f}")
+            linhas.append(f"Media/Dia: ${previsoes['previsao_30d']['media_diaria']:.2f}")
+            linhas.append(f"Range: ${previsoes['previsao_30d']['min']:.2f} - ${previsoes['previsao_30d']['max']:.2f}\n")
+
+            if previsoes['data_alerta_mensal']:
+                linhas.append("<b>Alerta de Limite</b>")
+                linhas.append(f"Previsto para: {previsoes['data_alerta_mensal']}")
+                linhas.append(f"Em {previsoes['dias_ate_alerta']} dias")
+
+            await message.answer(
+                "\n".join(linhas),
+                parse_mode=ParseMode.HTML
+            )
+        except Exception as e:
+            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_forecast] Erro: {e}", exc_info=True)
 
     @dp.message(F.text == "/habits")
     async def cmd_habits(message: Message):

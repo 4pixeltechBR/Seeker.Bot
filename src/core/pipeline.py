@@ -41,6 +41,9 @@ from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_cont
 from src.core.profiling.profiler import SystemProfiler
 from src.core.profiling.exporter import PrometheusExporter
 from src.core.error_recovery import ErrorRecoveryManager
+from src.core.budget import RastreadorCustos
+from src.core.data import ArmazemDados, Indexador, GerenciadorRetencao
+from src.core.analytics import DashboardFinanceiro, Forecaster, Reporter
 
 log = logging.getLogger("seeker.pipeline")
 
@@ -108,6 +111,35 @@ class SeekerPipeline:
 
         # Error Recovery — circuit breaker, telemetry, graceful degradation
         self.error_recovery = ErrorRecoveryManager()
+
+        # Budget & Cost Tracking — rastreamento de gastos com LLM
+        self.cost_tracker = RastreadorCustos(
+            limite_diario_usd=10.0,
+            limite_mensal_usd=200.0,
+        )
+
+        # Data Manager — armazenamento eficiente de fatos semânticos
+        data_db_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "data", "seeker_data.db"
+        )
+        self.data_store = ArmazemDados(db_path=data_db_path)
+        self.data_indexador = Indexador(self.data_store)
+        self.data_gerenciador = GerenciadorRetencao(self.data_store)
+
+        # Analytics — Dashboard financeiro, previsões e relatórios
+        self.analytics_dashboard = DashboardFinanceiro(
+            cost_tracker=self.cost_tracker,
+            profiler=self.profiler,
+        )
+        self.analytics_forecaster = Forecaster(
+            cost_tracker=self.cost_tracker,
+            tamanho_historico=30,
+        )
+        self.analytics_reporter = Reporter(
+            dashboard=self.analytics_dashboard,
+            forecaster=self.analytics_forecaster,
+        )
 
         # Phases — inicializadas no init()
         self._phase_reflex: ReflexPhase | None = None
