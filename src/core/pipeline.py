@@ -31,6 +31,7 @@ from src.core.memory.embeddings import GeminiEmbedder, SemanticSearch
 from src.core.memory.session import SessionManager
 from src.core.memory.compressor import SessionCompressor
 from src.core.intent_card import IntentClassifier, IntentCard
+from src.core.safety_layer_enhanced import SafetyLayer, SafetyPolicy, AutonomyTier, ActionType
 from src.core.phases.base import PhaseContext, PhaseResult
 from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
@@ -109,6 +110,10 @@ class SeekerPipeline:
 
         # Batch Operations Manager — consolidação de commits (Sprint 11.3)
         self.batch_manager = BatchOperationsManager(max_pending=100)
+
+        # Safety Layer — controle de autonomia e ações (Sprint 7.3)
+        safety_policy = SafetyPolicy()
+        self.safety_layer = SafetyLayer(safety_policy)
 
         # Sprint 11 Metrics Tracker — monitoramento de otimizações (Fase 4)
         self.sprint11_tracker = Sprint11Tracker()
@@ -405,6 +410,38 @@ class SeekerPipeline:
     def get_sprint11_report(self) -> str:
         """Retorna relatório de otimizações Sprint 11 formatado para Telegram"""
         return self.sprint11_tracker.format_for_telegram()
+
+    async def check_action_safety(
+        self,
+        action_type: ActionType,
+        goal_name: str,
+        current_tier: AutonomyTier = AutonomyTier.L1_LOGGED,
+        action_details: dict | None = None,
+    ) -> tuple[bool, str]:
+        """
+        Verifica se uma ação é permitida pela safety policy.
+
+        Returns: (allowed, reason)
+        """
+        allowed, reason = await self.safety_layer.check_action(
+            action_type,
+            goal_name,
+            current_tier,
+            action_details
+        )
+        return allowed, reason
+
+    def get_safety_policy(self) -> dict:
+        """Exporta a política de segurança atual em formato estruturado"""
+        return self.safety_layer.export_policy()
+
+    def get_safety_audit_log(self, limit: int = 100) -> list[dict]:
+        """Retorna log de auditoria de ações de segurança"""
+        return self.safety_layer.get_audit_log(limit)
+
+    def configure_safety_policy(self):
+        """Retorna a política para configuração pelo bot/CLI"""
+        return self.safety_layer.policy
 
     def get_performance_dashboard(self) -> dict:
         """Retorna dashboard de performance agregado"""
