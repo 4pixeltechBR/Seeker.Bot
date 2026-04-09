@@ -98,6 +98,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
         BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
         BotCommand(command="/scout", description="Dispara campanha B2B Scout (leads qualificados)"),
+        BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
         BotCommand(command="/crm", description="Lista histórico de leads qualificados"),
         BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews")
     ]
@@ -391,6 +392,66 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             log.error(f"[scout] Erro ao disparar campanha: {e}", exc_info=True)
             await message.answer(
                 f"❌ Erro ao executar Scout: <code>{str(e)[:100]}</code>",
+                parse_mode=ParseMode.HTML
+            )
+
+    @dp.message(F.text == "/git_backup")
+    async def cmd_git_backup(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        await message.answer("📦 Iniciando backup de código no GitHub...", parse_mode=ParseMode.HTML)
+
+        try:
+            # Encontra o goal git_backup
+            git_backup_goal = None
+            if hasattr(pipeline, '_goals'):
+                for goal in pipeline._goals:
+                    if hasattr(goal, 'name') and goal.name == 'git_backup':
+                        git_backup_goal = goal
+                        break
+
+            if not git_backup_goal:
+                await message.answer(
+                    "❌ Git backup skill não foi encontrada ou não está ativa.\n"
+                    "Execute `/saude` para verificar o status dos goals.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Dispara um ciclo do git_backup
+            result = await git_backup_goal.run_cycle()
+
+            # Formata resposta
+            summary = result.summary or "Backup concluído"
+            cost = f"💰 Custo: ${result.cost_usd:.4f}" if result.cost_usd > 0 else ""
+
+            response_lines = [
+                "✅ <b>GitHub Backup Executado</b>\n",
+                f"📋 {summary}",
+            ]
+
+            if result.data:
+                data = result.data
+                if data.get('status'):
+                    response_lines.append(f"🔄 Status: {data['status']}")
+                if data.get('pushed'):
+                    response_lines.append(f"📤 Pushed: {data['pushed']}")
+                if data.get('commit'):
+                    response_lines.append(f"🔗 Commit: <code>{data['commit'][:12]}</code>")
+                if data.get('repo'):
+                    response_lines.append(f"📦 Repo: <code>{data['repo']}</code>")
+
+            if cost:
+                response_lines.append(cost)
+
+            final_response = "\n".join(response_lines)
+            await message.answer(final_response, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[git_backup] Erro ao disparar backup: {e}", exc_info=True)
+            await message.answer(
+                f"❌ Erro ao executar backup: <code>{str(e)[:100]}</code>",
                 parse_mode=ParseMode.HTML
             )
 
