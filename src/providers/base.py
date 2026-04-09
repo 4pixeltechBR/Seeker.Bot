@@ -175,6 +175,14 @@ _THINK_EXTRACT = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 def _strip_thinking_tags(text: str | None) -> str:
     if not text:
         return ""
+
+    # Extrai thinking tags ANTES de remover (em caso de resposta APENAS com think)
+    thinking_content = None
+    match = _THINK_EXTRACT.search(text)
+    if match:
+        thinking_content = match.group(1).strip()
+
+    # Remove thinking tags e limpa
     cleaned = _THINK_PATTERN.sub("", text)
     cleaned = _THINK_TAG.sub("", cleaned)
     cleaned = _MULTI_NEWLINE.sub("\n\n", cleaned)
@@ -182,10 +190,9 @@ def _strip_thinking_tags(text: str | None) -> str:
 
     # Nemotron às vezes responde APENAS com <think>...</think> sem texto externo.
     # Nesse caso, usamos o conteúdo do thinking como resposta direta.
-    if not result and "<think>" in text:
-        match = _THINK_EXTRACT.search(text)
-        if match:
-            result = match.group(1).strip()
+    if not result and thinking_content:
+        # Usa o thinking se estiver vazio demais (< 10 chars), só use thinking como fallback
+        result = thinking_content if len(thinking_content) > 10 else ""
 
     return result
 

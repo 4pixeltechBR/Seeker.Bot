@@ -53,7 +53,8 @@ Seu objetivo: garimpar nos resultados de busca abaixo oportunidades reais de eve
 ATENÇÃO:
 - Ano atual: {current_year}. Priorize eventos futuros ou do segundo semestre. Penalize eventos já realizados (score < 40).
 - Foco: eventos de pequeno e médio porte com acesso direto ao decisor.
-- Seja conservador: score >= 70 só para oportunidades com datas futuras confirmadas e histórico.
+- Score >= 60: oportunidades viáveis com datas futuras ou confirmadas
+- Score >= 75: oportunidades com histórico comprovado + acesso direto ao decisor
 
 Query pesquisada: '{query}'
 {search_context}

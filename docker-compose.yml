@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  # ─────────────────────────────────────────────────────────────────
+  # Seeker.Bot — Main Service
+  # ─────────────────────────────────────────────────────────────────
+  seeker-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seeker-bot
+    restart: unless-stopped
+
+    # Environment variables (from .env or passed directly)
+    env_file:
+      - config/.env
+
+    environment:
+      # Override any env vars as needed
+      LOG_LEVEL: INFO
+      PYTHONUNBUFFERED: "1"
+
+    # Volumes for persistence
+    volumes:
+      # Data directory (SQLite database, memory)
+      - ./data:/app/data
+
+      # Logs directory
+      - ./logs:/app/logs
+
+      # Cache
+      - ./cache:/app/cache
+
+      # Config (read-only to prevent accidental overwrites)
+      - ./config:/app/config:ro
+
+    # Network configuration
+    networks:
+      - seeker-network
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+
+  # ─────────────────────────────────────────────────────────────────
+  # Ollama — Optional Local LLM Provider
+  # ─────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: seeker-ollama
+    restart: unless-stopped
+
+    # Enable GPU support (requires docker-compose with nvidia-docker)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    volumes:
+      - ollama-data:/root/.ollama
+
+    networks:
+      - seeker-network
+
+    # Environment
+    environment:
+      OLLAMA_HOST: "0.0.0.0:11434"
+
+    # Port (only for host access if needed)
+    # ports:
+    #   - "11434:11434"
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+
+networks:
+  seeker-network:
+    driver: bridge
+
+
+volumes:
+  ollama-data:
+    driver: local
