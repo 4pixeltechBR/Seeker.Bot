@@ -112,9 +112,10 @@ class GitBackupGoal:
                     if push_res.returncode == 0:
                         pushed = f"✅ enviado ao remoto (GitHub {repo_slug})"
                     else:
-                        # Não loga stderr completo — pode conter URL com token
+                        # Redact token do stderr antes de logar
+                        safe_stderr = push_res.stderr.replace(github_token, "***TOKEN***") if push_res.stderr else ""
                         pushed = "❌ Erro no push (verifique GITHUB_TOKEN e GITHUB_REPO)"
-                        log.warning("[git] Push falhou — verifique GITHUB_TOKEN e GITHUB_REPO")
+                        log.warning(f"[git] Push falhou (rc={push_res.returncode}): {safe_stderr[:300]}")
                 except Exception as ex:
                     pushed = "❌ Falha de auth no push"
                     log.error(f"[git] Falha no push: {type(ex).__name__}", exc_info=True)
