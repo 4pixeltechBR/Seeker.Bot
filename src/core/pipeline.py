@@ -38,6 +38,7 @@ from src.core.phases.deep import DeepPhase
 from src.providers.base import LLMRequest, invoke_with_fallback
 from src.providers.cascade import CascadeAdapter
 from src.core.batch_operations import BatchOperationsManager
+from src.core.metrics import Sprint11Tracker
 from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context
 from src.core.profiling.profiler import SystemProfiler
 from src.core.profiling.exporter import PrometheusExporter
@@ -108,6 +109,9 @@ class SeekerPipeline:
 
         # Batch Operations Manager — consolidação de commits (Sprint 11.3)
         self.batch_manager = BatchOperationsManager(max_pending=100)
+
+        # Sprint 11 Metrics Tracker — monitoramento de otimizações (Fase 4)
+        self.sprint11_tracker = Sprint11Tracker()
 
         # Performance Profiling
         self.profiler = SystemProfiler(history_size=200)
@@ -398,6 +402,10 @@ class SeekerPipeline:
             f"Média: {avg} fatos/resposta.</i>"
         )
 
+    def get_sprint11_report(self) -> str:
+        """Retorna relatório de otimizações Sprint 11 formatado para Telegram"""
+        return self.sprint11_tracker.format_for_telegram()
+
     def get_performance_dashboard(self) -> dict:
         """Retorna dashboard de performance agregado"""
         all_stats = self.profiler.get_all_stats()
@@ -661,11 +669,15 @@ class SeekerPipeline:
             # Commit único para todo o _post_process (Sprint 11.3 — Batch Consolidation)
             await self.memory.commit()
 
+            # Registra latência e consolidação no Sprint 11 Tracker (Fase 4)
+            self.sprint11_tracker.record_latency(result.total_latency_ms)
+            commits_avoided = max(0, len(facts))  # 1 commit por fato evitado
+            self.sprint11_tracker.record_batch_consolidation(len(facts) + 1)  # +1 para episódio
+
             # Log de consolidação: compara commits evitados com batch operations
             # Sem batch: ~7 commits (1 por fato + 1 episódio)
             # Com batch: 1 commit único
             # Economia: ~6 commits evitados * ~15ms = ~90ms latência reduzida
-            commits_avoided = max(0, len(facts))  # 1 commit por fato evitado
             log.info(
                 f"[memory] ✓ Batch commit: {len(facts)} fatos + episódio consolidados "
                 f"(~{commits_avoided} commits evitados, ~{commits_avoided * 15}ms latência reduzida)"
