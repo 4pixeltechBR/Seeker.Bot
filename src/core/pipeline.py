@@ -38,6 +38,9 @@ from src.core.phases.deep import DeepPhase
 from src.providers.base import LLMRequest, invoke_with_fallback
 from src.providers.cascade import CascadeAdapter
 from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context
+from src.core.profiling.profiler import SystemProfiler
+from src.core.profiling.exporter import PrometheusExporter
+from src.core.error_recovery import ErrorRecoveryManager
 
 log = logging.getLogger("seeker.pipeline")
 
@@ -98,6 +101,13 @@ class SeekerPipeline:
 
         # Cascade Adapter — multi-tier LLM routing com fallback
         self.cascade_adapter = CascadeAdapter(self.model_router, api_keys)
+
+        # Performance Profiling
+        self.profiler = SystemProfiler(history_size=200)
+        self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+
+        # Error Recovery — circuit breaker, telemetry, graceful degradation
+        self.error_recovery = ErrorRecoveryManager()
 
         # Phases — inicializadas no init()
         self._phase_reflex: ReflexPhase | None = None
@@ -222,11 +232,73 @@ class SeekerPipeline:
         )
 
         if decision.depth == CognitiveDepth.REFLEX:
-            phase_result = await self._phase_reflex.execute(ctx)
+            # ⏱️ Profiling: Reflex Phase
+            self.profiler.start_profiling(session_id, "Reflex")
+            try:
+                phase_result = await self._phase_reflex.execute(ctx)
+                self.profiler.end_profiling(
+                    session_id, "Reflex",
+                    llm_calls=phase_result.llm_calls,
+                    input_tokens=getattr(phase_result, 'input_tokens', 0),
+                    output_tokens=getattr(phase_result, 'output_tokens', 0),
+                    cost_usd=phase_result.cost_usd,
+                    provider=getattr(phase_result, 'provider', ''),
+                    model=getattr(phase_result, 'model', ''),
+                    success=True
+                )
+            except Exception as e:
+                self.profiler.end_profiling(
+                    session_id, "Reflex",
+                    success=False,
+                    error_msg=str(e)
+                )
+                raise
+
         elif decision.depth == CognitiveDepth.DEEP:
-            phase_result = await self._phase_deep.execute(ctx)
+            # ⏱️ Profiling: Deep Phase
+            self.profiler.start_profiling(session_id, "Deep")
+            try:
+                phase_result = await self._phase_deep.execute(ctx)
+                self.profiler.end_profiling(
+                    session_id, "Deep",
+                    llm_calls=phase_result.llm_calls,
+                    input_tokens=getattr(phase_result, 'input_tokens', 0),
+                    output_tokens=getattr(phase_result, 'output_tokens', 0),
+                    cost_usd=phase_result.cost_usd,
+                    provider=getattr(phase_result, 'provider', ''),
+                    model=getattr(phase_result, 'model', ''),
+                    success=True
+                )
+            except Exception as e:
+                self.profiler.end_profiling(
+                    session_id, "Deep",
+                    success=False,
+                    error_msg=str(e)
+                )
+                raise
+
         else:
-            phase_result = await self._phase_deliberate.execute(ctx)
+            # ⏱️ Profiling: Deliberate Phase
+            self.profiler.start_profiling(session_id, "Deliberate")
+            try:
+                phase_result = await self._phase_deliberate.execute(ctx)
+                self.profiler.end_profiling(
+                    session_id, "Deliberate",
+                    llm_calls=phase_result.llm_calls,
+                    input_tokens=getattr(phase_result, 'input_tokens', 0),
+                    output_tokens=getattr(phase_result, 'output_tokens', 0),
+                    cost_usd=phase_result.cost_usd,
+                    provider=getattr(phase_result, 'provider', ''),
+                    model=getattr(phase_result, 'model', ''),
+                    success=True
+                )
+            except Exception as e:
+                self.profiler.end_profiling(
+                    session_id, "Deliberate",
+                    success=False,
+                    error_msg=str(e)
+                )
+                raise
 
         # ── 4. Monta resultado ────────────────────────────────
         result = PipelineResult(
@@ -289,6 +361,74 @@ class SeekerPipeline:
             f"<i>Memória: {memory_status} {rate}% das respostas usam fatos. "
             f"Média: {avg} fatos/resposta.</i>"
         )
+
+    def get_performance_dashboard(self) -> dict:
+        """Retorna dashboard de performance agregado"""
+        all_stats = self.profiler.get_all_stats()
+        worst = self.profiler.get_worst_offenders(limit=10)
+
+        dashboard = {
+            "timestamp": time.time(),
+            "goals": {},
+            "worst_offenders": [],
+            "system_health": {}
+        }
+
+        # Agregações por goal
+        for goal_id, goal_metrics in all_stats.items():
+            dashboard["goals"][goal_id] = goal_metrics.to_dict()
+
+        # Top 10 worst (latência)
+        for metric in worst[:10]:
+            dashboard["worst_offenders"].append({
+                "goal_id": metric.goal_id,
+                "phase": metric.phase_name,
+                "latency_ms": f"{metric.latency_ms:.0f}",
+                "cost_usd": f"${metric.cost_usd:.4f}",
+                "provider": metric.provider,
+                "timestamp": metric.timestamp.isoformat()
+            })
+
+        # Health metrics
+        if all_stats:
+            total_goals = len(all_stats)
+            total_success = sum(1 for g in all_stats.values() if g.success_rate > 80)
+            dashboard["system_health"] = {
+                "total_goals": total_goals,
+                "healthy_goals": total_success,
+                "health_pct": f"{(total_success / total_goals * 100):.1f}%" if total_goals > 0 else "0%",
+                "total_cost_usd": f"${sum(g.total_cost_usd for g in all_stats.values()):.2f}",
+                "avg_latency_ms": f"{(sum(g.avg_latency_ms for g in all_stats.values()) / total_goals):.0f}" if total_goals > 0 else "0"
+            }
+
+        return dashboard
+
+    def format_perf_report(self) -> str:
+        """Formata relatório de performance para Telegram"""
+        dashboard = self.get_performance_dashboard()
+        health = dashboard["system_health"]
+        worst = dashboard["worst_offenders"]
+
+        report = (
+            f"<b>📊 PERFORMANCE DASHBOARD</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"<b>System Health</b>\n"
+            f"├ Goals: {health.get('total_goals', 0)} ({health.get('health_pct', 'N/A')} saudáveis)\n"
+            f"├ Total Cost: {health.get('total_cost_usd', '$0.00')}\n"
+            f"└ Avg Latency: {health.get('avg_latency_ms', '0')}ms\n\n"
+        )
+
+        if worst:
+            report += "<b>Top 10 Worst Offenders</b> (by latency)\n"
+            for i, offender in enumerate(worst, 1):
+                report += (
+                    f"{i}. [{offender['phase']}] {offender['goal_id']}\n"
+                    f"   └ {offender['latency_ms']}ms | {offender['cost_usd']} | {offender['provider']}\n"
+                )
+        else:
+            report += "<i>Aguardando dados de performance...</i>"
+
+        return report
 
     def _spawn_background(self, coro) -> asyncio.Task:
         """Cria background task com tracking e logging de erro."""

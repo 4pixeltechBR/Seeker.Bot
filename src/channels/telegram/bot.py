@@ -88,6 +88,9 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/start", description="Menu de ajuda e inicialização"),
         BotCommand(command="/status", description="Painel de providers, memória e metas"),
         BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
+        BotCommand(command="/perf", description="Dashboard de performance e latência"),
+        BotCommand(command="/perf_detailed", description="Métricas detalhadas por fase"),
+        BotCommand(command="/recovery", description="Status de circuit breakers e degradação"),
         BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
         BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
         BotCommand(command="/search", description="Busca direta e forçada na web"),
@@ -117,23 +120,29 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
         # Mensagem inicial comum
         help_text = (
-            "<b>Seeker.Bot, seu agente inteligente.</b>\n\n"
+            "<b>🌌 Seeker.Bot — Seu agente inteligente</b>\n\n"
             "Manda qualquer mensagem que eu decido a profundidade.\n"
             "⚡ <i>reflex</i> · 🧠 <i>deliberate</i> · 🔬 <i>deep</i>\n\n"
-            "<b>Operação:</b>\n"
+            "<b>⚙️ Operação:</b>\n"
             "/god — força análise profunda na próxima\n"
             "/search [query] — busca direta na web\n"
             "/print — screenshot rápido do desktop\n"
             "/watch — ativa vigilância AFK (2 min)\n"
             "/watchoff — desativa vigilância\n\n"
-            "<b>Sistema:</b>\n"
-            "/status — painel de performance e metas\n"
-            "/saude — dashboard detalhado de saúde dos goals\n"
-            "/memory — o que eu aprendi sobre você\n"
-            "/rate — status dos limites de API\n"
+            "<b>📊 Sistema & Performance:</b>\n"
+            "/status — painel de providers e metas\n"
+            "/saude — dashboard detalhado de goals\n"
+            "/perf — dashboard de performance (latência, cost)\n"
+            "/perf_detailed — métricas detalhadas por fase\n"
+            "/memory — fatos aprendidos sobre você\n"
+            "/rate — status dos rate limiters\n"
             "/habits — padrões de decisão aprendidos\n"
-            "/decay — limpeza manual de memória\n"
-            "/configure_news — personaliza notícias do SenseNews"
+            "/decay — limpeza manual de memória\n\n"
+            "<b>🚀 Produção:</b>\n"
+            "/scout — campanha B2B (leads qualificados)\n"
+            "/crm — histórico de leads\n"
+            "/git_backup — backup manual no GitHub\n"
+            "/configure_news — personaliza notícias"
         )
 
         await message.answer(help_text, parse_mode=ParseMode.HTML)
@@ -599,6 +608,70 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
         except Exception as e:
             await message.answer(f"❌ Erro ao carregar dashboard: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text == "/perf")
+    async def cmd_perf(message: Message):
+        """Dashboard de performance do sistema"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            report = pipeline.format_perf_report()
+            await message.answer(report, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await message.answer(f"❌ Erro ao gerar relatório de performance: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_perf] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/perf_detailed")
+    async def cmd_perf_detailed(message: Message):
+        """Métricas detalhadas de performance por fase"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            dashboard = pipeline.get_performance_dashboard()
+            goals = dashboard["goals"]
+
+            if not goals:
+                await message.answer(
+                    "⏳ Sem dados de performance ainda.\n"
+                    "Aguarde alguns ciclos de processamento para coletar métricas.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Formata por goal
+            lines = ["<b>📈 DETAILED PERFORMANCE METRICS</b>\n"]
+            for goal_id, metrics in goals.items():
+                lines.append(
+                    f"<b>{goal_id}</b>\n"
+                    f"  Cycles: {metrics['cycles']} | Success: {metrics['success_rate']}\n"
+                    f"  Cost: {metrics['total_cost']} | Avg Latency: {metrics['avg_latency_ms']}ms\n"
+                    f"  Tokens: {metrics['tokens']}"
+                )
+
+            detailed = "\n".join(lines)
+
+            # Dividir em chunks se muito grande
+            for part in split_message(detailed):
+                await message.answer(part, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_perf_detailed] Erro: {e}", exc_info=True)
+
+    @dp.message(F.text == "/recovery")
+    async def cmd_recovery(message: Message):
+        """Status de recuperação de erros, circuit breakers e degradação"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            report = pipeline.error_recovery.format_recovery_report()
+
+            # Dividir em chunks se muito grande
+            for part in split_message(report):
+                await message.answer(part, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            await message.answer(f"❌ Erro ao recuperar status: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+            log.error(f"[cmd_recovery] Erro: {e}", exc_info=True)
 
     @dp.message(F.text == "/memory")
     async def cmd_memory(message: Message):
