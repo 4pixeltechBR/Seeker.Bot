@@ -1,0 +1,17 @@
+{
+  "app.title": "Seeker.Bot",
+  "setup.language_select": "Escolha o idioma:",
+  "setup.portuguese": "Portugues (Brasil)",
+  "setup.english": "English (USA)",
+  "setup.installing": "Instalando Seeker.Bot",
+  "setup.telegram_token": "Digite seu TELEGRAM_BOT_TOKEN:",
+  "setup.groq_key": "Digite seu GROQ_API_KEY (opcional):",
+  "setup.gemini_key": "Digite seu GEMINI_API_KEY (opcional):",
+  "setup.success": "Instalacao concluida com sucesso!",
+  "cmd.start": "Menu de ajuda",
+  "cmd.status": "Painel de saude",
+  "cmd.scout": "Campanha B2B Scout",
+  "cmd.configure_news": "Personalizar SenseNews",
+  "news.title": "Curadoria de Noticias",
+  "news.select_niches": "Escolha os nichos de noticias:"
+}
