@@ -1,8 +1,8 @@
 """
-Seeker.Bot — Goal Scheduler
+Seeker.Bot — Goal Scheduler (Unified + Preemption)
 src/core/goals/scheduler.py
 
-Orquestra múltiplos AutonomousGoal em background.
+Orquestra múltiplos AutonomousGoal em background com priorização inteligente.
 Equivalente ao Coordinator Mode do Claude Code, adaptado para agente autônomo.
 
 Responsabilidades:
@@ -11,6 +11,11 @@ Responsabilidades:
 - Backoff em falhas consecutivas
 - Persistência de estado de todos os goals
 - Roteamento de notificações (Telegram, Email, ambos)
+
+Melhorias Sprint 7.2:
+- Priority system: CRITICAL > HIGH > NORMAL > LOW
+- Preemption: Goals CRITICAL interrompem goals NORMAL/LOW
+- Coroutine pool: Limita concurrent goals executando (máx 3)
 """
 
 import asyncio
@@ -20,6 +25,7 @@ import os
 import time
 from collections import deque
 from datetime import date
+from enum import Enum
 from typing import Any, Coroutine
 
 from src.core.goals.protocol import (
@@ -37,42 +43,71 @@ log = logging.getLogger("seeker.scheduler")
 STATE_DIR = os.path.join(os.getcwd(), "data", "goals")
 
 
+class GoalPriority(Enum):
+    """Priority levels para goals — determina preemption e scheduling"""
+    CRITICAL = 0  # Interrompe goals em execução (alerta, health check)
+    HIGH = 1      # Executado antes de NORMAL/LOW (importante mas não crítico)
+    NORMAL = 2    # Priority padrão (maioria dos goals)
+    LOW = 3       # Executado apenas se recursos disponíveis (background tasks)
+
+
 class GoalScheduler:
     """
-    Roda N goals em background, cada um no seu ritmo.
-    
+    Roda N goals em background com priorização inteligente.
+
+    Melhorias Sprint 7.2:
+    - Priority-based scheduling (CRITICAL > HIGH > NORMAL > LOW)
+    - Preemption: CRITICAL interrompe NORMAL/LOW em execução
+    - Coroutine pool: Máx 3 goals executando em paralelo
+
     Uso:
         scheduler = GoalScheduler(notifier)
-        scheduler.register(revenue_hunter)
-        scheduler.register(sense_news)
+        scheduler.register(revenue_hunter, priority=GoalPriority.NORMAL)
+        scheduler.register(critical_alert, priority=GoalPriority.CRITICAL)
         await scheduler.start()
     """
 
     MAX_CONSECUTIVE_FAILURES = 3
     GLOBAL_DAILY_BUDGET_USD = 2.00  # Teto de segurança para TODOS os goals somados
+    MAX_CONCURRENT_GOALS = 3        # Limita goals executando em paralelo (Sprint 7.2)
 
     def __init__(self, notifier: "GoalNotifier"):
         self.notifier = notifier
         self._goals: dict[str, AutonomousGoal] = {}
+        self._goal_priorities: dict[str, GoalPriority] = {}  # Sprint 7.2: priority mapping
         self._tasks: dict[str, asyncio.Task] = {}
         self._rethink_tasks: set = set()  # Background rethink tasks (tracked for shutdown)
         self._failure_counts: dict[str, int] = {}
         self._cycle_history: dict[str, deque] = {}
         self._global_spent_today: float = 0.0
         self._budget_date: str = ""
+
+        # Sprint 7.2: Preemption & Pooling
+        self._running_goals: set[str] = set()  # Goals currently executing
+        self._paused_by_preemption: set[str] = set()  # Goals paused due to CRITICAL
+        self._pool_semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_GOALS)
+
         self.friction_metrics = {"rate_limits": 0, "rethinks_blocked": 0, "sara_edits": 0}
         self.running = False
 
         os.makedirs(STATE_DIR, exist_ok=True)
 
-    def register(self, goal: AutonomousGoal) -> None:
-        """Registra um goal e carrega estado persistido se existir."""
+    def register(self, goal: AutonomousGoal, priority: GoalPriority = GoalPriority.NORMAL) -> None:
+        """
+        Registra um goal e carrega estado persistido se existir.
+
+        Args:
+            goal: AutonomousGoal para registrar
+            priority: GoalPriority (CRITICAL/HIGH/NORMAL/LOW) — Sprint 7.2
+        """
         self._goals[goal.name] = goal
+        self._goal_priorities[goal.name] = priority
         self._failure_counts[goal.name] = 0
         self._cycle_history[goal.name] = deque(maxlen=20)
         self._load_goal_state(goal)
         log.info(
             f"[scheduler] Registrado: {goal.name} | "
+            f"prioridade={priority.name} | "
             f"intervalo={goal.interval_seconds}s | "
             f"budget=${goal.budget.max_daily_usd}/dia | "
             f"canais={[c.value for c in goal.channels]}"
@@ -292,10 +327,64 @@ class GoalScheduler:
             ],
         }
 
+    # ── Preemption & Priority Management (Sprint 7.2) ──────
+
+    async def _check_preemption_needed(self) -> bool:
+        """
+        Verifica se há goals CRITICAL que precisam executar.
+        Se sim, retorna True (indica que deve pausar goals NORMAL/LOW).
+        """
+        for name, priority in self._goal_priorities.items():
+            if priority == GoalPriority.CRITICAL and name not in self._running_goals:
+                # Goal CRITICAL está esperando executar
+                return True
+        return False
+
+    def _should_execute_goal(self, goal_name: str) -> bool:
+        """
+        Determina se um goal deve executar agora, levando em conta preemption.
+        """
+        priority = self._goal_priorities.get(goal_name, GoalPriority.NORMAL)
+
+        # Goals em pausa por preemption não executam
+        if goal_name in self._paused_by_preemption:
+            return False
+
+        # Se há CRITICAL em execução e este é NORMAL/LOW, pausar
+        if priority in [GoalPriority.NORMAL, GoalPriority.LOW]:
+            for other_name, other_priority in self._goal_priorities.items():
+                if (other_priority == GoalPriority.CRITICAL and
+                    other_name in self._running_goals):
+                    self._paused_by_preemption.add(goal_name)
+                    return False
+
+        return True
+
+    def _get_next_priority_goal(self) -> str | None:
+        """
+        Retorna o goal de maior prioridade que está aguardando executar.
+        Considera preemption e pool limits.
+        """
+        if len(self._running_goals) >= self.MAX_CONCURRENT_GOALS:
+            return None  # Pool cheio
+
+        # Ordena goals por prioridade
+        sorted_goals = sorted(
+            self._goal_priorities.items(),
+            key=lambda x: x[1].value  # Menor valor = maior prioridade
+        )
+
+        for goal_name, priority in sorted_goals:
+            if goal_name not in self._running_goals:
+                if self._should_execute_goal(goal_name):
+                    return goal_name
+
+        return None
+
     # ── Loop principal por goal ───────────────────────────
 
     async def _run_goal_loop(self, goal: AutonomousGoal) -> None:
-        """Loop independente para um goal. Roda até stop()."""
+        """Loop independente para um goal. Roda até stop() com preemption support."""
         await asyncio.sleep(10)  # Respira pós-boot
 
         while self.running:
@@ -307,6 +396,12 @@ class GoalScheduler:
                 if self._budget_date != today:
                     self._global_spent_today = 0.0
                     self._budget_date = today
+
+                # ── Sprint 7.2: Check preemption ──────────────────────────
+                if not self._should_execute_goal(goal.name):
+                    # Goal foi pausado por preemption ou pool cheio
+                    await asyncio.sleep(5)  # Respira e tenta novamente
+                    continue
 
                 # Check budget per-goal
                 if goal.budget.exhausted:
@@ -336,10 +431,19 @@ class GoalScheduler:
                     self._failure_counts[goal.name] = 0
                     continue
 
-                # Executa ciclo
-                _cycle_start = time.monotonic()
-                result = await goal.run_cycle()
-                _cycle_latency = time.monotonic() - _cycle_start
+                # ── Sprint 7.2: Pool semaphore (limita concurrent goals) ────
+                async with self._pool_semaphore:
+                    self._running_goals.add(goal.name)
+                    if goal.name in self._paused_by_preemption:
+                        self._paused_by_preemption.discard(goal.name)
+
+                    try:
+                        # Executa ciclo
+                        _cycle_start = time.monotonic()
+                        result = await goal.run_cycle()
+                        _cycle_latency = time.monotonic() - _cycle_start
+                    finally:
+                        self._running_goals.discard(goal.name)
 
                 # Registra histórico
                 self._cycle_history[goal.name].append({
