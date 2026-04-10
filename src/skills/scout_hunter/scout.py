@@ -24,6 +24,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
 from src.providers.cascade import CascadeRole
+from src.skills.scout_hunter.discovery_matrix import DiscoveryMatrix
+from src.skills.scout_hunter.account_research import AccountResearcher
 
 log = logging.getLogger("seeker.scout")
 
@@ -46,7 +48,7 @@ class ScoutEngine:
         source_url TEXT,
         bio_summary TEXT,
 
-        -- Enrichment fields
+        -- Enrichment fields (Phase 2)
         email_address TEXT,
         phone TEXT,
         whatsapp TEXT,
@@ -57,12 +59,36 @@ class ScoutEngine:
         buying_signal TEXT,
         enriched_at TIMESTAMP,
 
-        -- Qualification fields
+        -- Discovery Matrix fields (Phase 2.5 — Scout Hunter 2.0)
+        fit_score INTEGER DEFAULT 0,
+        fit_score_reasoning TEXT,
+        intent_signals_level INTEGER DEFAULT 0,
+        intent_signals_evidence TEXT,  -- JSON
+        budget_indicator TEXT,
+
+        -- Account Research fields (Phase 2.75 — Scout Hunter 2.0)
+        company_description TEXT,
+        company_size TEXT,
+        company_revenue_range TEXT,
+        tech_stack TEXT,  -- JSON: ["Salesforce", "AWS", ...]
+        identified_pain_points TEXT,  -- JSON: ["integration", "cost", ...]
+        current_solution TEXT,
+        competitive_landscape TEXT,  -- JSON: [{name, position}, ...]
+        decision_makers TEXT,  -- JSON: [{name, title, email, linkedin_url, influence_level}, ...]
+        account_research_cache_ttl INTEGER DEFAULT 168,  -- 7 dias em horas
+        account_research_source TEXT,
+
+        -- Qualification fields (Phase 3)
+        bant_score INTEGER DEFAULT 0,
+        bant_reasoning TEXT,
+        qualification_status TEXT,  -- high_priority, medium, low, not_qualified
         score INTEGER DEFAULT 0,
         score_reason TEXT,
         status TEXT DEFAULT 'novo',  -- novo, aprovado, rejeitado, enviado, respondeu, converteu
         content_draft TEXT,
         copy_formats TEXT,  -- JSON: {email, linkedin, sms}
+        copy_variant TEXT,  -- Qual pain_point foi abordado
+        copy_target_decision_maker TEXT,
 
         -- Metadata
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -74,6 +100,8 @@ class ScoutEngine:
     CREATE INDEX IF NOT EXISTS idx_scout_campaign ON scout_leads(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_scout_status ON scout_leads(status);
     CREATE INDEX IF NOT EXISTS idx_scout_score ON scout_leads(score DESC);
+    CREATE INDEX IF NOT EXISTS idx_scout_fit_score ON scout_leads(fit_score DESC);
+    CREATE INDEX IF NOT EXISTS idx_scout_bant_score ON scout_leads(bant_score DESC);
     """
 
     def __init__(self, memory_store, cascade_adapter, model_router, api_keys: dict):
@@ -83,6 +111,10 @@ class ScoutEngine:
         self.api_keys = api_keys
 
         self._campaign_cache = {}
+
+        # Context vars for current pipeline run (used by Discovery Matrix & Account Research)
+        self.current_niche = None
+        self.current_region = None
 
     async def init(self) -> None:
         """Initialize schema."""
@@ -428,17 +460,209 @@ class ScoutEngine:
             await self.memory._db.commit()
 
     # ──────────────────────────────────────────────────────────
+    # PHASE 2.5: DISCOVERY MATRIX (Scout Hunter 2.0)
+    # ──────────────────────────────────────────────────────────
+
+    async def _evaluate_discovery_matrix(self, campaign_id: str, limit: int = 100) -> None:
+        """
+        Avalia leads com Discovery Matrix (Fit Score, Intent Signals, Budget Indicator).
+        Filtra leads com fit_score < 60 para economizar LLM na qualification avançada.
+        """
+        log.info(f"[scout] Avaliando Discovery Matrix para campaign '{campaign_id}'")
+
+        # Instanciar Discovery Matrix
+        discovery_matrix = DiscoveryMatrix(self.cascade)
+
+        # Query leads enriquecidos
+        query = """
+            SELECT lead_id, name, company, role, industry, location, bio_summary, source_url, email_address, website
+            FROM scout_leads
+            WHERE campaign_id = ? AND status = 'novo' LIMIT ?
+        """
+
+        async with self.memory._db.execute(query, (campaign_id, limit)) as cur:
+            leads = await cur.fetchall()
+
+        if not leads:
+            log.info(f"[scout] Nenhum lead 'novo' para Discovery Matrix")
+            return
+
+        log.info(f"[scout] Avaliando {len(leads)} leads com Discovery Matrix")
+
+        # Avaliar leads (com semáforo para limitar concorrência)
+        semaphore = asyncio.Semaphore(5)  # Max 5 concurrent evaluations
+        results_dm = {}
+        filtered_count = 0
+
+        async def _evaluate_with_semaphore(lead_row):
+            lead = dict(lead_row)
+            lead_id = lead["lead_id"]
+
+            async with semaphore:
+                try:
+                    result = await discovery_matrix.evaluate_lead(
+                        lead,
+                        niche=self.current_niche or "geral",
+                        region=self.current_region or "geral"
+                    )
+
+                    # Update DB
+                    sql = """
+                        UPDATE scout_leads SET
+                            fit_score = ?,
+                            fit_score_reasoning = ?,
+                            intent_signals_level = ?,
+                            intent_signals_evidence = ?,
+                            budget_indicator = ?
+                        WHERE lead_id = ?
+                    """
+
+                    await self.memory._db.execute(sql, (
+                        result.fit_score,
+                        result.fit_score_reasoning,
+                        result.intent_signals_level,
+                        json.dumps(result.intent_signals_evidence),
+                        result.budget_indicator,
+                        lead_id
+                    ))
+
+                    results_dm[lead_id] = result
+
+                    # Contar filtragens (fit < 60)
+                    if not result.passed_minimum_threshold:
+                        nonlocal filtered_count
+                        filtered_count += 1
+                        # Atualizar status para rejeitado se fit < 60
+                        await self.memory._db.execute(
+                            "UPDATE scout_leads SET status = ? WHERE lead_id = ?",
+                            ("rejeitado", lead_id)
+                        )
+
+                except Exception as e:
+                    log.warning(f"[scout] Erro ao avaliar lead {lead_id}: {e}")
+
+        # Executar avaliações em paralelo
+        tasks = [_evaluate_with_semaphore(lead) for lead in leads]
+        await asyncio.gather(*tasks)
+
+        await self.memory._db.commit()
+
+        log.info(f"[scout] Discovery Matrix completo: {len(results_dm)} avaliados, {filtered_count} filtrados")
+
+    # ──────────────────────────────────────────────────────────
+    # PHASE 2.75: ACCOUNT RESEARCH (Scout Hunter 2.0)
+    # ──────────────────────────────────────────────────────────
+
+    async def _research_accounts(self, campaign_id: str, limit: int = 100) -> None:
+        """
+        Pesquisa profunda de contas (empresa, tech stack, pain points, decisores).
+        Roda APÓS Discovery Matrix e ANTES de Qualification Avançada.
+        """
+        log.info(f"[scout] Iniciando Account Research para campaign '{campaign_id}'")
+
+        # Instanciar Account Researcher
+        account_researcher = AccountResearcher(self.cascade, web_searcher=None)
+
+        # Query leads aprovados em Discovery Matrix (fit >= 60)
+        query = """
+            SELECT DISTINCT lead_id, company, industry, location
+            FROM scout_leads
+            WHERE campaign_id = ? AND status IN ('novo', 'aprovado') AND fit_score >= 60 LIMIT ?
+        """
+
+        async with self.memory._db.execute(query, (campaign_id, limit)) as cur:
+            leads = await cur.fetchall()
+
+        if not leads:
+            log.info(f"[scout] Nenhum lead qualificado para Account Research")
+            return
+
+        log.info(f"[scout] Pesquisando {len(leads)} contas")
+
+        # Deduplicar companies
+        companies = {}
+        for lead_row in leads:
+            lead = dict(lead_row)
+            company_name = lead.get("company", "Unknown")
+            if company_name not in companies:
+                companies[company_name] = {
+                    "company_name": company_name,
+                    "industry": lead.get("industry", ""),
+                    "region": lead.get("location", "")
+                }
+
+        # Research batch com semáforo (max 2 concurrent)
+        research_results = await account_researcher.research_batch(
+            list(companies.values()),
+            max_concurrent=2
+        )
+
+        log.info(f"[scout] Account Research concluído para {len(research_results)} contas")
+
+        # Update DB com results
+        for lead_row in leads:
+            lead = dict(lead_row)
+            company_name = lead.get("company")
+            lead_id = lead.get("lead_id")
+
+            if company_name not in research_results:
+                continue
+
+            ar_result = research_results[company_name]
+
+            sql = """
+                UPDATE scout_leads SET
+                    company_description = ?,
+                    company_size = ?,
+                    company_revenue_range = ?,
+                    tech_stack = ?,
+                    identified_pain_points = ?,
+                    current_solution = ?,
+                    competitive_landscape = ?,
+                    account_research_source = ?,
+                    account_research_cache_ttl = ?
+                WHERE lead_id = ?
+            """
+
+            await self.memory._db.execute(sql, (
+                ar_result.company_description,
+                ar_result.company_size,
+                ar_result.company_revenue_range,
+                json.dumps(ar_result.tech_stack),
+                json.dumps(ar_result.identified_pain_points),
+                ar_result.current_solution,
+                json.dumps(ar_result.competitive_landscape),
+                ar_result.data_source,
+                168,  # 7 dias em horas
+                lead_id
+            ))
+
+        await self.memory._db.commit()
+
+    # ──────────────────────────────────────────────────────────
     # PHASE 3: QUALIFICATION & COPYWRITING
     # ──────────────────────────────────────────────────────────
 
-    async def run_full_pipeline(self, campaign_id: str, limit: int = 100) -> Dict[str, Any]:
+    async def run_full_pipeline(self, campaign_id: str, limit: int = 100, niche: str = "geral", region: str = "geral") -> Dict[str, Any]:
         """
-        Complete pipeline: Scrape → Enrich → Qualify → Generate Copy
+        Complete pipeline: Scrape → Enrich → Discovery Matrix → Account Research → Qualify → Generate Copy
+
+        Scout Hunter 2.0: Com 5 fases em vez de 4, incluindo Discovery Matrix e Account Research.
         """
         log.info(f"[scout] Starting full pipeline for campaign '{campaign_id}'")
 
+        # Store current niche/region para uso em métodos auxiliares
+        self.current_niche = niche
+        self.current_region = region
+
         # Enrich leads first
         await self.enrich_campaign(campaign_id, limit)
+
+        # NEW: Phase 2.5 - Discovery Matrix
+        await self._evaluate_discovery_matrix(campaign_id, limit)
+
+        # NEW: Phase 2.75 - Account Research
+        await self._research_accounts(campaign_id, limit)
 
         # Get leads to qualify
         query = """
