@@ -7,6 +7,13 @@ import logging
 
 log = logging.getLogger("seeker.vision.vlm")
 
+# Import fallback Gemini (Sprint 12 Phase A4)
+try:
+    from .vlm_cloud_fallback import GeminiVLMFallback, create_gemini_vlm_fallback
+except ImportError:
+    GeminiVLMFallback = None
+    create_gemini_vlm_fallback = None
+
 # Default model usado quando nenhum VLM_MODEL é definido via env.
 # Alternativas testadas no Sprint 12 (Vision 2.0):
 #   - qwen3.5:4b        (baseline, 4 GB VRAM)
@@ -67,6 +74,14 @@ class VLMClient:
         # Lock de inferência: evita sobreposição de chamadas multimodais para o Ollama
         self._inference_lock = asyncio.Lock()
 
+        # Cloud fallback (Gemini 2.5 Flash) — Sprint 12 Phase A4
+        self._gemini_fallback = None
+        if os.getenv("GEMINI_VLM_FALLBACK", "false").lower() == "true":
+            if create_gemini_vlm_fallback:
+                self._gemini_fallback = create_gemini_vlm_fallback()
+                if self._gemini_fallback and self._gemini_fallback.enabled:
+                    log.info("[vlm] Gemini 2.5 Flash fallback ATIVADO")
+
     def _is_gpu_available(self) -> bool:
         """Checa se o semáforo de GPU está livre sem bloquear."""
         if self._gpu_semaphore is None:
@@ -75,6 +90,53 @@ class VLMClient:
         if self._gpu_semaphore.locked():
             return False
         return True
+
+    async def _call_with_fallback(
+        self,
+        ollama_coro,
+        gemini_method_name: str,
+        image_bytes: bytes = None,
+        description: str = None,
+    ) -> str:
+        """
+        Executa Ollama com fallback para Gemini se falhar.
+
+        Args:
+            ollama_coro: Coroutine do Ollama a executar
+            gemini_method_name: Nome do método do Gemini a chamar como fallback
+            image_bytes: Bytes da imagem (para Gemini)
+            description: Descrição do elemento (para locate_element Gemini)
+
+        Returns:
+            Resultado do Ollama ou Gemini
+        """
+        try:
+            # Tenta Ollama primeiro
+            return await ollama_coro
+        except (TimeoutError, httpx.TimeoutException, httpx.ReadTimeout, asyncio.TimeoutError) as e:
+            log.warning(f"[vlm] Ollama timeout ({self.model}), usando Gemini fallback...")
+
+            # Fallback para Gemini
+            if not self._gemini_fallback or not self._gemini_fallback.enabled:
+                log.error("[vlm] Gemini fallback nao disponivel, re-raising error")
+                raise
+
+            # Chama método correspondente em Gemini
+            gemini_method = getattr(self._gemini_fallback, gemini_method_name, None)
+            if not gemini_method:
+                raise ValueError(f"Metodo '{gemini_method_name}' nao encontrado em GeminiVLMFallback")
+
+            # Audit log
+            log.info(f"[vlm] Fallback para Gemini: {gemini_method_name}")
+
+            # Chama com os devidos argumentos
+            if gemini_method_name == "locate_element":
+                return await gemini_method(image_bytes, description)
+            else:
+                return await gemini_method(image_bytes)
+        except Exception as e:
+            log.error(f"[vlm] Erro em Ollama: {e}", exc_info=True)
+            raise
 
     async def analyze_screenshot(
         self,
@@ -153,7 +215,8 @@ class VLMClient:
         self, image_bytes: bytes, description: str
     ) -> dict:
         """
-        Pede ao Qwen3.5 para localizar um elemento e retornar coordenadas.
+        Pede ao VLM para localizar um elemento e retornar coordenadas.
+        Usa fallback Gemini se Ollama falha (timeout grounding).
         Retorna dict com x, y (centro do elemento) e confidence.
         """
         prompt = (
@@ -162,7 +225,13 @@ class VLMClient:
             f'{{"x": <center_x_pixels>, "y": <center_y_pixels>, "confidence": <0.0-1.0>}}'
         )
 
-        raw_text = await self.analyze_screenshot(image_bytes, prompt)
+        # Com fallback para Gemini
+        raw_text = await self._call_with_fallback(
+            self.analyze_screenshot(image_bytes, prompt),
+            "locate_element",
+            image_bytes=image_bytes,
+            description=description,
+        )
         log.info(f"[vlm] locate_element raw: {raw_text}")
 
         return _parse_bbox_response(raw_text)
