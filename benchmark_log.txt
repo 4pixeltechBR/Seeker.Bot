@@ -4,3 +4,8 @@ Qwen3-VL-8B disponível, iniciando...
 
 Aguardando pulls dos modelos...
 [08:20:32] Iniciando: qwen3-vl:8b
+[08:49:37] Concluído: qwen3-vl:8b
+
+=== Todos os benchmarks completos ===
+reports/summary_qwen3-vl_8b.json 1.1K
+reports/summary_qwen3.5_4b.json 1.1K
