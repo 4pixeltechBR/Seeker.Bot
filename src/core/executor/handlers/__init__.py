@@ -12,6 +12,11 @@ Usage:
     result = await handler.execute(step)
 """
 
+from .bash import BashHandler
+from .file_ops import FileOpsHandler
+from .api import APIHandler
+from .remote_trigger import RemoteTriggerHandler
+
 __all__ = [
     "BashHandler",
     "FileOpsHandler",
@@ -20,16 +25,13 @@ __all__ = [
     "get_handler",
 ]
 
-# Will be imported when modules are ready
-# from .bash import BashHandler
-# from .file_ops import FileOpsHandler
-# from .api import APIHandler
-# from .remote_trigger import RemoteTriggerHandler
+# Global handler instances (created on first use)
+_handlers = {}
 
 
 def get_handler(handler_type: str):
     """
-    Get handler by type.
+    Get handler by type (singleton pattern).
 
     Args:
         handler_type: "bash", "file_ops", "api", "remote_trigger"
@@ -40,18 +42,20 @@ def get_handler(handler_type: str):
     Raises:
         ValueError: Unknown handler type
     """
-    handlers = {
-        "bash": None,  # Will be: BashHandler()
-        "file_ops": None,  # Will be: FileOpsHandler()
-        "api": None,  # Will be: APIHandler()
-        "remote_trigger": None,  # Will be: RemoteTriggerHandler()
-    }
+    valid_types = ["bash", "file_ops", "api", "remote_trigger"]
 
-    if handler_type not in handlers:
+    if handler_type not in valid_types:
         raise ValueError(f"Unknown handler type: {handler_type}")
 
-    handler = handlers.get(handler_type)
-    if handler is None:
-        raise RuntimeError(f"Handler {handler_type} not yet initialized")
+    # Lazy init
+    if handler_type not in _handlers:
+        if handler_type == "bash":
+            _handlers[handler_type] = BashHandler()
+        elif handler_type == "file_ops":
+            _handlers[handler_type] = FileOpsHandler()
+        elif handler_type == "api":
+            _handlers[handler_type] = APIHandler()
+        elif handler_type == "remote_trigger":
+            _handlers[handler_type] = RemoteTriggerHandler()
 
-    return handler
+    return _handlers[handler_type]

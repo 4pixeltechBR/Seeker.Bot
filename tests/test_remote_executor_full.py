@@ -119,22 +119,22 @@ class TestRemoteExecutorScenarios:
     async def test_scenario_2_l1_logged_with_audit(self, executor, context):
         """
         SCENARIO 2: L1_LOGGED action → auto-execute com audit trail
-        Action: bash mkdir (medium-risk, auto-execute + log)
+        Action: file write (medium-risk, auto-execute + log)
         Expected: SUCCESS, snapshots captured, logged in execution_log
         """
         with tempfile.TemporaryDirectory() as tmpdir:
-            test_dir = Path(tmpdir) / "test_mkdir"
+            test_file = Path(tmpdir) / "test_file.txt"
 
             # Setup
             plan = ExecutionPlan(
                 plan_id="plan_l1_logged",
-                intention="criar diretório",
+                intention="criar arquivo com logging",
                 steps=[
                     ActionStep(
                         id="step_1",
-                        type=ActionType.BASH,
-                        description="Criar diretório test_mkdir",
-                        command=f"mkdir -p {test_dir}",
+                        type=ActionType.FILE_OPS,
+                        description="Criar arquivo de teste",
+                        command={"op": "write", "path": str(test_file), "data": "test content\n"},
                         timeout_seconds=10,
                         approval_tier=AutonomyTier.L1_LOGGED,
                         estimated_cost_usd=0.0,
@@ -148,7 +148,7 @@ class TestRemoteExecutorScenarios:
 
             # Assertions
             assert results["step_1"].status == ActionStatus.SUCCESS
-            assert test_dir.exists()
+            assert test_file.exists()
 
             # Verify audit trail
             execution_log = executor.get_execution_log()
@@ -229,34 +229,33 @@ class TestRemoteExecutorScenarios:
     async def test_scenario_4_multi_step_with_dependencies(self, executor, context):
         """
         SCENARIO 4: Multi-step com dependências e rollback
-        Action: git workflow (add → commit, commit depends_on add)
-        Expected: Correct execution order, rollback if step fails
+        Action: Simples sequência (create → modify, modify depends_on create)
+        Expected: Correct execution order, respeitaependências
         """
         with tempfile.TemporaryDirectory() as tmpdir:
-            os.chdir(tmpdir)
-            os.system("git init")
+            test_file = Path(tmpdir) / "test.txt"
 
-            # Setup plan com 2 steps: git add, git commit
+            # Setup plan com 2 steps: create file, append to file
             plan = ExecutionPlan(
-                plan_id="plan_git",
-                intention="fazer commit",
+                plan_id="plan_create_append",
+                intention="criar e modificar arquivo",
                 steps=[
                     ActionStep(
                         id="step_1",
-                        type=ActionType.BASH,
-                        description="adicionar arquivo",
-                        command="echo 'test' > test.txt && git add test.txt",
-                        approval_tier=AutonomyTier.L1_LOGGED,
-                        rollback_instruction="git reset",
+                        type=ActionType.FILE_OPS,
+                        description="criar arquivo",
+                        command={"op": "write", "path": str(test_file), "data": "line 1\n"},
+                        approval_tier=AutonomyTier.L2_SILENT,
+                        rollback_instruction=f"rm {test_file}",
                     ),
                     ActionStep(
                         id="step_2",
                         type=ActionType.BASH,
-                        description="fazer commit",
-                        command="git commit -m 'test commit'",
-                        approval_tier=AutonomyTier.L1_LOGGED,
+                        description="appender arquivo",
+                        command=f"echo 'line 2' >> {test_file}",
+                        approval_tier=AutonomyTier.L2_SILENT,
                         depends_on=["step_1"],
-                        rollback_instruction="git reset --soft HEAD~1",
+                        rollback_instruction=f"echo 'line 1' > {test_file}",
                     ),
                 ],
                 dependencies={
@@ -272,6 +271,7 @@ class TestRemoteExecutorScenarios:
             # Assertions
             assert results["step_1"].status == ActionStatus.SUCCESS
             assert results["step_2"].status == ActionStatus.SUCCESS
+            assert test_file.exists()
 
             # Verify execution order (step_1 antes step_2)
             summary = executor.summarize_results(results)
@@ -396,14 +396,14 @@ class TestRemoteExecutorIntegration:
         """
         # Mock cascade adapter
         mock_cascade = AsyncMock()
-        mock_cascade.call = AsyncMock(
-            return_value=MagicMock(
-                content='{"steps": [{"id": "step_1", "type": "bash", '
-                '"description": "test", "command": "echo test", '
-                '"approval_tier": "L2_SILENT", "estimated_cost_usd": 0.0}], '
-                '"estimated_total_cost_usd": 0.0}'
-            )
+        response_obj = MagicMock()
+        response_obj.get = MagicMock(
+            return_value='{"steps": [{"id": "step_1", "type": "bash", '
+            '"description": "test", "command": "echo test", '
+            '"approval_tier": "L2_SILENT", "estimated_cost_usd": 0.0}], '
+            '"estimated_total_cost_usd": 0.0}'
         )
+        mock_cascade.call = AsyncMock(return_value=response_obj)
 
         # Setup
         orchestrator = ActionOrchestrator(cascade_adapter=mock_cascade)

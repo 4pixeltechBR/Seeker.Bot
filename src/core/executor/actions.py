@@ -66,8 +66,9 @@ class ActionExecutor:
         executed_order: List[str] = []
 
         try:
-            # 1. Resolver ordem topológica
-            execution_order = self._topological_sort(plan.dependencies)
+            # 1. Resolver ordem topológica (construir dependencies completo se necessário)
+            dependencies = self._build_dependencies_map(plan)
+            execution_order = self._topological_sort(dependencies)
             logger.debug(f"[executor] Execution order: {execution_order}")
 
             # 2. Executar steps sequencialmente
@@ -194,42 +195,52 @@ class ActionExecutor:
             logger.error(f"[executor] Rollback exception for {step.id}: {e}")
             return False
 
+    def _build_dependencies_map(self, plan: ExecutionPlan) -> Dict[str, List[str]]:
+        """Constrói mapa completo de dependências a partir de plan.steps."""
+        deps = {}
+        for step in plan.steps:
+            deps[step.id] = step.depends_on.copy() if step.depends_on else []
+        return deps
+
     def _topological_sort(self, dependencies: Dict[str, List[str]]) -> List[str]:
         """
         Resolve ordem topológica de steps (respeita dependências).
 
         Se step_2 depends_on [step_1], então step_1 executa antes.
+        Usa algoritmo Kahn com edge list.
         """
-        # Kahn's algorithm
-        in_degree = {node: 0 for node in dependencies}
+        if not dependencies:
+            return []
 
-        # Contar in-degree
+        # Construir grafo: node → dependentes (reverse edges)
+        # se step_2 depends_on [step_1], então step_1 → [step_2]
+        graph = {node: [] for node in dependencies}
+        in_degree = {node: len(dependencies[node]) for node in dependencies}
+
         for node, deps in dependencies.items():
             for dep in deps:
-                if dep in in_degree:
-                    in_degree[dep] += 0  # Node com dependências
-                in_degree[node] = len(deps)
+                if dep in graph:
+                    graph[dep].append(node)
 
-        # Queue de nodos com in-degree 0
-        queue = [node for node in in_degree if in_degree[node] == 0]
+        # Kahn's algorithm
+        queue = [node for node in dependencies if in_degree[node] == 0]
         result = []
 
         while queue:
-            # Process nodo
+            # Processa nodo com in-degree 0
             node = queue.pop(0)
             result.append(node)
 
             # Reduzir in-degree de dependentes
-            for other_node, deps in dependencies.items():
-                if node in deps:
-                    deps.remove(node)
-                    if len(deps) == 0:
-                        queue.append(other_node)
+            for dependent in graph[node]:
+                in_degree[dependent] -= 1
+                if in_degree[dependent] == 0:
+                    queue.append(dependent)
 
         if len(result) != len(dependencies):
             logger.warning("[executor] Ciclo detectado nas dependências")
-            # Fallback: retorna ordem alfabética
-            return sorted(dependencies.keys())
+            # Fallback: retorna ordem por aparição (esperando que plano foi validado)
+            return list(dependencies.keys())
 
         return result
 
