@@ -640,7 +640,283 @@ class ScoutEngine:
         await self.memory._db.commit()
 
     # ──────────────────────────────────────────────────────────
-    # PHASE 3: QUALIFICATION & COPYWRITING
+    # PHASE 3: QUALIFICATION & COPYWRITING (Scout Hunter 2.0 — ADVANCED)
+    # ──────────────────────────────────────────────────────────
+
+    async def _qualify_and_generate_copy(self, campaign_id: str, limit: int = 100) -> None:
+        """
+        Fase 3 completa: Qualification avançada + Copy Generation contextual.
+
+        NOVO em Scout Hunter 2.0:
+        - Qualification usa contexto de fit_score, intent_signals, pain_points
+        - Copy menciona company context, pain points específicos, decision maker
+        - 2 filtros: Fit Score >= 60 (Discovery Matrix) + BANT >= 70 (Qualification)
+        """
+        log.info(f"[scout] Iniciando Qualification Avançada para campaign '{campaign_id}'")
+
+        # Query leads aprovados em Account Research (status 'novo' com fit_score >= 60)
+        query = """
+            SELECT
+                lead_id, name, company, role, email_address,
+                fit_score, intent_signals_level, intent_signals_evidence, budget_indicator,
+                company_description, tech_stack, identified_pain_points, current_solution,
+                competitive_landscape, decision_makers
+            FROM scout_leads
+            WHERE campaign_id = ? AND status = 'novo' AND fit_score >= 60
+            LIMIT ?
+        """
+
+        async with self.memory._db.execute(query, (campaign_id, limit)) as cur:
+            leads = await cur.fetchall()
+
+        if not leads:
+            log.info(f"[scout] Nenhum lead qualificado em Discovery Matrix para Qualification")
+            return
+
+        log.info(f"[scout] Qualificando {len(leads)} leads com contexto avançado")
+
+        results = {"qualified": 0, "written": 0, "rejected": 0}
+        semaphore = asyncio.Semaphore(3)
+
+        async def _process_lead_advanced(lead_row):
+            lead = dict(lead_row)
+            lead_id = lead["lead_id"]
+
+            # Executar qualification + copy em paralelo com semáforo
+            async with semaphore:
+                # Step 1: Qualification avançada (BANT com contexto)
+                bant_score, bant_reasoning = await self._qualify_lead_advanced(lead)
+
+                # Step 2: Se aprovado (BANT >= 70 ou qualification_status == "high_priority")
+                if bant_score >= 70:
+                    results["qualified"] += 1
+
+                    # Step 3: Copy contextual
+                    copy_text = await self._generate_copy_advanced(lead)
+
+                    # Update DB com BANT score + copy
+                    sql = """
+                        UPDATE scout_leads SET
+                            bant_score = ?,
+                            bant_reasoning = ?,
+                            qualification_status = ?,
+                            status = ?,
+                            content_draft = ?,
+                            copy_target_decision_maker = ?,
+                            updated_at = ?
+                        WHERE lead_id = ?
+                    """
+
+                    await self.memory._db.execute(sql, (
+                        bant_score,
+                        bant_reasoning,
+                        "high_priority" if bant_score >= 85 else "medium",
+                        "aprovado",
+                        copy_text[:2000] if copy_text else None,
+                        lead.get("name", "Unknown"),
+                        datetime.now().isoformat(),
+                        lead_id
+                    ))
+
+                    results["written"] += 1
+
+                else:
+                    results["rejected"] += 1
+                    # Update DB com rejeição
+                    await self.memory._db.execute(
+                        """
+                        UPDATE scout_leads SET
+                            bant_score = ?,
+                            bant_reasoning = ?,
+                            qualification_status = ?,
+                            status = ?,
+                            updated_at = ?
+                        WHERE lead_id = ?
+                        """,
+                        (bant_score, bant_reasoning, "not_qualified", "rejeitado",
+                         datetime.now().isoformat(), lead_id)
+                    )
+
+        # Processar leads em paralelo
+        tasks = [_process_lead_advanced(l) for l in leads]
+        await asyncio.gather(*tasks)
+
+        await self.memory._db.commit()
+
+        log.info(
+            f"[scout] Qualification avançada completa: "
+            f"Qualificados={results['qualified']}, "
+            f"Copy gerado={results['written']}, "
+            f"Rejeitados={results['rejected']}"
+        )
+
+    async def _qualify_lead_advanced(self, lead: Dict) -> tuple[int, str]:
+        """
+        Qualification BANT contextualizado com dados de Discovery Matrix + Account Research.
+
+        Input do lead inclui:
+        - fit_score, intent_signals, budget_indicator (de Discovery Matrix)
+        - company_description, tech_stack, pain_points (de Account Research)
+
+        Output: (bant_score, bant_reasoning)
+        """
+        # Construir contexto rico do lead
+        pain_points = []
+        try:
+            pain_points_json = lead.get("identified_pain_points", "[]")
+            if isinstance(pain_points_json, str):
+                pain_points = json.loads(pain_points_json)
+        except:
+            pain_points = []
+
+        tech_stack = []
+        try:
+            tech_stack_json = lead.get("tech_stack", "[]")
+            if isinstance(tech_stack_json, str):
+                tech_stack = json.loads(tech_stack_json)
+        except:
+            tech_stack = []
+
+        ctx = (
+            f"LEAD PROFILE:\n"
+            f"- Name: {lead.get('name', 'Unknown')}\n"
+            f"- Company: {lead.get('company', '')}\n"
+            f"- Role: {lead.get('role', 'Unknown')}\n"
+            f"\nDISCOVERY MATRIX RESULTS:\n"
+            f"- Fit Score: {lead.get('fit_score', 0)}/100\n"
+            f"- Intent Signals: {lead.get('intent_signals_level', 0)}/5\n"
+            f"- Budget Range: {lead.get('budget_indicator', 'Unknown')}\n"
+            f"\nACCOUNT RESEARCH:\n"
+            f"- Description: {lead.get('company_description', 'N/A')[:200]}\n"
+            f"- Tech Stack: {', '.join(tech_stack[:5]) if tech_stack else 'Unknown'}\n"
+            f"- Pain Points: {', '.join(pain_points[:3]) if pain_points else 'Unknown'}\n"
+            f"- Current Solution: {lead.get('current_solution', 'Unknown')}"
+        )
+
+        prompt = (
+            "You are a B2B BANT qualification expert (Budget/Authority/Need/Timeline).\n\n"
+            "Analyze the lead and company context. Score on 4 dimensions:\n\n"
+            "BUDGET (0-25): Does company have budget for solution?\n"
+            "AUTHORITY (0-25): Is lead a decision-maker?\n"
+            "NEED (0-25): Do identified pain points match?\n"
+            "TIMELINE (0-25): Urgency from signals?\n\n"
+            "Return ONLY valid JSON:\n"
+            "{\n"
+            '  "bant_score": <0-100 sum of dimensions>,\n'
+            '  "reasoning": "<brief explanation>"\n'
+            "}\n\n"
+            f"{ctx}"
+        )
+
+        try:
+            response = await self.cascade.call(
+                role=CascadeRole.FAST,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=200,
+            )
+
+            raw = response.get("content", "{}")
+            s = raw.find("{")
+            e = raw.rfind("}") + 1
+
+            if s != -1 and e > s:
+                data = json.loads(raw[s:e])
+                score = int(data.get("bant_score", 50))
+                reasoning = data.get("reasoning", "")
+                return max(0, min(100, score)), reasoning
+
+        except Exception as e:
+            log.warning(f"[scout] BANT qualification error: {e}")
+
+        return 50, "Error in qualification, using default"
+
+    async def _generate_copy_advanced(self, lead: Dict) -> str:
+        """
+        Geração de copy contextual mencionando:
+        - Company context (indústria, tamanho, current solution)
+        - Pain points identificados
+        - Decision maker pelo nome
+        """
+        pain_points = []
+        try:
+            pain_points_json = lead.get("identified_pain_points", "[]")
+            if isinstance(pain_points_json, str):
+                pain_points = json.loads(pain_points_json)
+        except:
+            pain_points = []
+
+        primary_pain = pain_points[0] if pain_points else "increase efficiency"
+
+        ctx = (
+            f"PERSONALIZATION DATA:\n"
+            f"- Decision Maker: {lead.get('name', 'There')}\n"
+            f"- Company: {lead.get('company', '')}\n"
+            f"- Current Solution: {lead.get('current_solution', 'Manual processes')}\n"
+            f"- Key Challenge: {primary_pain}\n"
+        )
+
+        prompt = (
+            "You are an expert B2B copywriter specializing in personalized outreach.\n\n"
+            "Write 3 ready-to-send formats that reference the specific pain point and company context:\n"
+            "1. Professional Email (5-6 sentences, mention pain point explicitly)\n"
+            "2. LinkedIn DM (2-3 sentences, personal tone)\n"
+            "3. WhatsApp (1-2 sentences, casual but professional)\n\n"
+            "Be direct, specific, and reference their company's situation.\n"
+            "Reply in Portuguese.\n\n"
+            f"{ctx}"
+        )
+
+        try:
+            response = await self.cascade.call(
+                role=CascadeRole.CREATIVE,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=400,
+            )
+
+            return response.get("content", "")
+
+        except Exception as e:
+            log.warning(f"[scout] Copy generation error: {e}")
+            return ""
+
+    async def _get_pipeline_results(self, campaign_id: str) -> Dict[str, Any]:
+        """Coleta resultados finais do pipeline para retorno."""
+        # Query funnel stats
+        async with self.memory._db.execute(
+            "SELECT status, COUNT(*) as count FROM scout_leads WHERE campaign_id = ? GROUP BY status",
+            (campaign_id,)
+        ) as cur:
+            stats = await cur.fetchall()
+
+        funnel = {r["status"]: r["count"] for r in stats}
+
+        # Query qualified count
+        async with self.memory._db.execute(
+            "SELECT COUNT(*) as count FROM scout_leads WHERE campaign_id = ? AND bant_score >= 70",
+            (campaign_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            qualified_count = row["count"] if row else 0
+
+        # Query copy generated count
+        async with self.memory._db.execute(
+            "SELECT COUNT(*) as count FROM scout_leads WHERE campaign_id = ? AND content_draft IS NOT NULL",
+            (campaign_id,)
+        ) as cur:
+            row = await cur.fetchone()
+            copy_count = row["count"] if row else 0
+
+        return {
+            "qualified": qualified_count,
+            "written": copy_count,
+            "rejected": funnel.get("rejeitado", 0),
+            "funnel": funnel
+        }
+
+    # ──────────────────────────────────────────────────────────
+    # MAIN PIPELINE
     # ──────────────────────────────────────────────────────────
 
     async def run_full_pipeline(self, campaign_id: str, limit: int = 100, niche: str = "geral", region: str = "geral") -> Dict[str, Any]:
@@ -664,100 +940,11 @@ class ScoutEngine:
         # NEW: Phase 2.75 - Account Research
         await self._research_accounts(campaign_id, limit)
 
-        # Get leads to qualify
-        query = """
-            SELECT lead_id, name, company, location, industry, bio_summary,
-                   email_address, phone, whatsapp, instagram
-            FROM scout_leads
-            WHERE campaign_id = ? AND status = 'novo' LIMIT ?
-        """
-        async with self.memory._db.execute(query, (campaign_id, limit)) as cur:
-            leads = await cur.fetchall()
+        # Phase 3: QUALIFICATION AVANÇADA (com contexto de Discovery Matrix + Account Research)
+        await self._qualify_and_generate_copy(campaign_id, limit)
 
-        if not leads:
-            log.info(f"[scout] No 'novo' leads to process for campaign '{campaign_id}'")
-            return {"status": "success", "campaign_id": campaign_id, "qualified": 0}
-
-        log.info(f"[scout] Processing {len(leads)} leads for qualification and copy")
-
-        results = {"qualified": 0, "written": 0, "rejected": 0}
-        semaphore = asyncio.Semaphore(3)  # Max 3 concurrent LLM calls
-
-        async def _process_lead(lead_row):
-            lead = dict(lead_row)
-            lead_id = lead["lead_id"]
-
-            ctx = (
-                f"Name: {lead.get('name', 'Unknown')}\n"
-                f"Company: {lead.get('company', '')}\n"
-                f"Industry: {lead.get('industry', '')}\n"
-                f"Location: {lead.get('location', '')}\n"
-                f"Bio: {lead.get('bio_summary', '')}"
-            )
-
-            async with semaphore:
-                # Qualification
-                qual_prompt = (
-                    "You are a B2B SDR qualification expert.\n"
-                    "Evaluate this lead and return ONLY a valid JSON object:\n"
-                    '{"score": <0-100 integer>, "reason": "<short explanation>", "fit": "<ideal_customer>"}\n\n'
-                    f"Context:\n{ctx}"
-                )
-
-                qual_res = await self.cascade.call(
-                    role=CascadeRole.FAST,
-                    messages=[{"role": "user", "content": qual_prompt}],
-                    temperature=0.2,
-                    max_tokens=200,
-                )
-
-                score = 50
-                reason = ""
-                try:
-                    raw = qual_res.get("content", "{}")
-                    s = raw.find("{")
-                    e = raw.rfind("}") + 1
-                    if s != -1 and e > s:
-                        data = json.loads(raw[s:e])
-                        score = int(data.get("score", 50))
-                        reason = data.get("reason", "")
-                except Exception as parse_err:
-                    log.warning(f"[scout] Parse error for lead {lead_id}: {parse_err}")
-
-                log.debug(f"[scout] Lead {lead_id} ({lead.get('name', 'Unknown')}): score={score} ({reason})")
-
-                # Copy generation if score is high (>= 60 é mais realista que 70)
-                if score >= 60:
-                    results["qualified"] += 1
-
-                    copy_prompt = (
-                        "You are an expert B2B copywriter.\n"
-                        "Write 3 personalized outreach formats for this lead:\n"
-                        "1. Professional email (5 sentences)\n"
-                        "2. LinkedIn DM (2-3 sentences)\n"
-                        "3. WhatsApp message (1-2 sentences)\n"
-                        "Be direct, personalized, and ready-to-send. Reply in Portuguese.\n\n"
-                        f"Context:\n{ctx}"
-                    )
-
-                    copy_res = await self.cascade.call(
-                        role=CascadeRole.CREATIVE,
-                        messages=[{"role": "user", "content": copy_prompt}],
-                        temperature=0.7,
-                        max_tokens=400,
-                    )
-
-                    copy_text = copy_res.get("content", "")
-
-                    # Update lead
-                    await self._update_lead_qualification(lead_id, score, copy_text, "aprovado")
-                    results["written"] += 1
-                else:
-                    await self._update_lead_qualification(lead_id, score, "", "rejeitado")
-                    results["rejected"] += 1
-
-        # Process all leads concurrently
-        await asyncio.gather(*[_process_lead(l) for l in leads])
+        # Get final results
+        results = await self._get_pipeline_results(campaign_id)
 
         log.info(
             f"[scout] Pipeline complete: "
@@ -771,18 +958,6 @@ class ScoutEngine:
             "campaign_id": campaign_id,
             "results": results,
         }
-
-    async def _update_lead_qualification(self, lead_id: int, score: int, copy: str, status: str) -> None:
-        """Update lead with qualification score and copy."""
-        sql = """
-            UPDATE scout_leads SET score = ?, content_draft = ?, status = ?, updated_at = ?
-            WHERE lead_id = ?
-        """
-        await self.memory._db.execute(
-            sql,
-            (score, copy[:2000] if copy else None, status, datetime.now().isoformat(), lead_id)
-        )
-        await self.memory._db.commit()
 
     # ──────────────────────────────────────────────────────────
     # DASHBOARD & UTILITIES
