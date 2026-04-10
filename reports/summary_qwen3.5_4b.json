@@ -1,0 +1,45 @@
+{
+  "model": "qwen3.5:4b",
+  "total_tasks": 8,
+  "timestamp": 1775817262.058621,
+  "by_category": {
+    "ocr": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 25247.260864257812,
+        "min": 16966.837890625,
+        "max": 33527.683837890625
+      },
+      "ocr_exact_match_%": 100.0,
+      "ocr_levenshtein_mean": 1.0
+    },
+    "grounding": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 300206.06103515625,
+        "min": 300139.6730957031,
+        "max": 300272.4489746094
+      },
+      "grounding_iou_mean": 0.0,
+      "json_valid_%": 0.0,
+      "grounding_center_error_mean_px": 769.8828502192448
+    },
+    "description": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 161762.63928222656,
+        "min": 102887.80102539062,
+        "max": 220637.4775390625
+      },
+      "keywords_coverage_mean": 0.8333333333333333
+    },
+    "afk": {
+      "count": 2,
+      "latency_ms": {
+        "mean": 15776.986572265625,
+        "min": 14079.26513671875,
+        "max": 17474.7080078125
+      }
+    }
+  }
+}
