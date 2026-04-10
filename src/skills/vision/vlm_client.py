@@ -1,17 +1,36 @@
 import asyncio
 import base64
 import json
+import os
 import httpx
 import logging
 
 log = logging.getLogger("seeker.vision.vlm")
 
+# Default model usado quando nenhum VLM_MODEL é definido via env.
+# Alternativas testadas no Sprint 12 (Vision 2.0):
+#   - qwen3.5:4b        (baseline, 4 GB VRAM)
+#   - qwen2.5vl:7b      (Qwen2.5-VL 7B, ~7 GB VRAM, melhor OCR)
+#   - qwen3-vl:8b       (Qwen3-VL 8B, ~9 GB VRAM, SOTA geral)
+#   - minicpm-v         (MiniCPM-V 2.6, ~6 GB VRAM, OCR specialist)
+DEFAULT_VLM_MODEL = "qwen3.5:4b"
+DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
+
 
 class VLMClient:
     """
-    Cliente para Qwen3.5 4B (multimodal) via Ollama.
+    Cliente multimodal VLM via Ollama.
 
-    v2:
+    Suporta múltiplos modelos configuráveis via env var VLM_MODEL:
+    - qwen3.5:4b (default)
+    - qwen2.5vl:7b
+    - qwen3-vl:8b
+    - minicpm-v
+    - qualquer modelo multimodal do Ollama
+
+    v3 (Sprint 12 — Vision 2.0):
+    - Modelo configurável via env var (VLM_MODEL)
+    - Hot-swap via set_model() sem reinstanciar
     - Integração com semáforo de GPU (VRAM compartilhada com skills locais)
     - keep_alive dinâmico: 5m quando GPU livre, 0 quando ocupada
     - Fallback CPU (num_gpu=0) quando VRAM indisponível
@@ -20,13 +39,16 @@ class VLMClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:11434",
-        model: str = "qwen3.5:4b",
+        base_url: str | None = None,
+        model: str | None = None,
         gpu_semaphore: asyncio.Semaphore | None = None,
     ):
-        self.base_url = base_url
-        self.model = model
+        # Config via env com fallback para defaults
+        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL)
+        self.model = model or os.getenv("VLM_MODEL", DEFAULT_VLM_MODEL)
         self.generate_endpoint = f"{self.base_url}/api/generate"
+
+        log.info(f"[vlm] Inicializando VLMClient: model={self.model} base_url={self.base_url}")
 
         # Semáforo compartilhado de GPU com outras skills
         # Se None, assume GPU sempre disponível (standalone mode)
@@ -155,17 +177,48 @@ class VLMClient:
         )
         return await self.analyze_screenshot(image_bytes, prompt)
 
-    async def unload_model(self):
-        """Força descarregamento do modelo da VRAM (libera para outras skills)."""
+    async def unload_model(self, model_name: str | None = None):
+        """
+        Força descarregamento de um modelo da VRAM (libera para outras skills).
+
+        Args:
+            model_name: nome do modelo a descarregar. Se None, usa self.model.
+        """
+        target = model_name or self.model
         try:
             payload = {
-                "model": self.model,
+                "model": target,
                 "keep_alive": "0",
             }
             await self._client.post(self.generate_endpoint, json=payload)
-            log.info(f"[vlm] Modelo {self.model} descarregado da VRAM.")
+            log.info(f"[vlm] Modelo {target} descarregado da VRAM.")
         except Exception as e:
-            log.warning(f"[vlm] Falha ao descarregar modelo: {e}")
+            log.warning(f"[vlm] Falha ao descarregar modelo {target}: {e}")
+
+    async def set_model(self, new_model: str):
+        """
+        Hot-swap do modelo VLM sem reinstanciar o cliente.
+
+        1. Descarrega o modelo atual da VRAM
+        2. Atualiza self.model
+        3. Invalida cache de health_check
+
+        Útil para benchmarks comparativos (Sprint 12) e fallback dinâmico.
+        """
+        if new_model == self.model:
+            log.info(f"[vlm] set_model: modelo já é {new_model}, no-op")
+            return
+
+        old_model = self.model
+        # Serializa troca com o inference_lock para não colidir com chamadas em voo
+        async with self._inference_lock:
+            log.info(f"[vlm] set_model: trocando {old_model} → {new_model}")
+            # Descarrega o anterior
+            await self.unload_model(old_model)
+            self.model = new_model
+            # Invalida cache de health (modelo diferente pode não estar disponível)
+            self._health_cache = (False, 0.0)
+        log.info(f"[vlm] set_model: troca completa, modelo ativo: {self.model}")
 
     async def health_check(self) -> bool:
         """Verifica se o Ollama está rodando. Resultado cacheado por 60s."""
