@@ -16,6 +16,22 @@ Exports:
     - AFKProtocolCoordinator: user status tracking
 """
 
+from .models import (
+    ExecutionPlan,
+    ActionStep,
+    ExecutionResult,
+    ActionType,
+    AutonomyTier,
+    ActionStatus,
+    ExecutionContext,
+    SafetyGate,
+)
+from .base import ActionHandler
+from .orchestrator import ActionOrchestrator
+from .actions import ActionExecutor
+from .afk_protocol import AFKProtocolCoordinator, ApprovalRequest
+from .safety import SafetyGateEvaluator, ExecutorPolicy
+
 __version__ = "1.0.0"
 __all__ = [
     # Models
@@ -24,7 +40,17 @@ __all__ = [
     "ExecutionResult",
     "ActionType",
     "AutonomyTier",
+    "ActionStatus",
+    "ExecutionContext",
+    "SafetyGate",
     # Base
     "ActionHandler",
-    # Will be added: Orchestrator, Executor, Safety, AFK
+    # Orchestrator & Executor
+    "ActionOrchestrator",
+    "ActionExecutor",
+    # Safety & AFK
+    "SafetyGateEvaluator",
+    "ExecutorPolicy",
+    "AFKProtocolCoordinator",
+    "ApprovalRequest",
 ]
