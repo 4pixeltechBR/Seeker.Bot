@@ -77,10 +77,13 @@ asyncio.run(vlm.set_model("qwen3-vl:8b"))  # Sem reinstanciar client
 
 | # | Modelo | VRAM | Status | Comando |
 |-|-|-|-|-|
-| 1 | `qwen3.5:4b` | ~4 GB | ✅ Instalado | (baseline) |
+| 1 | `qwen3.5:4b` | ~4 GB | ✅ Instalado (BASELINE — FALHA em grounding) | (descartado) |
 | 2 | `qwen2.5vl:7b` | ~7 GB | `ollama pull qwen2.5vl:7b` | Candidato primário |
 | 3 | `qwen3-vl:8b` | ~9 GB | `ollama pull qwen3-vl:8b` | Upgrade SOTA |
 | 4 | `minicpm-v` | ~6 GB | `ollama pull minicpm-v` | Especialista OCR |
+
+**Modelos descartados:**
+- ~~OpenCUA-7B~~ — VRAM insuficiente (swap para RAM → latência inaceitável)
 
 **Como rodar:**
 
@@ -180,11 +183,8 @@ Após decisão de modelo (A4):
   - Opção B: baixar mmproj + llama-server (reusa GGUF, +1h código)
 - `Qwen3.5-9B.Q4_K_M.gguf` (5.6 GB) — validar se é VL-capable
 
-**`E:\Downloads ViralClipOS\Models_AI\models--xlangai--OpenCUA-7B\`:**
-- **OpenCUA-7B** (14 GB alocado, download incompleto) — especialista GUI
-- Potencial game-changer para AFK Protocol se completado
-- Roda via Transformers (fora do Ollama)
-- Fase A3.5 opcional: testar se IoU grounding supera Qwen3-VL-8B
+**Descartado:**
+- ~~OpenCUA-7B~~ (14 GB) — Requer swap RAM (VRAM insuficiente), latência inaceitável. Não viável.
 
 ---
 

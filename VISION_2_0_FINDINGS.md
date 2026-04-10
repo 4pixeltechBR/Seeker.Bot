@@ -72,8 +72,8 @@ Resultado do benchmark com 2 imagens de teste:
 3. Commit + SPRINT_12_COMPLETE.md
 
 ### Contingência:
-- Se NENHUM candidato passar → OpenCUA-7B (GUI specialist)
-- Ou fallback cloud-first via Gemini
+- Se NENHUM candidato passar (qwen2.5vl, qwen3-vl, minicpm-v) → fallback cloud-first via Gemini
+- OpenCUA-7B descartado (VRAM insuficiente → swap → latência inaceitável)
 
 ---
 
