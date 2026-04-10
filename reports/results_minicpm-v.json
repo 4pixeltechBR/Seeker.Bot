@@ -1,0 +1,175 @@
+[
+  {
+    "task_id": "ocr/_placeholder_ocr_1.png",
+    "model": "minicpm-v",
+    "category": "ocr",
+    "predicted": "**Body Text:**\nSample OCR text for testing",
+    "ground_truth": {
+      "text": "Sample OCR text for testing"
+    },
+    "latency_ms": 22910.336181640625,
+    "timestamp": 1775835024.0463357,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.6428571428571428,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "ocr/_placeholder_ocr_2.png",
+    "model": "minicpm-v",
+    "category": "ocr",
+    "predicted": "**Image Content Structure:**\n\n- **Body Text:** \n  - \"Another test image\"",
+    "ground_truth": {
+      "text": "Another test image"
+    },
+    "latency_ms": 979.203369140625,
+    "timestamp": 1775835025.0255392,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.2647058823529411,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "grounding/_placeholder_button_1.png",
+    "model": "minicpm-v",
+    "category": "grounding",
+    "predicted": "Based on the provided image, here is the extracted information in the required JSON format:\n\n```json\n{\n  \"x\":<box>382,\n  \"y\":<box>456,\n  \"confidence\":<0.0-1.0>\n}\n```\n\nPlease note that the exact confidence value cannot be determined from a static image and would typically require additional context or data to estimate accurately.",
+    "ground_truth": {
+      "description": "submit button",
+      "bbox": {
+        "x": 500,
+        "y": 200,
+        "width": 100,
+        "height": 40
+      }
+    },
+    "latency_ms": 1919.229736328125,
+    "timestamp": 1775835026.944769,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": 538.5164807134504,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "grounding/_placeholder_button_2.png",
+    "model": "minicpm-v",
+    "category": "grounding",
+    "predicted": "Based on the provided image, here is the extracted information:\n\nThe close icon's bounding box appears to be located at approximately (256, 3), with a width of around 4 pixels and height of about 4 pixels.\n\nTherefore, the JSON object representing this UI element would look like:\n```json\n{\n    \"x\": 256,\n    \"y\": 3,\n    \"width\": 4,\n    \"height\": 4,\n    \"confidence\": 1.0 // Assuming a confidence level of certainty for bounding box detection.\n}\n```\n\nPlease note that the exact pixel values may vary slightly depending on the actual size and position of the close icon in your application's user interface design.",
+    "ground_truth": {
+      "description": "close icon",
+      "bbox": {
+        "x": 1000,
+        "y": 50,
+        "width": 30,
+        "height": 30
+      }
+    },
+    "latency_ms": 2920.50146484375,
+    "timestamp": 1775835029.8652704,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": 1001.2492197250393,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "description/_placeholder_page_1.png",
+    "model": "minicpm-v",
+    "category": "description",
+    "predicted": "O screenshot mostra uma página branca com texto no centro que lê \"Página de Formulário com botão\". Não há outros elementos visíveis na imagem, como botões interativos ou formulários. O layout é simples e limpo, concentrando-se exclusivamente em exibir o título da página e seu conteúdo.",
+    "ground_truth": {
+      "keywords": [
+        "button",
+        "form",
+        "title"
+      ]
+    },
+    "latency_ms": 1717.408935546875,
+    "timestamp": 1775835031.5826793,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.3333333333333333
+  },
+  {
+    "task_id": "description/_placeholder_page_2.png",
+    "model": "minicpm-v",
+    "category": "description",
+    "predicted": "O título da página ou cabeçalho não é exibido na captura de tela fornecida.\nO conteúdo principal desta captura de tela parece ser um espaço para entrada de mensagem do chat, indicado pela expressão \"Entrada de mensagem do chat\".\nNão há botões ou links visíveis nesta captura de tela.\nNão há formulários ou campos de entrada visíveis nesta captura de tela.",
+    "ground_truth": {
+      "keywords": [
+        "chat",
+        "message",
+        "input"
+      ]
+    },
+    "latency_ms": 1983.686279296875,
+    "timestamp": 1775835033.5663655,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.3333333333333333
+  },
+  {
+    "task_id": "afk/_placeholder_idle_1.png",
+    "model": "minicpm-v",
+    "category": "afk",
+    "predicted": "Based on the provided image, here is a description of its content in the requested JSON format:\n\n```json\n{\n    \"state\": \"idle\",\n    \"confidence\": 1.0\n}\n```\n\nThis indicates that the desktop appears to be idle with no active applications or processes running at the moment. The confidence score reflects certainty based on visual analysis, which is set to a maximum value of 1.0 in this case.",
+    "ground_truth": {
+      "state": "idle"
+    },
+    "latency_ms": 2028.58837890625,
+    "timestamp": 1775835035.5949538,
+    "ocr_exact_match": true,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "afk/_placeholder_active_1.png",
+    "model": "minicpm-v",
+    "category": "afk",
+    "predicted": "Based on the provided image, here is the structured information as requested:\n\n```json\n{\n    \"state\": \"active\",\n    \"confidence\": 1.0\n}\n```\n\nThis JSON object indicates that the desktop screenshot shows an active state with a confidence level of 1.0 based solely on visual evidence from the given snapshot.",
+    "ground_truth": {
+      "state": "active"
+    },
+    "latency_ms": 1725.567138671875,
+    "timestamp": 1775835037.320521,
+    "ocr_exact_match": true,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "afk/_placeholder_modal_1.png",
+    "model": "minicpm-v",
+    "category": "afk",
+    "predicted": "Based on the provided image, here is a structured description and an accompanying JSON representation:\n\n**Screenshot Description:**\nThe image displays a simple white background with text in the bottom left corner that reads \"Modal dialog\". The overall appearance suggests it might be part of a user interface or instructional material related to modal dialogs.\n\n**JSON Representation:**\n```json\n{\n  \"state\": \"idle\",\n  \"confidence\": 1.0\n}\n```\n\nThis JSON object indicates that the system is currently in an idle state with high confidence, as there are no visible errors or active processes affecting the display of this particular screenshot.",
+    "ground_truth": {
+      "state": "modal"
+    },
+    "latency_ms": 2585.8857421875,
+    "timestamp": 1775835039.9064066,
+    "ocr_exact_match": true,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  }
+]

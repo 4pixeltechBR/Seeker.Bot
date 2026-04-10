@@ -3,14 +3,14 @@
     "task_id": "ocr/_placeholder_ocr_1.png",
     "model": "qwen3-vl:8b",
     "category": "ocr",
-    "predicted": "Sample OCRtext for testing",
+    "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
       "text": "Sample OCR text for testing"
     },
-    "latency_ms": 93548.93994140625,
-    "timestamp": 1775820453.271144,
+    "latency_ms": 300021.08203125,
+    "timestamp": 1775832109.2789733,
     "ocr_exact_match": false,
-    "ocr_levenshtein": 0.962962962962963,
+    "ocr_levenshtein": 0.14814814814814814,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
@@ -20,14 +20,14 @@
     "task_id": "ocr/_placeholder_ocr_2.png",
     "model": "qwen3-vl:8b",
     "category": "ocr",
-    "predicted": "Another test image",
+    "predicted": "ERROR: HTTPStatusError",
     "ground_truth": {
       "text": "Another test image"
     },
-    "latency_ms": 286141.0905761719,
-    "timestamp": 1775820739.413821,
-    "ocr_exact_match": true,
-    "ocr_levenshtein": 1.0,
+    "latency_ms": 39797.623046875,
+    "timestamp": 1775832149.0765965,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.18181818181818177,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
@@ -47,8 +47,8 @@
         "height": 40
       }
     },
-    "latency_ms": 300016.3527832031,
-    "timestamp": 1775821039.4311101,
+    "latency_ms": 300037.1220703125,
+    "timestamp": 1775832449.1142275,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -70,8 +70,8 @@
         "height": 30
       }
     },
-    "latency_ms": 300265.8620605469,
-    "timestamp": 1775821339.6969721,
+    "latency_ms": 300297.4104003906,
+    "timestamp": 1775832749.418559,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -83,7 +83,7 @@
     "task_id": "description/_placeholder_page_1.png",
     "model": "qwen3-vl:8b",
     "category": "description",
-    "predicted": "1) Título da página/cabeçalho: \"Form Page with button\"  \n2) Resumo do conteúdo principal: Apenas o texto \"Form Page with button\" é exibido centralmente.  \n3) Botões ou links clicáveis visíveis: Nenhum.  \n4) Formulários ou campos de entrada: Nenhum.",
+    "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
       "keywords": [
         "button",
@@ -91,20 +91,20 @@
         "title"
       ]
     },
-    "latency_ms": 169906.45336914062,
-    "timestamp": 1775821509.6039445,
+    "latency_ms": 300283.66650390625,
+    "timestamp": 1775833049.7022257,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
-    "keywords_coverage": 0.6666666666666666
+    "keywords_coverage": 0.0
   },
   {
     "task_id": "description/_placeholder_page_2.png",
     "model": "qwen3-vl:8b",
     "category": "description",
-    "predicted": "1) Page title/header: Não há título ou cabeçalho visível na imagem.  \n2) Main content summary: A área principal exibe apenas o texto \"Chat message input\", indicando um campo de entrada para mensagens de chat.  \n3) Clickable buttons or links: Nenhum botão ou link clicável é visível.  \n4) Any forms or input fields: Um campo de entrada de texto (input field) com o placeholder \"Chat message input\" está presente.",
+    "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
       "keywords": [
         "chat",
@@ -112,14 +112,14 @@
         "input"
       ]
     },
-    "latency_ms": 227771.42700195312,
-    "timestamp": 1775821737.3753717,
+    "latency_ms": 300280.0966796875,
+    "timestamp": 1775833349.9844925,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
-    "keywords_coverage": 1.0
+    "keywords_coverage": 0.0
   },
   {
     "task_id": "afk/_placeholder_idle_1.png",
@@ -129,8 +129,8 @@
     "ground_truth": {
       "state": "idle"
     },
-    "latency_ms": 54618.824951171875,
-    "timestamp": 1775821791.9941964,
+    "latency_ms": 41250.73583984375,
+    "timestamp": 1775833391.2411625,
     "ocr_exact_match": true,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -146,8 +146,8 @@
     "ground_truth": {
       "state": "active"
     },
-    "latency_ms": 16982.176513671875,
-    "timestamp": 1775821808.9769008,
+    "latency_ms": 52492.593505859375,
+    "timestamp": 1775833443.7342892,
     "ocr_exact_match": true,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -159,12 +159,12 @@
     "task_id": "afk/_placeholder_modal_1.png",
     "model": "qwen3-vl:8b",
     "category": "afk",
-    "predicted": "{\"state\": \"modal\", \"confidence\": 1.0}",
+    "predicted": "{\"state\": \"modal\", \"confidence\": 0.95}",
     "ground_truth": {
       "state": "modal"
     },
-    "latency_ms": 20445.03466796875,
-    "timestamp": 1775821829.4219356,
+    "latency_ms": 36402.116943359375,
+    "timestamp": 1775833480.1369739,
     "ocr_exact_match": true,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,

@@ -145,17 +145,24 @@ class EmailMonitorGoal:
         cycle_cost = 0.0
 
         try:
-            reader = IMAPReader.from_env()
-            if not reader:
-                self._status = GoalStatus.IDLE
-                return GoalResult(
-                    success=True,
-                    summary="IMAP não configurado — skipping.",
-                    cost_usd=0.0,
-                )
+            # Tenta via Gmail API (mais confiável que IMAP)
+            emails = await self._fetch_unread_gmail_api()
 
-            # Busca max 30 não lidos
-            emails = await reader.fetch_unread_emails(max_emails=30)
+            if emails is None:
+                # Fallback para IMAP se API não disponível
+                reader = IMAPReader.from_env()
+                if not reader:
+                    self._status = GoalStatus.IDLE
+                    return GoalResult(
+                        success=True,
+                        summary="Gmail API e IMAP não configurados — skipping.",
+                        cost_usd=0.0,
+                    )
+                emails = await reader.fetch_unread_emails(max_emails=30)
+
+            # Busca max 30 não lidos (já feito acima)
+            if emails is None:
+                emails = []
 
             if not emails:
                 self._last_run_date = today_str
@@ -229,6 +236,36 @@ class EmailMonitorGoal:
             )
 
     # ── Helpers ───────────────────────────────────────────────
+
+    async def _fetch_unread_gmail_api(self) -> list[dict] | None:
+        """
+        Busca emails não lidos via Gmail API (alternativa ao IMAP).
+        Mais confiável e sem problemas de SSL/Windows.
+        """
+        try:
+            from mcp__b23351a3_c0fc_4272_b199_a78590884214__gmail_search_messages import (
+                gmail_search_messages
+            )
+        except ImportError:
+            log.debug("[email_monitor] Gmail API MCP não disponível, usando IMAP")
+            return None
+
+        try:
+            # Importa a função MCP direto
+            import sys
+            sys.path.insert(0, str(__file__).rsplit('\\', 4)[0])  # Vai para src/
+
+            # Busca emails não lidos via Gmail API
+            # Usar a mcp__b23351a3_c0fc_4272_b199_a78590884214__gmail_search_messages
+            log.debug("[email_monitor] Tentando buscar via Gmail API...")
+
+            # Por enquanto, retorna None para usar fallback IMAP
+            # TODO: Integrar MCP Gmail API quando disponível
+            return None
+
+        except Exception as e:
+            log.debug(f"[email_monitor] Gmail API fallback: {e}")
+            return None
 
     def _format_for_llm(self, emails: list[dict]) -> str:
         lines = []

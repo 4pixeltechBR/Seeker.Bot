@@ -104,9 +104,11 @@ def generate_comparison_table(models: list[str]) -> str:
 
 def generate_full_report(models: list[str]) -> str:
     """Gera relatório completo em markdown."""
+    summary = load_summary(models[0])
+    timestamp = summary.get('timestamp', 'N/A') if summary else 'N/A'
     report = [
         "# Vision 2.0 Benchmark Report\n",
-        f"**Data:** {list(load_summary(models[0]).values())[0].get('timestamp', 'N/A')}\n",
+        f"**Data:** {timestamp}\n",
     ]
 
     # Tabela comparativa

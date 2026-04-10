@@ -1,16 +1,16 @@
 [
   {
     "task_id": "ocr/_placeholder_ocr_1.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "ocr",
-    "predicted": "Sample OCR text for testing",
+    "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
       "text": "Sample OCR text for testing"
     },
-    "latency_ms": 152396.1044921875,
-    "timestamp": 1775829686.0078394,
-    "ocr_exact_match": true,
-    "ocr_levenshtein": 1.0,
+    "latency_ms": 300012.4987792969,
+    "timestamp": 1775833712.1952925,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.14814814814814814,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
@@ -18,16 +18,16 @@
   },
   {
     "task_id": "ocr/_placeholder_ocr_2.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "ocr",
-    "predicted": "Another test image",
+    "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
       "text": "Another test image"
     },
-    "latency_ms": 211898.20068359375,
-    "timestamp": 1775829897.9065635,
-    "ocr_exact_match": true,
-    "ocr_levenshtein": 1.0,
+    "latency_ms": 300264.02783203125,
+    "timestamp": 1775834012.4593203,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.16666666666666663,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
@@ -35,7 +35,7 @@
   },
   {
     "task_id": "grounding/_placeholder_button_1.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "grounding",
     "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
@@ -47,8 +47,8 @@
         "height": 40
       }
     },
-    "latency_ms": 300013.1037597656,
-    "timestamp": 1775830197.9196672,
+    "latency_ms": 300296.0881347656,
+    "timestamp": 1775834312.7559233,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -58,7 +58,7 @@
   },
   {
     "task_id": "grounding/_placeholder_button_2.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "grounding",
     "predicted": "ERROR: ReadTimeout",
     "ground_truth": {
@@ -70,8 +70,8 @@
         "height": 30
       }
     },
-    "latency_ms": 300266.8916015625,
-    "timestamp": 1775830498.1865587,
+    "latency_ms": 300276.7883300781,
+    "timestamp": 1775834613.0327117,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -81,9 +81,9 @@
   },
   {
     "task_id": "description/_placeholder_page_1.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "description",
-    "predicted": "ERROR: ReadTimeout",
+    "predicted": "1) Título da página: Página de formulário com botão\n2) Conteúdo principal: Página de formulário simples com um botão.\n3) Botões ou links visíveis: Botão.\n4) Formulários ou campos de entrada: Não há campos de entrada visíveis.",
     "ground_truth": {
       "keywords": [
         "button",
@@ -91,20 +91,20 @@
         "title"
       ]
     },
-    "latency_ms": 300278.9997558594,
-    "timestamp": 1775830798.4660952,
+    "latency_ms": 279185.8630371094,
+    "timestamp": 1775834892.2185748,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
-    "keywords_coverage": 0.0
+    "keywords_coverage": 0.3333333333333333
   },
   {
     "task_id": "description/_placeholder_page_2.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "description",
-    "predicted": "ERROR: ReadTimeout",
+    "predicted": "1) Não há título ou cabeçalho visível.\n2) O conteúdo principal é um campo de entrada para mensagens de chat.\n3) Não há botões ou links visíveis.\n4) Há um campo de entrada para mensagens de chat.",
     "ground_truth": {
       "keywords": [
         "chat",
@@ -112,25 +112,25 @@
         "input"
       ]
     },
-    "latency_ms": 300274.14501953125,
-    "timestamp": 1775831098.7402403,
+    "latency_ms": 30750.279052734375,
+    "timestamp": 1775834922.969505,
     "ocr_exact_match": false,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
     "grounding_center_error": Infinity,
     "json_valid": false,
-    "keywords_coverage": 0.0
+    "keywords_coverage": 0.3333333333333333
   },
   {
     "task_id": "afk/_placeholder_idle_1.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "afk",
-    "predicted": "```json\n{\"state\": \"idle\", \"confidence\": 0.95}\n```",
+    "predicted": "```json\n{\n  \"state\": \"idle\",\n  \"confidence\": 1.0\n}\n```",
     "ground_truth": {
       "state": "idle"
     },
-    "latency_ms": 43554.63134765625,
-    "timestamp": 1775831142.2954195,
+    "latency_ms": 25601.26318359375,
+    "timestamp": 1775834948.5712955,
     "ocr_exact_match": true,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -140,14 +140,14 @@
   },
   {
     "task_id": "afk/_placeholder_active_1.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "afk",
-    "predicted": "```json\n{\"state\": \"active\", \"confidence\": 0.95}\n```",
+    "predicted": "```json\n{\n  \"state\": \"active\",\n  \"confidence\": 0.95\n}\n```",
     "ground_truth": {
       "state": "active"
     },
-    "latency_ms": 54640.27294921875,
-    "timestamp": 1775831196.9356923,
+    "latency_ms": 25693.00244140625,
+    "timestamp": 1775834974.264298,
     "ocr_exact_match": true,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
@@ -157,14 +157,14 @@
   },
   {
     "task_id": "afk/_placeholder_modal_1.png",
-    "model": "qwen3.5:4b",
+    "model": "qwen2.5vl:7b",
     "category": "afk",
-    "predicted": "```json\n{\"state\": \"modal\", \"confidence\": 0.95}\n```",
+    "predicted": "```json\n{\n  \"state\": \"modal\",\n  \"confidence\": 0.95\n}\n```",
     "ground_truth": {
       "state": "modal"
     },
-    "latency_ms": 49994.622314453125,
-    "timestamp": 1775831246.9303148,
+    "latency_ms": 25469.807373046875,
+    "timestamp": 1775834999.734105,
     "ocr_exact_match": true,
     "ocr_levenshtein": 0.0,
     "grounding_iou": 0.0,
