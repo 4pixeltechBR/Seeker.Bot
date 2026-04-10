@@ -103,16 +103,33 @@ def get_approval_notification(
     description: str,
     timeout_seconds: int,
     estimated_cost: float,
-) -> str:
-    """Formatação para notificação de aprovação Telegram."""
-    return (
-        f"🔐 Ação requer aprovação:\n\n"
+) -> tuple[str, list[list]]:
+    """
+    Formatação para notificação de aprovação Telegram com inline buttons.
+
+    Retorna: (texto, inline_keyboard)
+
+    Uso:
+        text, keyboard = get_approval_notification(...)
+        keyboard_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+        await bot.send_message(chat_id, text, reply_markup=keyboard_markup)
+    """
+    text = (
+        f"🔐 <b>Ação requer aprovação</b>\n\n"
         f"<b>{description}</b>\n\n"
-        f"ID: <code>{action_id}</code>\n"
-        f"Custo estimado: ${estimated_cost:.2f}\n"
-        f"Timeout: {timeout_seconds}s\n\n"
-        f"[✅ Aprovar] [❌ Rejeitar]"
+        f"<b>ID:</b> <code>{action_id}</code>\n"
+        f"<b>Custo estimado:</b> ${estimated_cost:.2f}\n"
+        f"<b>Timeout:</b> {timeout_seconds}s\n\n"
+        f"<i>Clique em ✅ ou ❌ para responder</i>"
     )
+
+    # Retorna matriz de botões inline
+    buttons = [[
+        {"text": "✅ Aprovar", "callback_data": f"exec_approve:{action_id}"},
+        {"text": "❌ Rejeitar", "callback_data": f"exec_reject:{action_id}"}
+    ]]
+
+    return text, buttons
 
 
 def get_execution_success_notification(

@@ -651,30 +651,42 @@ class GoalNotifier:
         def clean_html(raw_html: str) -> str:
             cleanr = re.compile('<.*?>')
             return re.sub(cleanr, '', raw_html)
-            
+
         for uid in self.admin_chats:
             try:
                 # Se tiver PDF, doc longo ou bytes de foto
                 from aiogram.enums import ParseMode
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
                 pdf_path = (data or {}).get("pdf_path", "")
                 photo_bytes = (data or {}).get("photo_bytes", None)
+                reply_markup = (data or {}).get("reply_markup", None)  # Inline keyboard (se houver)
+
+                # Constrói reply_markup se data contém buttons (ex: de approval notifications)
+                if not reply_markup and (data or {}).get("buttons"):
+                    buttons_data = data.get("buttons", [])
+                    buttons = [[
+                        InlineKeyboardButton(text=btn["text"], callback_data=btn["callback_data"])
+                        for btn in row
+                    ] for row in buttons_data]
+                    reply_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
 
                 if pdf_path and os.path.exists(pdf_path):
                     from aiogram.types import FSInputFile
                     doc = FSInputFile(pdf_path)
                     safe_caption = clean_html(content)[:1000] + "..." if len(content) > 1000 else clean_html(content)
-                    await self.bot.send_document(uid, doc, caption=safe_caption)
+                    await self.bot.send_document(uid, doc, caption=safe_caption, reply_markup=reply_markup)
                 elif photo_bytes:
                     from aiogram.types import BufferedInputFile
                     photo = BufferedInputFile(photo_bytes, filename="watch_alert.png")
                     safe_caption = clean_html(content)[:1000] + "..." if len(content) > 1000 else clean_html(content)
-                    await self.bot.send_photo(uid, photo, caption=safe_caption)
+                    await self.bot.send_photo(uid, photo, caption=safe_caption, reply_markup=reply_markup)
                 else:
                     if len(content) > 4000:
                         content_safe = clean_html(content)[:4000] + "\n\n(Aviso: Mensagem longa truncada)"
-                        await self.bot.send_message(uid, content_safe)
+                        await self.bot.send_message(uid, content_safe, reply_markup=reply_markup)
                     else:
-                        await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML)
+                        await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
             except Exception as e:
                 log.error(f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True)
 

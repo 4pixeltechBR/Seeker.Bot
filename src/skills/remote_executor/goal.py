@@ -38,6 +38,8 @@ from src.core.executor.afk_protocol import AFKProtocolCoordinator
 from src.core.executor.safety import SafetyGateEvaluator, ExecutorPolicy
 
 from .config import REMOTE_EXECUTOR_CONFIG
+from .prompts import get_approval_notification
+from src.core.metrics import Sprint11Tracker
 
 log = logging.getLogger("seeker.remote_executor")
 
@@ -54,14 +56,16 @@ class RemoteExecutorGoal:
     - Logging e audit trail
     """
 
-    def __init__(self, pipeline: SeekerPipeline):
+    def __init__(self, pipeline: SeekerPipeline, notifier=None):
         """
         Inicializa RemoteExecutor goal.
 
         Args:
             pipeline: SeekerPipeline com model_router, api_keys, notifier
+            notifier: GoalNotifier para envio de notificações imediatas (opcional)
         """
         self.pipeline = pipeline
+        self.notifier = notifier  # Injetado pelo scheduler
 
         # Status e budget
         self._status = GoalStatus.IDLE
@@ -78,6 +82,9 @@ class RemoteExecutorGoal:
         self.afk_protocol = AFKProtocolCoordinator(user_id=getattr(pipeline, 'user_id', 'default'))
         self.safety_evaluator = SafetyGateEvaluator()
         self.policy = ExecutorPolicy()
+
+        # Metrics tracking (Sprint 11)
+        self.tracker = getattr(pipeline, 'sprint11_tracker', Sprint11Tracker())
 
         # Pending plans (para tracking)
         self.pending_plans: Dict[str, ExecutionPlan] = {}
@@ -197,6 +204,10 @@ class RemoteExecutorGoal:
 
         # Armazenar para execução posterior
         self.pending_plans[plan.plan_id] = plan
+
+        # Registrar métrica
+        self.tracker.record_remote_executor_plan()
+
         log.info(f"[remote_executor] Plan created: {plan.plan_id}")
 
         return plan, ""
@@ -262,18 +273,153 @@ class RemoteExecutorGoal:
                 cost_usd=0.0,
             )
 
+    async def _send_approval_notification(self, step, approval) -> None:
+        """Envia notificação de aprovação com inline buttons via notifier."""
+        if not self.notifier:
+            log.warning("[remote_executor] Notifier não disponível, pulando notificação")
+            return
+
+        text, buttons = get_approval_notification(
+            action_id=step.id,
+            description=step.description[:100],
+            timeout_seconds=approval.time_until_timeout,
+            estimated_cost=step.estimated_cost_usd,
+        )
+
+        # Envia via notifier com buttons no data
+        await self.notifier.send(
+            goal_name=self.name,
+            content=text,
+            channels=self.channels,
+            data={"buttons": buttons},
+        )
+
     async def _process_approval_queue(self) -> Dict:
-        """Processa fila de aprovações L0_MANUAL."""
-        # TODO: integração com AFK protocol
-        # - Check timeouts
-        # - Retry escalation
-        # - Execute approved actions
-        return {"processed": 0, "cost": 0.0}
+        """
+        Processa fila de aprovações L0_MANUAL.
+
+        Responsabilidades:
+        - Verificar timeouts de aprovações
+        - Gerar notificações com inline buttons
+        - Retirar da fila quando aprovadas/rejeitadas
+        """
+        processed = 0
+        cost = 0.0
+
+        try:
+            approval_queue = self.afk_protocol.approval_queue.copy()
+
+            for approval_id, approval in approval_queue.items():
+                # Verificar timeout
+                if approval.is_expired:
+                    log.warning(f"[remote_executor] Approval {approval_id} expired after retries")
+                    # Remover da fila
+                    if approval_id in self.afk_protocol.approval_queue:
+                        del self.afk_protocol.approval_queue[approval_id]
+                    processed += 1
+                    continue
+
+                # Verificar se já foi respondido
+                if approval_id in self.afk_protocol.approval_responses:
+                    response = self.afk_protocol.approval_responses[approval_id]
+                    log.info(f"[remote_executor] Approval {approval_id} responded: {response}")
+                    # Remover da fila
+                    if approval_id in self.afk_protocol.approval_queue:
+                        del self.afk_protocol.approval_queue[approval_id]
+                    processed += 1
+                    continue
+
+                # Enviar notificação para aprovação não processada
+                # (só envia uma vez quando aparece na fila)
+                if not getattr(approval, '_notified', False):
+                    await self._send_approval_notification(approval.step, approval)
+                    approval._notified = True
+
+        except Exception as e:
+            log.error(f"[remote_executor] Error processing approval queue: {e}", exc_info=True)
+
+        return {
+            "processed": processed,
+            "cost": cost,
+        }
 
     async def _execute_pending_plans(self) -> Dict:
-        """Executa plans pendentes aprovados."""
-        # TODO: iterar pending_plans e executar se aprovado
-        return {"count": 0, "failed": 0, "cost": 0.0}
+        """
+        Executa plans pendentes aprovados.
+
+        Responsabilidades:
+        - Iterar plans pendentes
+        - Verificar se foram aprovados (L0_MANUAL)
+        - Executar via ActionExecutor
+        - Registrar métricas
+        """
+        count = 0
+        failed = 0
+        cost = 0.0
+
+        try:
+            pending_plans_list = list(self.pending_plans.items())
+
+            for plan_id, plan in pending_plans_list:
+                # Verificar se foi aprovado (se houver L0_MANUAL)
+                has_l0_manual = any(s.approval_tier.value == "L0_MANUAL" for s in plan.steps)
+                if has_l0_manual:
+                    # Verificar se foi respondido (aprovado/rejeitado)
+                    all_l0_responded = True
+                    for step in plan.steps:
+                        if step.approval_tier.value == "L0_MANUAL":
+                            if step.id not in self.afk_protocol.approval_responses:
+                                all_l0_responded = False
+                                break
+
+                    if not all_l0_responded:
+                        log.debug(f"[remote_executor] Plan {plan_id} ainda aguarda L0 approval")
+                        continue
+
+                # Executar plan
+                context = ExecutionContext(
+                    plan_id=plan.plan_id,
+                    triggered_by_user="system",
+                    triggered_by_intent=plan.intention,
+                    goal_name=self.name,
+                    budget_remaining_usd=self._budget.remaining_today,
+                )
+
+                start_time = datetime.utcnow()
+                results = await self.executor.execute_plan(plan, context)
+                elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+
+                # Processa resultados e registra métricas
+                for step_id, result in results.items():
+                    self.tracker.record_remote_executor_execution(
+                        success=(result.status.value == "success"),
+                        execution_status=result.status.value.upper(),
+                        latency_ms=result.duration_ms,
+                        cost_usd=result.cost_usd,
+                    )
+
+                    # Registra tier de autonomia
+                    step = next((s for s in plan.steps if s.id == step_id), None)
+                    if step:
+                        self.tracker.record_remote_executor_autonomy_tier(step.approval_tier.value)
+
+                # Atualizar contadores
+                summary = self.executor.summarize_results(results)
+                count += 1
+                failed += summary.get("failed", 0)
+                cost += summary.get("total_cost_usd", 0.0)
+
+                # Remover da fila
+                del self.pending_plans[plan_id]
+
+        except Exception as e:
+            log.error(f"[remote_executor] Error executing pending plans: {e}", exc_info=True)
+
+        return {
+            "count": count,
+            "failed": failed,
+            "cost": cost,
+        }
 
     def serialize_state(self) -> dict:
         """Serializa estado para persistência."""
@@ -288,3 +434,16 @@ class RemoteExecutorGoal:
         if "budget_spent_today" in state:
             self._budget.spent_today_usd = state["budget_spent_today"]
         log.info(f"[remote_executor] State loaded: {state}")
+
+
+def create_goal(pipeline: SeekerPipeline) -> RemoteExecutorGoal:
+    """
+    Factory chamada pelo Goal Registry para criar instância de RemoteExecutorGoal.
+
+    Args:
+        pipeline: SeekerPipeline necessário para acesso a cascade_adapter, api_keys, etc.
+
+    Returns:
+        RemoteExecutorGoal instanciado e pronto para o scheduler.
+    """
+    return RemoteExecutorGoal(pipeline)

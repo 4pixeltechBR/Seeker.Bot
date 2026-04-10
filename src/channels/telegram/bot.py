@@ -1015,6 +1015,95 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             await status_msg.edit_text(f"Erro no print: {e}")
 
 
+    # ────────────────────────────────────────────────────────────────
+    # Remote Executor Approval Callbacks (L0_MANUAL actions)
+    # ────────────────────────────────────────────────────────────────
+
+    @dp.callback_query(F.data.startswith("exec_approve:"))
+    async def handle_executor_approve(callback: CallbackQuery):
+        """Aprova uma ação L0_MANUAL do Remote Executor"""
+        if not _is_allowed_callback(callback, allowed_users):
+            return
+
+        approval_id = callback.data.split(":", 1)[1]
+        user_id = callback.from_user.id
+
+        scheduler = dp.get("scheduler")
+        if not scheduler:
+            await callback.answer("❌ Scheduler não disponível", show_alert=True)
+            return
+
+        # Localiza o RemoteExecutor goal
+        remote_executor_goal = scheduler._goals.get("remote_executor")
+        if not remote_executor_goal:
+            await callback.answer("❌ Remote Executor goal não encontrado", show_alert=True)
+            return
+
+        try:
+            # Responde à aprovação
+            afk_protocol = remote_executor_goal.afk_protocol
+            approved = await afk_protocol.respond_to_approval(approval_id, approved=True)
+
+            if approved:
+                # Registrar métrica de aprovação
+                tracker = getattr(pipeline, 'sprint11_tracker', None)
+                if tracker:
+                    tracker.record_remote_executor_approval(approved=True)
+
+                await callback.message.edit_text(
+                    f"{callback.message.text}\n\n<b>✅ Aprovado pelo usuário</b>\n"
+                    "<i>Executando ação...</i>",
+                    parse_mode=ParseMode.HTML
+                )
+                await callback.answer("✅ Ação aprovada e iniciada!")
+            else:
+                await callback.answer("⚠️ Aprovação não encontrada ou expirou", show_alert=True)
+        except Exception as e:
+            log.error(f"[executor_callback] Erro ao aprovar {approval_id}: {e}")
+            await callback.answer(f"❌ Erro: {str(e)[:50]}", show_alert=True)
+
+    @dp.callback_query(F.data.startswith("exec_reject:"))
+    async def handle_executor_reject(callback: CallbackQuery):
+        """Rejeita uma ação L0_MANUAL do Remote Executor"""
+        if not _is_allowed_callback(callback, allowed_users):
+            return
+
+        approval_id = callback.data.split(":", 1)[1]
+        user_id = callback.from_user.id
+
+        scheduler = dp.get("scheduler")
+        if not scheduler:
+            await callback.answer("❌ Scheduler não disponível", show_alert=True)
+            return
+
+        # Localiza o RemoteExecutor goal
+        remote_executor_goal = scheduler._goals.get("remote_executor")
+        if not remote_executor_goal:
+            await callback.answer("❌ Remote Executor goal não encontrado", show_alert=True)
+            return
+
+        try:
+            # Responde à rejeição
+            afk_protocol = remote_executor_goal.afk_protocol
+            rejected = await afk_protocol.respond_to_approval(approval_id, approved=False)
+
+            if rejected:
+                # Registrar métrica de rejeição
+                tracker = getattr(pipeline, 'sprint11_tracker', None)
+                if tracker:
+                    tracker.record_remote_executor_approval(approved=False)
+
+                await callback.message.edit_text(
+                    f"{callback.message.text}\n\n<b>❌ Rejeitado pelo usuário</b>",
+                    parse_mode=ParseMode.HTML
+                )
+                await callback.answer("✅ Ação rejeitada")
+            else:
+                await callback.answer("⚠️ Rejeição não encontrada ou expirou", show_alert=True)
+        except Exception as e:
+            log.error(f"[executor_callback] Erro ao rejeitar {approval_id}: {e}")
+            await callback.answer(f"❌ Erro: {str(e)[:50]}", show_alert=True)
+
     @dp.callback_query(F.data.startswith("vis_auth_"))
     async def handle_vision_auth(callback: CallbackQuery):
         # Example data: vis_auth_yes_2
@@ -1308,6 +1397,9 @@ async def main():
         }
         goals = discover_goals(pipeline, deny_list=deny_list)
         for goal in goals:
+            # Injeta notifier em goals que suportam (como RemoteExecutor)
+            if hasattr(goal, 'notifier') and goal.notifier is None:
+                goal.notifier = notifier
             scheduler.register(goal)
     except Exception as e:
         log.error(f"[scheduler] Falha no discovery de goals: {e}", exc_info=True)

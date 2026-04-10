@@ -196,6 +196,72 @@ class BatchMetrics:
         }
 
 
+@dataclass
+class RemoteExecutorMetrics:
+    """Métricas do Remote Executor — execução de ações autônomas"""
+    total_plans: int = 0                    # Planos criados
+    successful_executions: int = 0          # Execuções bem-sucedidas
+    failed_executions: int = 0              # Execuções falhadas
+    rollback_executions: int = 0            # Ações com rollback
+    l0_manual_enqueued: int = 0             # Ações L0 enfileiradas
+    l0_manual_approved: int = 0             # Ações L0 aprovadas
+    l0_manual_rejected: int = 0             # Ações L0 rejeitadas
+    l1_logged_executed: int = 0             # Ações L1 auto-executadas
+    l2_silent_executed: int = 0             # Ações L2 auto-executadas
+    total_cost_usd: float = 0.0             # Custo total acumulado
+    execution_latency_ms: deque = field(default_factory=lambda: deque(maxlen=500))
+
+    @property
+    def total_executed(self) -> int:
+        """Total de ações executadas (sucesso + falha + rollback)"""
+        return self.successful_executions + self.failed_executions + self.rollback_executions
+
+    @property
+    def execution_success_rate(self) -> float:
+        """Taxa de sucesso na execução"""
+        if self.total_executed == 0:
+            return 0.0
+        return (self.successful_executions / self.total_executed) * 100
+
+    @property
+    def l0_approval_rate(self) -> float:
+        """Taxa de aprovação das ações L0_MANUAL"""
+        total_l0_responses = self.l0_manual_approved + self.l0_manual_rejected
+        if total_l0_responses == 0:
+            return 0.0
+        return (self.l0_manual_approved / total_l0_responses) * 100
+
+    @property
+    def avg_execution_latency_ms(self) -> float:
+        """Latência média de execução"""
+        if not self.execution_latency_ms:
+            return 0.0
+        return sum(self.execution_latency_ms) / len(self.execution_latency_ms)
+
+    def record_execution_latency(self, latency_ms: float) -> None:
+        """Registra latência de uma execução"""
+        self.execution_latency_ms.append(latency_ms)
+
+    def get_stats(self) -> dict:
+        """Retorna estatísticas do Remote Executor"""
+        return {
+            "total_plans": self.total_plans,
+            "total_executed": self.total_executed,
+            "successful": self.successful_executions,
+            "failed": self.failed_executions,
+            "rolled_back": self.rollback_executions,
+            "success_rate": f"{self.execution_success_rate:.1f}%",
+            "l0_manual_enqueued": self.l0_manual_enqueued,
+            "l0_manual_approved": self.l0_manual_approved,
+            "l0_manual_rejected": self.l0_manual_rejected,
+            "l0_approval_rate": f"{self.l0_approval_rate:.1f}%",
+            "l1_executed": self.l1_logged_executed,
+            "l2_executed": self.l2_silent_executed,
+            "total_cost_usd": f"${self.total_cost_usd:.4f}",
+            "avg_latency_ms": f"{self.avg_execution_latency_ms:.1f}ms",
+        }
+
+
 class Sprint11Tracker:
     """Rastreador central de métricas do Sprint 11"""
 
@@ -205,6 +271,7 @@ class Sprint11Tracker:
         self.cache = CacheMetrics()
         self.cascade = CascadeMetrics()
         self.batch = BatchMetrics()
+        self.remote_executor = RemoteExecutorMetrics()
         self.start_time = datetime.utcnow()
 
         log.info("[sprint11] Tracker inicializado")
@@ -262,6 +329,50 @@ class Sprint11Tracker:
         self.batch.commits_consolidated += 1
         self.batch.commits_avoided += max(0, operations - 1)
 
+    # ────────────────────────────────────────────────────────
+    # Remote Executor Metrics
+    # ────────────────────────────────────────────────────────
+
+    def record_remote_executor_plan(self) -> None:
+        """Registra um novo plano criado"""
+        self.remote_executor.total_plans += 1
+
+    def record_remote_executor_execution(self, success: bool, execution_status: str, latency_ms: float, cost_usd: float) -> None:
+        """
+        Registra execução de ação.
+
+        Args:
+            success: True se executou sem erros
+            execution_status: "SUCCESS" | "FAILED" | "ROLLED_BACK" | "CANCELLED"
+            latency_ms: Tempo de execução em ms
+            cost_usd: Custo da ação
+        """
+        if execution_status == "SUCCESS":
+            self.remote_executor.successful_executions += 1
+        elif execution_status == "FAILED":
+            self.remote_executor.failed_executions += 1
+        elif execution_status == "ROLLED_BACK":
+            self.remote_executor.rollback_executions += 1
+
+        self.remote_executor.record_execution_latency(latency_ms)
+        self.remote_executor.total_cost_usd += cost_usd
+
+    def record_remote_executor_autonomy_tier(self, tier: str) -> None:
+        """Registra ação por tier de autonomia"""
+        if tier == "L2_SILENT":
+            self.remote_executor.l2_silent_executed += 1
+        elif tier == "L1_LOGGED":
+            self.remote_executor.l1_logged_executed += 1
+        elif tier == "L0_MANUAL":
+            self.remote_executor.l0_manual_enqueued += 1
+
+    def record_remote_executor_approval(self, approved: bool) -> None:
+        """Registra resposta a aprovação L0_MANUAL"""
+        if approved:
+            self.remote_executor.l0_manual_approved += 1
+        else:
+            self.remote_executor.l0_manual_rejected += 1
+
     def get_full_report(self) -> dict:
         """Retorna relatório completo de todas as métricas"""
         uptime = datetime.utcnow() - self.start_time
@@ -273,6 +384,7 @@ class Sprint11Tracker:
             "cache": self.cache.get_stats(),
             "cascade": self.cascade.get_stats(),
             "batch": self.batch.get_stats(),
+            "remote_executor": self.remote_executor.get_stats(),
         }
 
     def format_for_telegram(self) -> str:
@@ -303,6 +415,15 @@ class Sprint11Tracker:
             f"  Consolidated: {report['batch']['commits_consolidated']} commits",
             f"  Commits Avoided: {report['batch']['commits_avoided']}",
             f"  Avg Latency: {report['batch']['avg_latency_per_batch']}\n",
+
+            "<b>🤖 REMOTE EXECUTOR:</b>",
+            f"  Plans: {report['remote_executor']['total_plans']}",
+            f"  Executed: {report['remote_executor']['total_executed']} (Success: {report['remote_executor']['success_rate']})",
+            f"  L0 Manual: {report['remote_executor']['l0_manual_enqueued']} enqueued | "
+            f"✅ {report['remote_executor']['l0_manual_approved']} | ❌ {report['remote_executor']['l0_manual_rejected']}",
+            f"  L1 Auto: {report['remote_executor']['l1_executed']} | L2 Silent: {report['remote_executor']['l2_executed']}",
+            f"  Cost: {report['remote_executor']['total_cost_usd']} | "
+            f"Latency: {report['remote_executor']['avg_latency_ms']}\n",
         ]
 
         return "".join(lines)
