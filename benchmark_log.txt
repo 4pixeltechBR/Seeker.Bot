@@ -1,0 +1,6 @@
+=== Vision 2.0 Phase A3 — Benchmark Parallel ===
+
+Qwen3-VL-8B disponível, iniciando...
+
+Aguardando pulls dos modelos...
+[08:20:32] Iniciando: qwen3-vl:8b

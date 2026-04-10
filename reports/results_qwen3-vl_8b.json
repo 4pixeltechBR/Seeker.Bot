@@ -1,0 +1,175 @@
+[
+  {
+    "task_id": "ocr/_placeholder_ocr_1.png",
+    "model": "qwen3-vl:8b",
+    "category": "ocr",
+    "predicted": "Sample OCRtext for testing",
+    "ground_truth": {
+      "text": "Sample OCR text for testing"
+    },
+    "latency_ms": 12793.212890625,
+    "timestamp": 1775818949.6604068,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.962962962962963,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "ocr/_placeholder_ocr_2.png",
+    "model": "qwen3-vl:8b",
+    "category": "ocr",
+    "predicted": "Another test image",
+    "ground_truth": {
+      "text": "Another test image"
+    },
+    "latency_ms": 11809.655029296875,
+    "timestamp": 1775818961.4724123,
+    "ocr_exact_match": true,
+    "ocr_levenshtein": 1.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "grounding/_placeholder_button_1.png",
+    "model": "qwen3-vl:8b",
+    "category": "grounding",
+    "predicted": "ERROR: ReadTimeout",
+    "ground_truth": {
+      "description": "submit button",
+      "bbox": {
+        "x": 500,
+        "y": 200,
+        "width": 100,
+        "height": 40
+      }
+    },
+    "latency_ms": 300037.23193359375,
+    "timestamp": 1775819261.5101674,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": 538.5164807134504,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "grounding/_placeholder_button_2.png",
+    "model": "qwen3-vl:8b",
+    "category": "grounding",
+    "predicted": "{\"x\": 950, \"y\": 50, \"confidence\": 1.0}",
+    "ground_truth": {
+      "description": "close icon",
+      "bbox": {
+        "x": 1000,
+        "y": 50,
+        "width": 30,
+        "height": 30
+      }
+    },
+    "latency_ms": 244001.1474609375,
+    "timestamp": 1775819505.512323,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": 50.0,
+    "json_valid": true,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "description/_placeholder_page_1.png",
+    "model": "qwen3-vl:8b",
+    "category": "description",
+    "predicted": "1) Título da página/cabeçalho: \"Página de Formulário com botão\"  \n2) Resumo do conteúdo principal: A página exibe apenas o texto \"Form Page with button\" centralizado, sem outros elementos visíveis.  \n3) Botões ou links clicáveis visíveis: Nenhum botão ou link clicável é mostrado na imagem.  \n4) Formulários ou campos de entrada: Nenhum formulário ou campo de entrada é visível.",
+    "ground_truth": {
+      "keywords": [
+        "button",
+        "form",
+        "title"
+      ]
+    },
+    "latency_ms": 253500.37377929688,
+    "timestamp": 1775819759.0126967,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.6666666666666666
+  },
+  {
+    "task_id": "description/_placeholder_page_2.png",
+    "model": "qwen3-vl:8b",
+    "category": "description",
+    "predicted": "ERROR: ReadTimeout",
+    "ground_truth": {
+      "keywords": [
+        "chat",
+        "message",
+        "input"
+      ]
+    },
+    "latency_ms": 300024.580078125,
+    "timestamp": 1775820059.0372767,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "afk/_placeholder_idle_1.png",
+    "model": "qwen3-vl:8b",
+    "category": "afk",
+    "predicted": "{\"state\": \"idle\", \"confidence\": 1.0}",
+    "ground_truth": {
+      "state": "idle"
+    },
+    "latency_ms": 34542.1728515625,
+    "timestamp": 1775820093.5794497,
+    "ocr_exact_match": true,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": true,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "afk/_placeholder_active_1.png",
+    "model": "qwen3-vl:8b",
+    "category": "afk",
+    "predicted": "{\"state\": \"active\", \"confidence\": 1.0}",
+    "ground_truth": {
+      "state": "active"
+    },
+    "latency_ms": 36539.889892578125,
+    "timestamp": 1775820130.1193397,
+    "ocr_exact_match": true,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": true,
+    "keywords_coverage": 0.0
+  },
+  {
+    "task_id": "afk/_placeholder_modal_1.png",
+    "model": "qwen3-vl:8b",
+    "category": "afk",
+    "predicted": "ERROR: ReadTimeout",
+    "ground_truth": {
+      "state": "modal"
+    },
+    "latency_ms": 300031.83740234375,
+    "timestamp": 1775820430.151703,
+    "ocr_exact_match": false,
+    "ocr_levenshtein": 0.0,
+    "grounding_iou": 0.0,
+    "grounding_center_error": Infinity,
+    "json_valid": false,
+    "keywords_coverage": 0.0
+  }
+]
