@@ -311,10 +311,111 @@ async def test_analyst_crew_status():
     print(f"[OK] AnalystCrew status: {status['status']}")
 
 
+async def test_hunter_crew_prospecting():
+    """Test HunterCrew detects prospecting intent"""
+    request = CrewRequest(
+        user_input="find leads in goiania for eventos",
+        cognitive_depth=CognitiveDepth.DELIBERATE,
+        memory_context=["Prospecting in progress"],
+        user_id=123,
+        session_id="test-hunter-prospecting",
+        timeout_sec=10.0,
+    )
+
+    result = await hunter_crew.hunter.execute(request)
+
+    assert result.crew_id == "hunter"
+    assert "SCOUT HUNTER 2.0" in result.response or "leads" in result.response.lower()
+    assert result.llm_calls >= 0
+    assert result.confidence >= 0.65
+    assert result.should_save_fact == True  # Qualified leads saved to memory
+    assert "Goiânia" in result.response or "goiania" in result.response.lower()
+    print(f"[OK] HunterCrew prospecting: {result.confidence:.2f} confidence, {result.llm_calls} LLM calls")
+
+
+async def test_hunter_crew_default_region_niche():
+    """Test HunterCrew uses defaults when region/niche not specified"""
+    request = CrewRequest(
+        user_input="please find some leads for me",
+        cognitive_depth=CognitiveDepth.DELIBERATE,
+        memory_context=[],
+        user_id=123,
+        session_id="test-hunter-defaults",
+        timeout_sec=10.0,
+    )
+
+    result = await hunter_crew.hunter.execute(request)
+
+    assert result.crew_id == "hunter"
+    assert "SCOUT HUNTER 2.0" in result.response
+    # Should have selected a default region and niche
+    assert any(region in result.response for region in ["Goiânia", "Brasília", "São Paulo", "Rio de Janeiro"])
+    print(f"[OK] HunterCrew defaults: randomly selected region/niche")
+
+
+async def test_hunter_crew_no_prospecting():
+    """Test HunterCrew returns gracefully when no prospecting intent"""
+    request = CrewRequest(
+        user_input="what is the weather like?",
+        cognitive_depth=CognitiveDepth.REFLEX,
+        memory_context=[],
+        user_id=123,
+        session_id="test-hunter-no-intent",
+        timeout_sec=5.0,
+    )
+
+    result = await hunter_crew.hunter.execute(request)
+
+    assert result.crew_id == "hunter"
+    assert "Nenhuma intenção" in result.response or "prospecting" in result.response.lower()
+    assert result.confidence < 0.6
+    print(f"[OK] HunterCrew no-intent: returns gracefully")
+
+
+async def test_hunter_crew_status():
+    """Test HunterCrew provides extended status"""
+    status = hunter_crew.hunter.get_status()
+
+    assert status["crew_id"] == "hunter"
+    assert "is_healthy" in status
+    assert "campaigns_executed" in status
+    assert "total_leads_found" in status
+    assert "total_leads_qualified" in status
+    print(f"[OK] HunterCrew status: {status['status']}")
+
+
+async def test_supervisor_with_hunter_crew():
+    """Test Supervisor orchestrates with HunterCrew"""
+    crews = {
+        "monitor": monitor_crew.monitor,
+        "hunter": hunter_crew.hunter,
+        "executor": executor_crew.executor,
+        "analyst": analyst_crew.analyst,
+        "vision": vision_crew.vision,
+        "admin": admin_crew.admin,
+    }
+
+    supervisor = Supervisor(crews)
+
+    # DELIBERATE request with prospecting intent should route to hunter
+    result = await supervisor.process(
+        user_input="find leads for eventos in brasilia",
+        user_id=123,
+        session_id="test-supervisor-hunter",
+        memory_context=[],
+    )
+
+    assert result.response is not None
+    assert result.crew_id == "supervisor"
+    # Should contain prospecting-related content or lead info
+    assert "leads" in result.response.lower() or "SCOUT" in result.response or "resultado" in result.response.lower()
+    print(f"[OK] Supervisor with HunterCrew: response length={len(result.response)}")
+
+
 async def main():
     """Run all Phase 2 tests"""
     print("\n" + "=" * 60)
-    print("PHASE 2 TESTS: Crew Implementation (Monitor/Executor/Analyst)")
+    print("PHASE 2 TESTS: Crew Implementation (Monitor/Executor/Analyst/Hunter)")
     print("=" * 60 + "\n")
 
     try:
@@ -334,11 +435,18 @@ async def main():
         await test_analyst_crew_improvement()
         await test_analyst_crew_revenue()
 
+        # Hunter Crew tests
+        print("\n[HUNTER CREW TESTS]")
+        await test_hunter_crew_prospecting()
+        await test_hunter_crew_default_region_niche()
+        await test_hunter_crew_no_prospecting()
+
         # Supervisor Integration tests
         print("\n[SUPERVISOR INTEGRATION TESTS]")
         await test_supervisor_with_monitor_crew()
         await test_supervisor_with_executor_crew()
         await test_supervisor_with_analyst_crew()
+        await test_supervisor_with_hunter_crew()
 
         # Error handling
         print("\n[ERROR HANDLING TESTS]")
@@ -349,11 +457,12 @@ async def main():
         await test_monitor_crew_status()
         await test_executor_crew_status()
         await test_analyst_crew_status()
+        await test_hunter_crew_status()
 
         print("\n" + "=" * 60)
-        print("[OK] ALL PHASE 2 TESTS PASSED")
+        print("[OK] ALL PHASE 2 TESTS PASSED (4 crews implemented)")
         print("=" * 60 + "\n")
-        print("PHASE 2 DELIVERABLE: Crews Monitor/Executor/Analyst implemented [OK]")
+        print("PHASE 2 DELIVERABLE: Crews Monitor/Executor/Analyst/Hunter [OK]")
         return 0
 
     except Exception as e:
