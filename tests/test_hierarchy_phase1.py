@@ -160,7 +160,8 @@ async def test_supervisor_process():
 
     assert result.response is not None
     assert result.crew_id == "supervisor"
-    assert "[OK]" in result.response or "PLACEHOLDER" in result.response
+    # MonitorCrew returns real response now, or placeholder if from other crews
+    assert "Sistema" in result.response or "CPU" in result.response or "PLACEHOLDER" in result.response
     print(f"[OK] Supervisor process completed")
     print(f"    Response: {result.response[:100]}")
 
