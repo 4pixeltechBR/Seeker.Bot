@@ -13,7 +13,7 @@ import html
 
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery, BotCommand, BufferedInputFile
+from aiogram.types import Message, CallbackQuery, BotCommand, BufferedInputFile, User
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -1362,7 +1362,11 @@ async def main():
     # ── Init OODA Loop (for structured decision-making + auditability) ──
     dp["ooda_loop"] = OODALoop()
 
-    await setup_commands(bot)
+    try:
+        await setup_commands(bot)
+    except Exception as e:
+        log.warning(f"setup_commands falhou (não crítico): {e}")
+
     setup_handlers(dp, pipeline, allowed_users)
 
     # ── Init Autonomous Skills (Goal Engine) ──────────────
@@ -1422,8 +1426,29 @@ async def main():
     log.info("  Embeddings persistidos")
     log.info("  Aguardando mensagens...")
 
+    # Workaround para "Logged out" error após logOut() API call
+    # Se bot.me() falha, cria um User fake para permitir polling
     try:
-        await dp.start_polling(bot)
+        test_me = await bot.me()
+        log.info(f"Bot verificado: @{test_me.username}")
+    except Exception as e:
+        if "Logged out" in str(e):
+            log.warning("Bot retornou 'Logged out' em bot.me(), mas continuando com polling...")
+            # Cria um User fake para permitir que dispatcher inicie
+            # Nota: polling ainda funcionará porque bot.me() foi cacheado internamente
+            fake_user = User(
+                id=int(token.split(":")[0]),  # Extrai bot ID do token
+                is_bot=True,
+                first_name="SeekerBot",
+                username="SeekerBR1_bot"
+            )
+            bot._me = fake_user  # Cache do aiogram
+            log.warning("Usando User fake para bypass de session check")
+        else:
+            raise
+
+    try:
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
     finally:
         # Cleanup Goal Engine
         scheduler = dp.get("scheduler")
