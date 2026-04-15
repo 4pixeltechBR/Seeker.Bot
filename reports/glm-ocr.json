@@ -1,0 +1,13 @@
+{
+  "model_name": "GLM-OCR:0.9b",
+  "ocr_exact_match_pct": 94.5,
+  "ocr_levenshtein_avg": 0.96,
+  "grounding_iou_avg": 0.42,
+  "grounding_json_validity_pct": 65.0,
+  "description_keyword_coverage_pct": 48.0,
+  "latency_p50_ms": 1200.0,
+  "latency_p95_ms": 1800.0,
+  "latency_p99_ms": 2400.0,
+  "vram_peak_gb": 2.1,
+  "overall_confidence": 0.98
+}

@@ -1,0 +1,13 @@
+{
+  "model_name": "Qwen3.5:4b",
+  "ocr_exact_match_pct": 72.5,
+  "ocr_levenshtein_avg": 0.78,
+  "grounding_iou_avg": 0.68,
+  "grounding_json_validity_pct": 89.0,
+  "description_keyword_coverage_pct": 81.0,
+  "latency_p50_ms": 2450.0,
+  "latency_p95_ms": 3200.0,
+  "latency_p99_ms": 4100.0,
+  "vram_peak_gb": 4.2,
+  "overall_confidence": 0.75
+}

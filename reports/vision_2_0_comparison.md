@@ -1,6 +1,6 @@
 # Vision 2.0 — Benchmark Comparison Report
 
-**Data:** 2026-04-15T13:29:41.765953
+**Data:** 2026-04-15T21:42:10.973123
 **Dataset:** 150 tasks (OCR + Grounding + Description + AFK)
 
 ## Executive Summary

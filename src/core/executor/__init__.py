@@ -1,56 +1,50 @@
 """
-Remote Executor — Sistema Autônomo de Execução para Seeker.Bot
+Remote Executor — Orquestração Autônoma de Ações
 
-Módulo principal para orquestração de ações multi-step, com suporte a:
-- Planejamento LLM (ActionOrchestrator)
-- Execução sequencial com rollback (ActionExecutor)
-- Safety gates e approval workflows (SafetyGate, AFKProtocol)
-- Handlers plugáveis (bash, file_ops, api, remote_trigger)
-
-Exports:
-    - ExecutionPlan, ActionStep, ExecutionResult: dataclasses
-    - ActionHandler: protocolo para handlers
-    - ActionOrchestrator: LLM planning
-    - ActionExecutor: sequential execution
-    - SafetyGateEvaluator: permission gates
-    - AFKProtocolCoordinator: user status tracking
+Track B: Remote Executor implementation (Sprint 12-13)
 """
 
 from .models import (
-    ExecutionPlan,
-    ActionStep,
-    ExecutionResult,
     ActionType,
-    AutonomyTier,
+    ApprovalTier,
     ActionStatus,
+    ActionStep,
+    ExecutionPlan,
     ExecutionContext,
-    SafetyGate,
+    ActionResult,
+    ExecutionResult,
+    SafetyGateDecision,
+    AuditEntry,
 )
 from .base import ActionHandler
 from .orchestrator import ActionOrchestrator
 from .actions import ActionExecutor
-from .afk_protocol import AFKProtocolCoordinator, ApprovalRequest
-from .safety import SafetyGateEvaluator, ExecutorPolicy
+from .safety import SafetyGate, SafetyGateEvaluator, ExecutorPolicy
+from .afk_protocol import AFKProtocol, AFKProtocolCoordinator, UserStatus
 
-__version__ = "1.0.0"
 __all__ = [
     # Models
-    "ExecutionPlan",
-    "ActionStep",
-    "ExecutionResult",
     "ActionType",
-    "AutonomyTier",
+    "ApprovalTier",
     "ActionStatus",
+    "ActionStep",
+    "ExecutionPlan",
     "ExecutionContext",
-    "SafetyGate",
-    # Base
-    "ActionHandler",
-    # Orchestrator & Executor
+    "ActionResult",
+    "ExecutionResult",
+    "SafetyGateDecision",
+    "AuditEntry",
+    # Orchestrator
     "ActionOrchestrator",
+    # Executor
     "ActionExecutor",
-    # Safety & AFK
+    "ActionHandler",
+    # Safety
+    "SafetyGate",
     "SafetyGateEvaluator",
     "ExecutorPolicy",
+    # AFK Protocol
+    "AFKProtocol",
     "AFKProtocolCoordinator",
-    "ApprovalRequest",
+    "UserStatus",
 ]

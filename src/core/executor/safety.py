@@ -1,195 +1,137 @@
-"""
-Safety gate evaluation for Remote Executor.
-
-SafetyGateEvaluator:
-    Evaluates ExecutionPlan against ExecutorPolicy.
-    Determines approval tier (L0/L1/L2) for each action.
-    Enforces budget caps and AFK window constraints.
-"""
-
+"""SafetyGate — Approval & Policy Enforcement (Track B3)"""
 import logging
-from datetime import datetime, timedelta
-from typing import List, Tuple, Optional
+from src.core.executor.models import ActionStep, ApprovalTier, SafetyGateDecision
 
-from .models import (
-    ExecutionPlan,
-    ActionStep,
-    SafetyGate,
-    AutonomyTier,
-    ExecutionContext,
-)
-from .base import ExecutorPolicy, SafetyViolation
+log = logging.getLogger("executor.safety")
 
-logger = logging.getLogger("seeker.executor.safety")
+class SafetyGate:
+    """Avalia e aprova/bloqueia ações baseado em policy"""
 
+    # Bash commands whitelist por tier
+    BASH_WHITELIST = {
+        "L2_SILENT": ["ls", "cat", "grep", "find", "head", "tail", "wc", "git status", "pwd"],
+        "L1_LOGGED": ["mkdir", "touch", "cp", "mv", "git add", "git diff", "git fetch"],
+        "L0_MANUAL": ["rm", "rmdir", "chmod", "chown", "dd", "git rm", "git reset"],
+    }
 
-class SafetyGateEvaluator:
-    """
-    Evaluates plan against safety policy.
+    # Budget limits
+    MAX_COST_PER_ACTION = 0.20
+    MAX_COST_PER_CYCLE = 0.20
+    MAX_COST_PER_DAY = 1.00
 
-    Determines:
-    - Whether each action passes safety gates
-    - Approval tier (L0/L1/L2) for each step
-    - Whether plan violates budget or time constraints
-    """
+    # AFK window enforcement (hours)
+    AFK_WINDOWS = {
+        ApprovalTier.L2_SILENT: 24,      # 24h for silent actions
+        ApprovalTier.L1_LOGGED: 6,       # 6h for logged, then escalate
+        ApprovalTier.L0_MANUAL: 0.083,   # 5 min for manual, then pause
+    }
 
-    def __init__(self, policy: Optional[ExecutorPolicy] = None):
+    def __init__(self):
+        self.cycle_cost = 0.0
+        self.day_cost = 0.0
+
+    async def evaluate(self, step: ActionStep, user_afk_hours: float = 0.0) -> SafetyGateDecision:
         """
-        Initialize evaluator.
+        Avalia se ação deve ser executada, bloqueada, ou pedir aprovação.
 
         Args:
-            policy: ExecutorPolicy (uses defaults if None)
-        """
-        self.policy = policy or ExecutorPolicy()
-        self.audit_log: List[dict] = []
-
-    async def evaluate_plan(
-        self, plan: ExecutionPlan, context: ExecutionContext
-    ) -> Tuple[bool, List[str]]:
-        """
-        Evaluate entire execution plan.
-
-        Args:
-            plan: ExecutionPlan to evaluate
-            context: ExecutionContext (user, budget, AFK time)
+            step: ActionStep a avaliar
+            user_afk_hours: Quanto tempo user está offline
 
         Returns:
-            (is_safe, list_of_violations)
-
-        Raises:
-            SafetyViolation: If plan violates critical constraints
+            SafetyGateDecision com aprovado/bloqueado + razão
         """
-        violations = []
-
-        # Check plan-level constraints
-        if len(plan.steps) > plan.max_steps:
-            violations.append(
-                f"Plan exceeds max steps ({len(plan.steps)} > {plan.max_steps})"
+        # 1. Budget check
+        if step.estimated_cost_usd > self.MAX_COST_PER_ACTION:
+            return SafetyGateDecision(
+                action_id=step.id,
+                approved=False,
+                approval_tier=ApprovalTier.L0_MANUAL,
+                reason=f"Custo {step.estimated_cost_usd:.2f} excede máximo {self.MAX_COST_PER_ACTION}"
             )
 
-        if plan.estimated_total_cost_usd > plan.max_cost_usd:
-            violations.append(
-                f"Plan exceeds max cost (${plan.estimated_total_cost_usd:.2f} > ${plan.max_cost_usd:.2f})"
+        if (self.cycle_cost + step.estimated_cost_usd) > self.MAX_COST_PER_CYCLE:
+            return SafetyGateDecision(
+                action_id=step.id,
+                approved=False,
+                approval_tier=ApprovalTier.L0_MANUAL,
+                reason=f"Custo de ciclo excedido (${self.cycle_cost:.2f} + ${step.estimated_cost_usd:.2f})"
             )
 
-        # Check budget
-        if plan.estimated_total_cost_usd > context.budget_remaining_usd:
-            violations.append(
-                f"Insufficient budget (${plan.estimated_total_cost_usd:.2f} > ${context.budget_remaining_usd:.2f})"
-            )
-
-        # Evaluate each step
-        for step in plan.steps:
-            step_safe, step_violations = await self.evaluate_step(step, context)
-            if not step_safe:
-                violations.extend(step_violations)
-
-        is_safe = len(violations) == 0
-        self.audit_log.append({
-            "timestamp": datetime.utcnow().isoformat(),
-            "plan_id": plan.plan_id,
-            "is_safe": is_safe,
-            "violations": violations,
-            "afk_time": context.afk_time_seconds,
-        })
-
-        return is_safe, violations
-
-    async def evaluate_step(
-        self, step: ActionStep, context: ExecutionContext
-    ) -> Tuple[bool, List[str]]:
-        """
-        Evaluate single action step.
-
-        Args:
-            step: ActionStep to evaluate
-            context: ExecutionContext
-
-        Returns:
-            (is_safe, list_of_violations)
-
-        Evaluates:
-        - Bash command whitelist
-        - API endpoint safety
-        - AFK window constraints
-        - Cost limits
-        """
-        violations = []
-
-        # Type-specific evaluation
+        # 2. Bash whitelist check
         if step.type.value == "bash":
-            bash_safe, bash_violations = self._evaluate_bash(step)
-            violations.extend(bash_violations)
-
-        # AFK window check for L1_LOGGED
-        if step.approval_tier == AutonomyTier.L1_LOGGED:
-            afk_hours = context.afk_time_seconds / 3600
-            if afk_hours > context.afk_window_l1_hours:
-                violations.append(
-                    f"AFK window exceeded for L1 action ({afk_hours:.1f}h > {context.afk_window_l1_hours}h)"
-                )
-                # Escalate to L0_MANUAL if AFK too long
-                step.approval_tier = AutonomyTier.L0_MANUAL
-
-        # Cost limit check
-        if step.estimated_cost_usd > self.policy.budget_per_action_max:
-            violations.append(
-                f"Action exceeds budget limit (${step.estimated_cost_usd:.4f} > ${self.policy.budget_per_action_max:.2f})"
-            )
-
-        # Timeout check
-        if step.timeout_seconds > self.policy.max_timeout_seconds:
-            violations.append(
-                f"Action timeout exceeds max ({step.timeout_seconds}s > {self.policy.max_timeout_seconds}s)"
-            )
-
-        is_safe = len(violations) == 0
-        return is_safe, violations
-
-    def _evaluate_bash(self, step: ActionStep) -> Tuple[bool, List[str]]:
-        """
-        Evaluate bash command safety.
-
-        Returns:
-            (is_safe, list_of_violations)
-
-        Checks whitelist/blacklist and sets approval tier accordingly.
-        """
-        violations = []
-
-        if not isinstance(step.command, str):
-            violations.append("Bash command must be string")
-            return False, violations
-
-        cmd = step.command.strip()
-
-        # Check blacklist (L0_MANUAL commands)
-        for blacklisted in self.policy.bash_blacklist_l0_manual:
-            if blacklisted in cmd:
-                if step.approval_tier != AutonomyTier.L0_MANUAL:
-                    step.approval_tier = AutonomyTier.L0_MANUAL
-                violations.append(
-                    f"Bash command contains dangerous operation: {blacklisted}"
+            if not self._is_bash_whitelisted(step.command, step.approval_tier):
+                return SafetyGateDecision(
+                    action_id=step.id,
+                    approved=False,
+                    approval_tier=ApprovalTier.L0_MANUAL,
+                    reason=f"Comando bash bloqueado por whitelist: {step.command}"
                 )
 
-        # Check whitelist for L2_SILENT
-        is_whitelisted_l2 = any(
-            cmd.startswith(allowed) for allowed in self.policy.bash_whitelist_l2_silent
+        # 3. AFK window enforcement
+        max_afk_hours = self.AFK_WINDOWS.get(step.approval_tier, 0.0)
+        if user_afk_hours > max_afk_hours:
+            return SafetyGateDecision(
+                action_id=step.id,
+                approved=False,
+                approval_tier=ApprovalTier.L0_MANUAL,
+                reason=f"User AFK {user_afk_hours:.1f}h > máximo {max_afk_hours}h para {step.approval_tier.value}"
+            )
+
+        # 4. Aprovado!
+        self.cycle_cost += step.estimated_cost_usd
+        return SafetyGateDecision(
+            action_id=step.id,
+            approved=True,
+            approval_tier=step.approval_tier,
+            reason=f"Aprovado por policy ({step.approval_tier.value})"
         )
-        is_whitelisted_l1 = any(
-            cmd.startswith(allowed) for allowed in self.policy.bash_whitelist_l1_logged
-        )
 
-        if not (is_whitelisted_l2 or is_whitelisted_l1) and step.approval_tier == AutonomyTier.L2_SILENT:
-            step.approval_tier = AutonomyTier.L1_LOGGED
-            violations.append("Command not in L2 whitelist, downgrading to L1_LOGGED")
+    def _is_bash_whitelisted(self, command: str, tier: ApprovalTier) -> bool:
+        """Verifica se comando está na whitelist"""
+        cmd_tokens = command.split()
+        if not cmd_tokens:
+            return False
 
-        return len(violations) == 0, violations
+        main_cmd = cmd_tokens[0]
 
-    def get_audit_log(self) -> List[dict]:
-        """Get evaluation audit log."""
-        return self.audit_log.copy()
+        # L2_SILENT permite tudo de L2
+        if tier == ApprovalTier.L2_SILENT:
+            return main_cmd in self.BASH_WHITELIST.get("L2_SILENT", [])
 
-    def clear_audit_log(self):
-        """Clear audit log."""
-        self.audit_log = []
+        # L1_LOGGED permite L2+L1
+        if tier == ApprovalTier.L1_LOGGED:
+            allowed = self.BASH_WHITELIST.get("L2_SILENT", []) + self.BASH_WHITELIST.get("L1_LOGGED", [])
+            return main_cmd in allowed
+
+        # L0_MANUAL permite tudo
+        if tier == ApprovalTier.L0_MANUAL:
+            all_allowed = []
+            for tier_list in self.BASH_WHITELIST.values():
+                all_allowed.extend(tier_list)
+            return main_cmd in all_allowed
+
+        return False
+
+    def reset_cycle(self):
+        """Reseta custo de ciclo (execução completada)"""
+        self.cycle_cost = 0.0
+
+    def reset_day(self):
+        """Reseta custo de dia (midnight)"""
+        self.day_cost = 0.0
+
+
+# Aliases para compatibilidade com outras partes do código
+SafetyGateEvaluator = SafetyGate
+
+
+class ExecutorPolicy:
+    """Policy executor para definir regras de execução"""
+
+    def __init__(self):
+        self.bash_whitelist = SafetyGate.BASH_WHITELIST
+        self.max_cost_per_action = SafetyGate.MAX_COST_PER_ACTION
+        self.max_cost_per_cycle = SafetyGate.MAX_COST_PER_CYCLE
+        self.max_cost_per_day = SafetyGate.MAX_COST_PER_DAY
+        self.afk_windows = SafetyGate.AFK_WINDOWS

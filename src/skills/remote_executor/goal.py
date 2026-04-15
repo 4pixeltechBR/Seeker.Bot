@@ -31,11 +31,12 @@ from src.core.executor import (
     ActionExecutor,
     ExecutionContext,
     ExecutionPlan,
-    AutonomyTier,
+    ApprovalTier,
     ActionStatus,
 )
 from src.core.executor.afk_protocol import AFKProtocolCoordinator
 from src.core.executor.safety import SafetyGateEvaluator, ExecutorPolicy
+from src.core.evidence import EvidenceEntry, get_evidence_store
 
 from .config import REMOTE_EXECUTOR_CONFIG
 from .prompts import get_approval_notification
@@ -241,6 +242,35 @@ class RemoteExecutorGoal:
 
             # Executar plan
             results = await self.executor.execute_plan(plan, context)
+
+            # Log Evidence entries para cada step executado
+            evidence_store = get_evidence_store()
+            for step_id, result in results.items():
+                step = next((s for s in plan.steps if s.id == step_id), None)
+                if step:
+                    evidence = EvidenceEntry(
+                        feature="executor_action",
+                        decision=f"executed_{step.approval_tier.value}",
+                        inputs={
+                            "command": step.command,
+                            "approval_tier": step.approval_tier.value,
+                            "afk_status": self.afk_protocol.status.value if hasattr(self.afk_protocol, 'status') else "unknown",
+                        },
+                        output={
+                            "status": result.status,
+                            "output_length": len(result.output) if result.output else 0,
+                        },
+                        confidence=0.95,
+                        model_used="remote_executor_orchestrator",
+                        cost_usd=result.cost_usd,
+                        latency_ms=result.duration_ms,
+                        executed=True,
+                        execution_status=result.status,
+                        execution_error=result.error_message,
+                        reasoning=f"Executed {step.approval_tier.value} action: {step.command[:50]}",
+                        parent_evidence_id=None,  # Poderia ser plan_id se houvesse evidência do planejamento
+                    )
+                    evidence_store.store(evidence)
 
             # Summarize
             summary = self.executor.summarize_results(results)

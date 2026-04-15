@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
 
+from src.core.executor import ApprovalTier
+
 log = logging.getLogger("seeker.remote_executor")
 
 
@@ -25,19 +27,12 @@ class ActionCategory(Enum):
     UNKNOWN = "unknown"
 
 
-class AutonomyTier(Enum):
-    """Classificação de autonomia para execução"""
-    L2_SILENT = "L2_SILENT"      # Auto-execute, sem notificação
-    L1_LOGGED = "L1_LOGGED"      # Auto-execute + audit log
-    L0_MANUAL = "L0_MANUAL"      # Requer aprovação explícita
-
-
 @dataclass
 class ActionDetectionResult:
     """Resultado da detecção de intenção"""
     detected: bool                 # True se intenção foi detectada
     category: ActionCategory       # Tipo de ação
-    autonomy_tier: AutonomyTier   # Nível de autonomia
+    autonomy_tier: ApprovalTier   # Nível de autonomia
     intent_text: str              # Intenção original do usuário
     commands: list[str]           # Comandos detectados (se bash)
     confidence: float             # 0.0-1.0 (confiança na detecção)
@@ -113,7 +108,7 @@ class RemoteExecutorMiner:
             return ActionDetectionResult(
                 detected=False,
                 category=ActionCategory.UNKNOWN,
-                autonomy_tier=AutonomyTier.L0_MANUAL,
+                autonomy_tier=ApprovalTier.L0_MANUAL,
                 intent_text=intent,
                 commands=[],
                 confidence=0.0,
@@ -146,7 +141,7 @@ class RemoteExecutorMiner:
             return self._build_result(
                 category=ActionCategory.FILE_OPS,
                 intent=intent,
-                autonomy_tier=AutonomyTier.L1_LOGGED,
+                autonomy_tier=ApprovalTier.L1_LOGGED,
                 reasoning="Operação de arquivo detectada",
                 commands=self._extract_file_operations(intent),
             )
@@ -155,7 +150,7 @@ class RemoteExecutorMiner:
             return self._build_result(
                 category=ActionCategory.DESKTOP,
                 intent=intent,
-                autonomy_tier=AutonomyTier.L0_MANUAL,  # Desktop sempre requer aprovação
+                autonomy_tier=ApprovalTier.L0_MANUAL,  # Desktop sempre requer aprovação
                 reasoning="Ação de desktop detectada",
                 commands=self._extract_desktop_actions(intent),
             )
@@ -164,7 +159,7 @@ class RemoteExecutorMiner:
         return ActionDetectionResult(
             detected=False,
             category=ActionCategory.UNKNOWN,
-            autonomy_tier=AutonomyTier.L0_MANUAL,
+            autonomy_tier=ApprovalTier.L0_MANUAL,
             intent_text=intent,
             commands=[],
             confidence=0.0,
@@ -179,7 +174,7 @@ class RemoteExecutorMiner:
         self,
         category: ActionCategory,
         intent: str,
-        autonomy_tier: AutonomyTier = AutonomyTier.L1_LOGGED,
+        autonomy_tier: ApprovalTier = ApprovalTier.L1_LOGGED,
         reasoning: str = "",
         commands: list = None,
         confidence: float = 0.85,
@@ -236,25 +231,25 @@ class RemoteExecutorMiner:
             return ["desktop_controller"]
         return ["delegation"]
 
-    def _classify_bash_tier(self, commands: list[str]) -> AutonomyTier:
+    def _classify_bash_tier(self, commands: list[str]) -> ApprovalTier:
         """Classifica tier de segurança para comandos bash."""
         if not commands:
-            return AutonomyTier.L1_LOGGED
+            return ApprovalTier.L1_LOGGED
 
         cmd_lower = " ".join(commands).lower()
 
         # Verificar comandos perigosos
         for dangerous in self.DANGEROUS_BASH_COMMANDS:
             if dangerous in cmd_lower:
-                return AutonomyTier.L0_MANUAL
+                return ApprovalTier.L0_MANUAL
 
         # Verificar comandos seguros
         for safe in self.SAFE_BASH_COMMANDS:
             if safe in cmd_lower:
-                return AutonomyTier.L2_SILENT
+                return ApprovalTier.L2_SILENT
 
         # Default para meio do caminho
-        return AutonomyTier.L1_LOGGED
+        return ApprovalTier.L1_LOGGED
 
 
 def create_miner() -> RemoteExecutorMiner:

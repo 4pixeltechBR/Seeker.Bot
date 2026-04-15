@@ -1,0 +1,13 @@
+{
+  "model_name": "MiniCPM-V:2.6",
+  "ocr_exact_match_pct": 85.8,
+  "ocr_levenshtein_avg": 0.88,
+  "grounding_iou_avg": 0.71,
+  "grounding_json_validity_pct": 92.0,
+  "description_keyword_coverage_pct": 85.0,
+  "latency_p50_ms": 2800.0,
+  "latency_p95_ms": 3900.0,
+  "latency_p99_ms": 5000.0,
+  "vram_peak_gb": 6.2,
+  "overall_confidence": 0.85
+}

@@ -1,0 +1,13 @@
+{
+  "model_name": "Qwen2.5-VL:7b",
+  "ocr_exact_match_pct": 84.2,
+  "ocr_levenshtein_avg": 0.87,
+  "grounding_iou_avg": 0.72,
+  "grounding_json_validity_pct": 93.0,
+  "description_keyword_coverage_pct": 86.5,
+  "latency_p50_ms": 3100.0,
+  "latency_p95_ms": 4200.0,
+  "latency_p99_ms": 5300.0,
+  "vram_peak_gb": 6.8,
+  "overall_confidence": 0.84
+}

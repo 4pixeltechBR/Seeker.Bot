@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from src.providers.cascade import CascadeRole
 from src.skills.scout_hunter.discovery_matrix import DiscoveryMatrix
 from src.skills.scout_hunter.account_research import AccountResearcher
+from src.core.evidence import EvidenceEntry, get_evidence_store
 
 log = logging.getLogger("seeker.scout")
 
@@ -824,6 +825,28 @@ class ScoutEngine:
                 data = json.loads(raw[s:e])
                 score = int(data.get("bant_score", 50))
                 reasoning = data.get("reasoning", "")
+
+                # Log Evidence entry para qualificação
+                evidence = EvidenceEntry(
+                    feature="scout_qualification",
+                    decision=f"bant_score_{score}",
+                    inputs={
+                        "company": lead.get("company", ""),
+                        "fit_score": lead.get("fit_score", 0),
+                        "intent_level": lead.get("intent_signals_level", 0),
+                        "pain_points": pain_points[:3],
+                    },
+                    output={
+                        "bant_score": score,
+                        "qualification_status": "high_priority" if score >= 75 else "medium" if score >= 50 else "low",
+                    },
+                    confidence=0.85,
+                    model_used="cascade_fast_bant_scorer",
+                    reasoning=reasoning,
+                    executed=False,  # Qualificação não é execução
+                )
+                get_evidence_store().store(evidence)
+
                 return max(0, min(100, score)), reasoning
 
         except Exception as e:
