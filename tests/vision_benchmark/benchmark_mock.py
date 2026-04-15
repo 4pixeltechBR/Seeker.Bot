@@ -36,7 +36,22 @@ class MockBenchmarkRunner:
     """Simula VLMBenchmarkRunner com resultados fake."""
 
     # Mock results para cada modelo (baseado em research teórico)
+    # GLM-OCR: baseado em benchmarks públicos (94.62 em OmniDocBench V1.5 - RANK #1)
+    # É especialista OCR puro, não faz grounding/descrição geral
     MODEL_MOCK_RESULTS = {
+        "glm-ocr": MockModelResult(
+            model_name="GLM-OCR:0.9b",
+            ocr_exact_match_pct=94.5,  # SOTA specialist
+            ocr_levenshtein_avg=0.96,  # Superior a todos
+            grounding_iou_avg=0.42,    # Não é especialista (é OCR-only)
+            grounding_json_validity_pct=65.0,  # Não foi treinádo para isso
+            description_keyword_coverage_pct=48.0,  # Não é seu caso de uso
+            latency_p50_ms=1200.0,  # MUITO rápido (0.9B parameters)
+            latency_p95_ms=1800.0,
+            latency_p99_ms=2400.0,
+            vram_peak_gb=2.1,  # Extremamente leve
+            overall_confidence=0.98,  # SOTA em OCR
+        ),
         "qwen3.5:4b": MockModelResult(
             model_name="Qwen3.5:4b",
             ocr_exact_match_pct=72.5,
