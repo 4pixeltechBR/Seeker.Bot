@@ -110,7 +110,14 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/scout", description="Dispara campanha B2B Scout (leads qualificados)"),
         BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
         BotCommand(command="/crm", description="Lista histórico de leads qualificados"),
-        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews")
+        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
+        BotCommand(command="/agendar", description="📅 Agenda nova tarefa (wizard conversacional)"),
+        BotCommand(command="/listar", description="📋 Lista tarefas agendadas do chat"),
+        BotCommand(command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"),
+        BotCommand(command="/pausar", description="⏸ Pausa tarefa (/pausar <ID>)"),
+        BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
+        BotCommand(command="/remover", description="🗑 Remove tarefa (/remover <ID>)"),
+        BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)")
     ]
     await bot.set_my_commands(commands)
 
@@ -1122,6 +1129,210 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             )
         await callback.answer()
 
+    # ────────────────────────────────────────────────────────
+    # Scheduler Conversacional Commands
+    # ────────────────────────────────────────────────────────
+
+    @dp.message(F.text == "/agendar")
+    async def cmd_agendar(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            # Encontra o goal scheduler_conversacional
+            scheduler_goal = None
+            if hasattr(pipeline, '_goals'):
+                for goal in pipeline._goals:
+                    if hasattr(goal, 'name') and goal.name == 'scheduler_conversacional':
+                        scheduler_goal = goal
+                        break
+
+            if not scheduler_goal:
+                await message.answer(
+                    "❌ Scheduler não está ativo.\n"
+                    "Execute `/saude` para verificar o status dos goals.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Obtém SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            if not hasattr(scheduler_goal, 'store') or scheduler_goal.store is None:
+                # Initialize store if needed
+                from src.skills.scheduler_conversacional.store import SchedulerStore
+                scheduler_goal.store = SchedulerStore(pipeline.memory._db)
+                await scheduler_goal.store.init()
+
+            scheduler_ui = SchedulerTelegramInterface(scheduler_goal.store)
+            chat_id = message.chat.id
+            user_id = str(message.from_user.id)
+
+            msg = await scheduler_ui.cmd_agendar(chat_id, user_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /agendar: {e}", exc_info=True)
+            await message.answer(
+                f"❌ Erro ao iniciar scheduler: <code>{str(e)[:100]}</code>",
+                parse_mode=ParseMode.HTML
+            )
+
+    @dp.message(F.text == "/listar")
+    async def cmd_listar(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+
+            # Inicializa store
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            scheduler_ui = SchedulerTelegramInterface(store)
+
+            chat_id = message.chat.id
+            msg = await scheduler_ui.cmd_listar(chat_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /listar: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/detalhe "))
+    async def cmd_detalhe(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            task_id = message.text.split(" ", 1)[1].strip()
+
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            scheduler_ui = SchedulerTelegramInterface(store)
+
+            chat_id = message.chat.id
+            msg = await scheduler_ui.cmd_detalhe(chat_id, task_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /detalhe: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/pausar "))
+    async def cmd_pausar(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            task_id = message.text.split(" ", 1)[1].strip()
+
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            scheduler_ui = SchedulerTelegramInterface(store)
+
+            chat_id = message.chat.id
+            msg = await scheduler_ui.cmd_pausar(chat_id, task_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /pausar: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/reativar "))
+    async def cmd_reativar(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            task_id = message.text.split(" ", 1)[1].strip()
+
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            scheduler_ui = SchedulerTelegramInterface(store)
+
+            chat_id = message.chat.id
+            msg = await scheduler_ui.cmd_reativar(chat_id, task_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /reativar: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/remover "))
+    async def cmd_remover(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            task_id = message.text.split(" ", 1)[1].strip()
+
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            scheduler_ui = SchedulerTelegramInterface(store)
+
+            chat_id = message.chat.id
+            msg = await scheduler_ui.cmd_remover(chat_id, task_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /remover: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/executar "))
+    async def cmd_executar(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            task_id = message.text.split(" ", 1)[1].strip()
+
+            from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+            from src.skills.scheduler_conversacional.dispatcher import TaskDispatcher
+
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            scheduler_ui = SchedulerTelegramInterface(store)
+            dispatcher = TaskDispatcher(store, pipeline.cascade_adapter)
+
+            chat_id = message.chat.id
+
+            # Executa tarefa
+            task = await store.get_task(task_id)
+            if not task:
+                await message.answer(f"❌ Tarefa não encontrada: {task_id}", parse_mode=ParseMode.HTML)
+                return
+
+            await message.answer(f"⏱️ Executando {task.title}...", parse_mode=ParseMode.HTML)
+            result = await dispatcher._execute_task(task)
+
+            if result.get("success"):
+                msg = f"✅ <b>{task.title}</b> executada com sucesso\n\n" \
+                      f"ID Execução: <code>{result.get('execution_id', 'N/A')[:12]}</code>\n" \
+                      f"Status: {result.get('status', 'success')}"
+            else:
+                msg = f"❌ <b>{task.title}</b> falhou\n\n" \
+                      f"Erro: {result.get('error', 'Desconhecido')[:100]}"
+
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[scheduler] Erro em /executar: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
     @dp.message(F.voice | F.audio)
     async def handle_audio(message: Message):
         if not _is_allowed(message, allowed_users):
@@ -1159,6 +1370,51 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         await _process_and_reply(message, user_input, pipeline, dp)
 
     async def _process_and_reply(message: Message, user_input: str, pipeline: SeekerPipeline, dp: Dispatcher) -> None:
+
+        # Check for active scheduler wizard
+        try:
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+            from src.skills.scheduler_conversacional.wizard import SchedulerWizard
+
+            store = SchedulerStore(pipeline.memory._db)
+            await store.init()
+            wizard = SchedulerWizard(store)
+
+            session = await wizard.get_session(message.chat.id)
+            if session:
+                # Wizard ativo — processar input no wizard
+                user_id = str(message.from_user.id)
+
+                # Handle special commands in wizard
+                if user_input.lower() in ["cancelar", "cancel"]:
+                    msg = await wizard.cancel_wizard(message.chat.id)
+                    await message.answer(msg, parse_mode=ParseMode.HTML)
+                    return
+                elif user_input.lower() in ["voltar", "back"]:
+                    success, msg, updated = await wizard.back_step(message.chat.id)
+                    await message.answer(msg, parse_mode=ParseMode.HTML)
+                    return
+                else:
+                    # Normal wizard input
+                    success, msg, updated = await wizard.collect_input(message.chat.id, user_input)
+                    await message.answer(msg, parse_mode=ParseMode.HTML)
+
+                    # Se wizard completou, notificar
+                    if updated and hasattr(updated, 'state'):
+                        from src.skills.scheduler_conversacional.models import WizardState
+                        if updated.state == WizardState.COMPLETED:
+                            task = await store.list_tasks(message.chat.id)
+                            if task:
+                                last_task = task[-1]
+                                await message.answer(
+                                    f"✅ Tarefa <b>{last_task.title}</b> agendada!\n"
+                                    f"Próxima execução: {last_task.next_run_at.strftime('%d/%m %H:%M')}" if last_task.next_run_at else "em breve",
+                                    parse_mode=ParseMode.HTML
+                                )
+                    return
+        except Exception as e:
+            log.debug(f"[wizard] Erro ao verificar wizard: {e}")
+            # Continua com processamento normal
 
         # God mode check
         god_users: set = dp.get("god_mode_users", set())
