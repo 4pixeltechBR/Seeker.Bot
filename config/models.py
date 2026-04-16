@@ -300,10 +300,11 @@ def build_default_router() -> ModelRouter:
             NVIDIA_NEMOTRON_SUPER,  # Fallback cloud se Ollama estiver down
         ],
         CognitiveRole.DEEP: [
-            GEMINI_3_FLASH,
-            NVIDIA_NEMOTRON_ULTRA,
-            DEEPSEEK_REASONER,
-            DEEPSEEK_CHAT,
+            NVIDIA_NEMOTRON_ULTRA,      # 1º: gratuito, 253B params, 40 RPM
+            NVIDIA_QWQ_32B,              # 2º: gratuito, raciocínio profundo, 40 RPM
+            NVIDIA_DEEPSEEK_V32,         # 3º: gratuito via NIM, excelente em código, 40 RPM
+            DEEPSEEK_CHAT,               # 4º: pago ($0.28/$0.42), último recurso
+            GEMINI_3_FLASH,              # 5º: free tier limitado (5 RPM/20 RPD)
         ],
         CognitiveRole.ADVERSARIAL: [
             NVIDIA_NEMOTRON_ULTRA,

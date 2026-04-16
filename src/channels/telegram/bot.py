@@ -30,6 +30,7 @@ from src.core.reasoning.ooda_loop import OODALoop, OODAIteration
 from src.core.goals import GoalScheduler, GoalNotifier, discover_goals
 from src.channels.email.client import EmailClient
 from src.skills.sense_news.prompts import NICHES
+from src.skills.sherlock_news.targets_manager import add_target, list_targets # SherlockNews
 
 log = logging.getLogger("seeker.telegram")
 
@@ -120,7 +121,8 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)"),
         BotCommand(command="/bug", description="🐛 Analisa bug com contexto e sugestões"),
         BotCommand(command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"),
-        BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug")
+        BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug"),
+        BotCommand(command="/sherlock", description="🕵️ SherlockNews: Adiciona modelo para monitorar (/sherlock <nome>)")
     ]
     await bot.set_my_commands(commands)
 
@@ -145,7 +147,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/search [query] — busca direta na web\n"
             "/print — screenshot rápido do desktop\n"
             "/watch — ativa vigilância AFK (2 min)\n"
-            "/watchoff — desativa vigilância\n\n"
+            "/watchoff — desativa vigilância\n"
+            "/sherlock [modelo] — monitora lançamento de modelo\n\n"
             "<b>📊 Sistema & Performance:</b>\n"
             "/status — painel de providers e metas\n"
             "/saude — dashboard detalhado de goals\n"
@@ -509,6 +512,30 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                 f"❌ Erro ao executar Scout: <code>{str(e)[:100]}</code>",
                 parse_mode=ParseMode.HTML
             )
+
+    @dp.message(F.text.startswith("/sherlock"))
+    async def cmd_sherlock(message: Message):
+        """🕵️ SherlockNews: Gerencia modelos monitorados"""
+        if not _is_allowed(message, allowed_users):
+            return
+
+        args = message.text[9:].strip()
+        
+        if not args:
+            # Lista alvos atuais
+            targets = list_targets()
+            if not targets:
+                await message.answer("🕵️ SherlockNews: Nenhum modelo sendo monitorado no momento.\nUse <code>/sherlock <nome></code> para adicionar.", parse_mode=ParseMode.HTML)
+            else:
+                targets_str = "\n".join([f"• <code>{t}</code>" for t in targets])
+                await message.answer(f"🕵️ <b>SherlockNews: Alvos Ativos</b>\n\n{targets_str}\n\n<i>Eu verifico o status deles todo dia às 08:00.</i>", parse_mode=ParseMode.HTML)
+            return
+
+        # Adiciona novo alvo
+        if add_target(args):
+            await message.answer(f"🕵️ <b>SherlockNews: Alvo Adicionado!</b>\n\nModelo: <code>{args}</code>\n<i>Vou te avisar assim que detectar o lançamento oficial.</i>", parse_mode=ParseMode.HTML)
+        else:
+            await message.answer("❌ Erro ao adicionar modelo ao SherlockNews.")
 
     @dp.message(F.text == "/git_backup")
     async def cmd_git_backup(message: Message):
