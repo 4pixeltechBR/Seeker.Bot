@@ -365,13 +365,23 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         await message.answer("🧪 Disparando teste do Email Monitor...", parse_mode=ParseMode.HTML)
 
         try:
-            # Encontra o goal email_monitor
+            # Encontra o goal email_monitor no scheduler
             email_goal = None
-            if hasattr(pipeline, '_goals'):
-                for goal in pipeline._goals:
+            scheduler = dp.get("scheduler")
+
+            if scheduler and hasattr(scheduler, '_goals'):
+                for goal in scheduler._goals:
                     if hasattr(goal, 'name') and goal.name == 'email_monitor':
                         email_goal = goal
                         break
+
+            if not email_goal:
+                # Fallback: tenta em pipeline._goals
+                if hasattr(pipeline, '_goals'):
+                    for goal in pipeline._goals:
+                        if hasattr(goal, 'name') and goal.name == 'email_monitor':
+                            email_goal = goal
+                            break
 
             if not email_goal:
                 await message.answer(

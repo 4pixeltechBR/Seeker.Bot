@@ -118,13 +118,49 @@ class ScoutEngine:
         self.current_region = None
 
     async def init(self) -> None:
-        """Initialize schema."""
+        """Initialize schema with migration support."""
         try:
             await self.memory._db.executescript(self.LEADS_SCHEMA)
             await self.memory._db.commit()
             log.info("[scout] Schema initialized")
+
+            # Migration: Add missing columns for Phase 2.5 (Discovery Matrix)
+            await self._migrate_schema()
         except Exception as e:
             log.error(f"[scout] Schema init failed: {e}")
+
+    async def _migrate_schema(self) -> None:
+        """Apply schema migrations for new features."""
+        try:
+            # Check if fit_score column exists
+            cursor = await self.memory._db.execute(
+                "PRAGMA table_info(scout_leads)"
+            )
+            columns = await cursor.fetchall()
+            column_names = {col[1] for col in columns}
+
+            migrations = [
+                ("fit_score", "ALTER TABLE scout_leads ADD COLUMN fit_score INTEGER DEFAULT 0"),
+                ("fit_score_reasoning", "ALTER TABLE scout_leads ADD COLUMN fit_score_reasoning TEXT"),
+                ("discovery_matrix_at", "ALTER TABLE scout_leads ADD COLUMN discovery_matrix_at TIMESTAMP"),
+                ("intent_signals_level", "ALTER TABLE scout_leads ADD COLUMN intent_signals_level INTEGER DEFAULT 0"),
+                ("qualification_status", "ALTER TABLE scout_leads ADD COLUMN qualification_status TEXT"),
+                ("bant_score", "ALTER TABLE scout_leads ADD COLUMN bant_score INTEGER DEFAULT 0"),
+                ("copy_generated_at", "ALTER TABLE scout_leads ADD COLUMN copy_generated_at TIMESTAMP"),
+                ("outreach_copy", "ALTER TABLE scout_leads ADD COLUMN outreach_copy TEXT"),
+            ]
+
+            for col_name, migration_sql in migrations:
+                if col_name not in column_names:
+                    try:
+                        await self.memory._db.execute(migration_sql)
+                        await self.memory._db.commit()
+                        log.info(f"[scout] ✓ Migração: coluna '{col_name}' adicionada")
+                    except Exception as e:
+                        if "already exists" not in str(e).lower():
+                            log.warning(f"[scout] Erro na migração '{col_name}': {e}")
+        except Exception as e:
+            log.warning(f"[scout] Erro ao verificar schema: {e}")
 
     # ──────────────────────────────────────────────────────────
     # PHASE 1: SCRAPING (6 sources)
