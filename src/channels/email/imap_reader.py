@@ -97,8 +97,8 @@ class IMAPReader:
 
             emails_data = []
             for b_id in email_ids:
-                # Faz fetch do corpo RFC822
-                res, fetch_data = await client.fetch(b_id, '(RFC822)')
+                # Faz fetch do corpo sem marcar como lido (PEEK)
+                res, fetch_data = await client.fetch(b_id, '(BODY.PEEK[])')
                 if res != 'OK':
                     continue
 
