@@ -356,6 +356,66 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         final_text = "\n".join(out)
         await message.answer(final_text, parse_mode=ParseMode.HTML)
 
+    @dp.message(F.text == "/test_email")
+    async def cmd_test_email(message: Message):
+        """Força execução do email_monitor para diagnóstico"""
+        if not _is_allowed(message, allowed_users):
+            return
+
+        await message.answer("🧪 Disparando teste do Email Monitor...", parse_mode=ParseMode.HTML)
+
+        try:
+            # Encontra o goal email_monitor
+            email_goal = None
+            if hasattr(pipeline, '_goals'):
+                for goal in pipeline._goals:
+                    if hasattr(goal, 'name') and goal.name == 'email_monitor':
+                        email_goal = goal
+                        break
+
+            if not email_goal:
+                await message.answer(
+                    "❌ Email Monitor não foi encontrado ou não está ativo.\n"
+                    "Execute `/saude` para verificar o status dos goals.",
+                    parse_mode=ParseMode.HTML
+                )
+                return
+
+            # Reset de hoje para forçar re-execução
+            email_goal._last_run_date = ""
+            log.info("[telegram] Forçando execução de email_monitor para diagnóstico")
+
+            # Dispara um ciclo do email monitor
+            result = await email_goal.run_cycle()
+
+            # Formata resposta
+            summary = result.summary or "Ciclo concluído"
+            cost = f"💰 Custo: ${result.cost_usd:.4f}" if result.cost_usd > 0 else ""
+
+            response_lines = [
+                "✅ <b>Email Monitor Executado</b>\n",
+                f"📋 {summary}",
+            ]
+
+            if result.notification:
+                response_lines.append(f"\n{result.notification}")
+
+            if cost:
+                response_lines.append(cost)
+
+            final_response = "\n".join(response_lines)
+            await message.answer(final_response, parse_mode=ParseMode.HTML)
+
+            # Envia logs relevantes
+            log.info("[telegram] Email monitor test completado com sucesso")
+
+        except Exception as e:
+            log.error(f"[email_test] Erro ao testar email monitor: {e}", exc_info=True)
+            await message.answer(
+                f"❌ Erro ao executar Email Monitor: <code>{str(e)[:100]}</code>",
+                parse_mode=ParseMode.HTML
+            )
+
     @dp.message(F.text.startswith("/scout"))
     async def cmd_scout(message: Message):
         if not _is_allowed(message, allowed_users):

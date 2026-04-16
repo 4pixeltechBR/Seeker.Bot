@@ -153,11 +153,14 @@ class EmailMonitorGoal:
                 reader = IMAPReader.from_env()
                 if not reader:
                     self._status = GoalStatus.IDLE
+                    log.warning("[email_monitor] Gmail API e IMAP não configurados — skipping.")
                     return GoalResult(
                         success=True,
                         summary="Gmail API e IMAP não configurados — skipping.",
                         cost_usd=0.0,
                     )
+
+                log.info("[email_monitor] Tentando IMAP fallback...")
                 emails = await reader.fetch_unread_emails(max_emails=30)
 
             # Busca max 30 não lidos (já feito acima)
@@ -165,6 +168,14 @@ class EmailMonitorGoal:
                 emails = []
 
             if not emails:
+                # ⚠️ DIAGNÓSTICO: Se chegou aqui com emails vazio, significa IMAP retornou []
+                log.warning(
+                    "[email_monitor] IMAP retornou vazio. Verifique:\n"
+                    "  - IMAP_PASSWORD configurado?\n"
+                    "  - SMTP_USER = seu email?\n"
+                    "  - Credenciais IMAP corretas?\n"
+                    "  - Gmail com App Password (não senha comum)?"
+                )
                 self._last_run_date = today_str
                 self._status = GoalStatus.IDLE
                 return GoalResult(
