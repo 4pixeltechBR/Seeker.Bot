@@ -157,7 +157,12 @@ class ScoutEngine:
                         await self.memory._db.commit()
                         log.info(f"[scout] ✓ Migração: coluna '{col_name}' adicionada")
                     except Exception as e:
-                        if "already exists" not in str(e).lower():
+                        error_str = str(e).lower()
+                        if "already exists" in error_str:
+                            log.debug(f"[scout] Coluna '{col_name}' já existe")
+                        elif "duplicate column name" in error_str:
+                            log.debug(f"[scout] Coluna '{col_name}' já existe (duplicate)")
+                        else:
                             log.warning(f"[scout] Erro na migração '{col_name}': {e}")
         except Exception as e:
             log.warning(f"[scout] Erro ao verificar schema: {e}")

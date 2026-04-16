@@ -337,36 +337,23 @@ class RemoteExecutorGoal:
         cost = 0.0
 
         try:
-            approval_queue = self.afk_protocol.approval_queue.copy()
+            # AFKProtocol não expõe approval_queue publicamente
+            # A estrutura real é _requests (dict de asyncio.Future)
+            if not hasattr(self.afk_protocol, '_requests'):
+                log.debug("[remote_executor] AFKProtocol não inicializado, skipping approval queue")
+                return processed, cost
 
-            for approval_id, approval in approval_queue.items():
-                # Verificar timeout
-                if approval.is_expired:
-                    log.warning(f"[remote_executor] Approval {approval_id} expired after retries")
-                    # Remover da fila
-                    if approval_id in self.afk_protocol.approval_queue:
-                        del self.afk_protocol.approval_queue[approval_id]
-                    processed += 1
-                    continue
+            # Apenas logs informativos, não processa atualmente
+            # pois AFKProtocol gerencia suas próprias Futures
+            requests_copy = dict(self.afk_protocol._requests)
+            pending_count = sum(1 for f in requests_copy.values() if not f.done())
 
-                # Verificar se já foi respondido
-                if approval_id in self.afk_protocol.approval_responses:
-                    response = self.afk_protocol.approval_responses[approval_id]
-                    log.info(f"[remote_executor] Approval {approval_id} responded: {response}")
-                    # Remover da fila
-                    if approval_id in self.afk_protocol.approval_queue:
-                        del self.afk_protocol.approval_queue[approval_id]
-                    processed += 1
-                    continue
-
-                # Enviar notificação para aprovação não processada
-                # (só envia uma vez quando aparece na fila)
-                if not getattr(approval, '_notified', False):
-                    await self._send_approval_notification(approval.step, approval)
-                    approval._notified = True
+            if pending_count > 0:
+                log.debug(f"[remote_executor] {pending_count} approval requests pendentes (AFKProtocol gerencia)")
+                processed = pending_count
 
         except Exception as e:
-            log.error(f"[remote_executor] Error processing approval queue: {e}", exc_info=True)
+            log.debug(f"[remote_executor] Note ao verificar AFKProtocol requests: {e}")
 
         return {
             "processed": processed,
