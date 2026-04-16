@@ -117,7 +117,10 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/pausar", description="⏸ Pausa tarefa (/pausar <ID>)"),
         BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
         BotCommand(command="/remover", description="🗑 Remove tarefa (/remover <ID>)"),
-        BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)")
+        BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)"),
+        BotCommand(command="/bug", description="🐛 Analisa bug com contexto e sugestões"),
+        BotCommand(command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"),
+        BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug")
     ]
     await bot.set_my_commands(commands)
 
@@ -1422,6 +1425,73 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             log.error(f"[scheduler] Erro em /executar: {e}", exc_info=True)
             await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
 
+    # ────────────────────────────────────────────────────────
+    # Bug Analyzer Commands
+    # ────────────────────────────────────────────────────────
+
+    @dp.message(F.text == "/bug")
+    async def cmd_bug(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+
+            # Inicializa analisador
+            bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
+            bug_ui = BugAnalyzerTelegramInterface(bug_analyzer)
+
+            chat_id = message.chat.id
+            user_id = str(message.from_user.id)
+
+            msg = await bug_ui.cmd_bug(chat_id, user_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[bug_analyzer] Erro em /bug: {e}", exc_info=True)
+            await message.answer(
+                f"❌ Erro ao iniciar bug analyzer: <code>{str(e)[:100]}</code>",
+                parse_mode=ParseMode.HTML
+            )
+
+    @dp.message(F.text == "/bug_cancel")
+    async def cmd_bug_cancel(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+
+            bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
+            bug_ui = BugAnalyzerTelegramInterface(bug_analyzer)
+
+            chat_id = message.chat.id
+            msg = await bug_ui.cmd_bug_cancel(chat_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[bug_analyzer] Erro em /bug_cancel: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text == "/bug_approve")
+    async def cmd_bug_approve(message: Message):
+        if not _is_allowed(message, allowed_users):
+            return
+
+        try:
+            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+
+            bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
+            bug_ui = BugAnalyzerTelegramInterface(bug_analyzer)
+
+            chat_id = message.chat.id
+            msg = await bug_ui.cmd_bug_approve(chat_id)
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[bug_analyzer] Erro em /bug_approve: {e}", exc_info=True)
+            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
     @dp.message(F.voice | F.audio)
     async def handle_audio(message: Message):
         if not _is_allowed(message, allowed_users):
@@ -1459,6 +1529,26 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         await _process_and_reply(message, user_input, pipeline, dp)
 
     async def _process_and_reply(message: Message, user_input: str, pipeline: SeekerPipeline, dp: Dispatcher) -> None:
+
+        # Check for active bug analyzer wizard
+        try:
+            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+
+            bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
+            bug_ui = BugAnalyzerTelegramInterface(bug_analyzer)
+
+            if bug_ui.is_in_wizard(message.chat.id):
+                # Bug wizard ativo — processar input no wizard
+                chat_history = []  # TODO: implementar histórico real de chat
+                response, is_complete = await bug_ui.process_bug_input(
+                    message.chat.id,
+                    user_input,
+                    chat_history
+                )
+                await message.answer(response, parse_mode=ParseMode.HTML)
+                return
+        except Exception as e:
+            log.debug(f"[bug_analyzer] Erro ao verificar wizard: {e}")
 
         # Check for active scheduler wizard
         try:

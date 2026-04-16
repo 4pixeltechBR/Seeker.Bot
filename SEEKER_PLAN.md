@@ -144,6 +144,138 @@ Cada execução registra:
 
 ---
 
+## 🐛 Bug Analyzer — Módulo de Análise Automática
+
+### Objetivo
+Analisar bugs relatados pelo usuário coletando contexto (chat + logs), processando com LLM especializado (Coder Agent), e sugerindo correções automáticas com aprovação antes da aplicação.
+
+### Fases de Implementação
+
+#### **Phase 1: Análise Básica** ✅ (Implementada)
+- Comando `/bug` coleta descrição do usuário
+- Intercepta últimas 5 mensagens do chat
+- Coleta últimas 25 linhas do log (seeker.log)
+- Detecta padrões de erro via regex
+- Identifica arquivos afetados em stack traces
+- Envia contexto formatado para modelo Coder (DEEP role)
+- Modelo retorna análise JSON com:
+  - Root cause (causa raiz)
+  - Findings (achados com severity)
+  - Suggestions (sugestões de correção com risk level)
+- Exibe análise ao usuário em HTML formatado
+
+#### **Phase 2: Aprovação + Aplicação** (Em Roadmap)
+- `/bug_approve` revisa sugestões
+- Backup automático via Git antes de aplicar
+- Aplica patches um-a-um com rollback option
+- Valida cada mudança (testa import, etc)
+- Registra todas as mudanças em evidence
+
+#### **Phase 3: Auto-Healing Diário** (Em Roadmap)
+- Monitoramento passivo de logs
+- Detecção de padrões recorrentes
+- Auto-correção para bugs conhecidos
+- Dashboard de correções aplicadas
+
+### Componentes
+
+| Componente | Responsabilidade |
+|-----------|-----------------|
+| **ContextCollector** | Coleta chat + logs, detecta padrões de erro |
+| **BugAnalyzer** | LLM análise com cascade (DEEP role) |
+| **BugReport** | Estrutura para contexto coletado |
+| **BugAnalysis** | Estrutura para resultado da análise |
+| **Telegram Interface** | Wizard + comandos |
+| **Models** | Dataclasses (Report, Analysis, Finding, Suggestion) |
+
+### Fluxo do Usuário (Phase 1)
+
+```
+/bug
+  ↓
+"Descreva o bug..."
+  ↓
+Usuário: "Bot não reinicia quando há crash"
+  ↓
+⏳ Coletando contexto...
+  ├─ Últimas 5 mensagens
+  ├─ Últimas 25 linhas do log
+  ├─ Detecção de padrões de erro
+  └─ Identificação de arquivos afetados
+  ↓
+🤖 Analisando com Coder Agent (DeepSeek V3.2 via NIM)...
+  ↓
+📊 Análise Completa
+  ├─ 🎯 Causa Raiz: "watchdog.py timeout > HEARTBEAT_TIMEOUT"
+  ├─ 🔎 Achados: 3 findings (critical, high, medium)
+  └─ 💡 Sugestões: 1 fix suggestion (arquivo, código, risk)
+  ↓
+/bug_approve  (Phase 2)
+```
+
+### Modelo Coder (DEEP Role Cascade)
+
+Configurado em `config/models.py` CognitiveRole.DEEP:
+1. **NVIDIA Nemotron Ultra 253B** (40 RPM, grátis, default)
+2. **NVIDIA QwQ 32B** (40 RPM, grátis, fallback reasoning)
+3. **NVIDIA DeepSeek V3.2 via NIM** (40 RPM, grátis, especialista em código)
+4. **DeepSeek Chat API** ($0.28/$0.42, pago, último fallback)
+5. **Gemini 3 Flash** (5 RPM/20 RPD, backup)
+
+Temperature: 0.3 (determinístico para análise)
+Max tokens: 2048
+
+### Detecção de Padrões
+
+O ContextCollector identifica automaticamente:
+- **Error patterns**: "ERROR:", "EXCEPTION:", "FAILED:", "FATAL:"
+- **Stack traces**: Extrai caminhos de arquivos `.py`
+- **Warnings**: "WARNING:", "WARN:", "DEPRECATED:"
+- **Timestamps**: Sincroniza com log timestamps
+
+### JSON Output do Modelo
+
+```json
+{
+  "root_cause": "watchdog.py timeout > HEARTBEAT_TIMEOUT",
+  "summary": "O bot não escreve heartbeat e watchdog o mata",
+  "findings": [
+    {
+      "category": "timeout_issue",
+      "severity": "critical",
+      "description": "Scheduler travado, não atualiza heartbeat",
+      "affected_file": "src/core/goals/scheduler.py",
+      "confidence": 0.9
+    }
+  ],
+  "suggestions": [
+    {
+      "file_path": "src/core/goals/scheduler.py",
+      "current_code": "# Sem heartbeat update no loop",
+      "suggested_code": "self._write_heartbeat()  # A cada ciclo",
+      "explanation": "Permitir watchdog detectar freezes corretamente",
+      "risk_level": "low"
+    }
+  ]
+}
+```
+
+### Ações Mínimas (Phase 1)
+
+- `/bug` — Inicia análise
+- `/bug_cancel` — Cancela análise em curso
+- `/bug_approve` — Aprova sugestões (Phase 2, mostra preview)
+
+### Integração com Cascade
+
+Reutiliza `pipeline.cascade_adapter` com modelo_role=CognitiveRole.DEEP.
+Cada análise registra:
+- Custo em USD (modelo usado)
+- Latência em ms
+- Modelo selecionado pela cascade
+
+---
+
 ## 📊 Histórico de Implementação
 
 ### Sprints Completas
@@ -159,7 +291,8 @@ Cada execução registra:
 1. **Vision 2.0** (A1–A4) — VLM routing + GLM-OCR specialist
 2. **Scout Hunter 2.0** (C1–C5) — B2B lead generation completo
 3. **Remote Executor** (B1–B5) — Execução com segurança
-4. **Scheduler Conversacional** (NEW) — Tarefas agendadas via Telegram
+4. **Scheduler Conversacional** — Tarefas agendadas via Telegram
+5. **Bug Analyzer** (Phase 1) — Análise automática com Coder Agent
 
 ---
 
