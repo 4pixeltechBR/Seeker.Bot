@@ -341,7 +341,7 @@ class RemoteExecutorGoal:
             # A estrutura real é _requests (dict de asyncio.Future)
             if not hasattr(self.afk_protocol, '_requests'):
                 log.debug("[remote_executor] AFKProtocol não inicializado, skipping approval queue")
-                return processed, cost
+                return {"processed": processed, "cost": cost}
 
             # Apenas logs informativos, não processa atualmente
             # pois AFKProtocol gerencia suas próprias Futures

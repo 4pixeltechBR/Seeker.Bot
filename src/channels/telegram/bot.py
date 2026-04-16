@@ -365,28 +365,47 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         await message.answer("🧪 Disparando teste do Email Monitor...", parse_mode=ParseMode.HTML)
 
         try:
-            # Encontra o goal email_monitor no scheduler
+            # Estratégia de busca: pipeline → scheduler → fallback
             email_goal = None
-            scheduler = dp.get("scheduler")
 
-            if scheduler and hasattr(scheduler, '_goals'):
-                for goal in scheduler._goals:
+            # 1. Tenta em pipeline._goals (setado no startup)
+            if hasattr(pipeline, '_goals') and pipeline._goals:
+                for goal in pipeline._goals:
                     if hasattr(goal, 'name') and goal.name == 'email_monitor':
                         email_goal = goal
+                        log.debug("[telegram] Email goal encontrado em pipeline._goals")
                         break
 
+            # 2. Fallback: tenta em scheduler._goals
             if not email_goal:
-                # Fallback: tenta em pipeline._goals
-                if hasattr(pipeline, '_goals'):
-                    for goal in pipeline._goals:
+                scheduler = dp.get("scheduler")
+                if scheduler and hasattr(scheduler, '_goals'):
+                    for goal in scheduler._goals:
                         if hasattr(goal, 'name') and goal.name == 'email_monitor':
                             email_goal = goal
+                            log.debug("[telegram] Email goal encontrado em scheduler._goals")
+                            break
+
+            # 3. Último fallback: tenta pipeline._scheduler
+            if not email_goal and hasattr(pipeline, '_scheduler'):
+                scheduler = pipeline._scheduler
+                if scheduler and hasattr(scheduler, '_goals'):
+                    for goal in scheduler._goals:
+                        if hasattr(goal, 'name') and goal.name == 'email_monitor':
+                            email_goal = goal
+                            log.debug("[telegram] Email goal encontrado em pipeline._scheduler")
                             break
 
             if not email_goal:
+                # Debug: lista o que encontrou
+                goals_available = []
+                if hasattr(pipeline, '_goals'):
+                    goals_available = [g.name for g in pipeline._goals if hasattr(g, 'name')]
+
                 await message.answer(
-                    "❌ Email Monitor não foi encontrado ou não está ativo.\n"
-                    "Execute `/saude` para verificar o status dos goals.",
+                    f"❌ Email Monitor não encontrado.\n"
+                    f"Goals disponíveis: {', '.join(goals_available) if goals_available else 'nenhum'}\n"
+                    f"Execute `/saude` para verificar.",
                     parse_mode=ParseMode.HTML
                 )
                 return
@@ -1718,6 +1737,7 @@ async def main():
     # ── Scheduler + Auto-discovery de Goals ───────────────
     scheduler = GoalScheduler(notifier)
     dp["scheduler"] = scheduler
+    pipeline._scheduler = scheduler  # Guarda referência para commands acessarem
 
     try:
         deny_list = {
@@ -1726,6 +1746,7 @@ async def main():
             if g.strip()
         }
         goals = discover_goals(pipeline, deny_list=deny_list)
+        pipeline._goals = goals  # Também guarda goals no pipeline
         for goal in goals:
             # Injeta notifier em goals que suportam (como RemoteExecutor)
             if hasattr(goal, 'notifier') and goal.notifier is None:

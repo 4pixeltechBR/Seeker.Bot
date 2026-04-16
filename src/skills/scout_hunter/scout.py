@@ -119,13 +119,14 @@ class ScoutEngine:
 
     async def init(self) -> None:
         """Initialize schema with migration support."""
+        # Passo 1: Migrar colunas faltando ANTES de criar índices que dependem delas
+        await self._migrate_schema()
+
+        # Passo 2: Criar tabela e índices (agora as colunas já existem)
         try:
             await self.memory._db.executescript(self.LEADS_SCHEMA)
             await self.memory._db.commit()
             log.info("[scout] Schema initialized")
-
-            # Migration: Add missing columns for Phase 2.5 (Discovery Matrix)
-            await self._migrate_schema()
         except Exception as e:
             log.error(f"[scout] Schema init failed: {e}")
 
