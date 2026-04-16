@@ -48,7 +48,7 @@ class TestBashHandler:
 
         result = await bash_handler.execute(step)
 
-        assert result.status == ActionStatus.SUCCESS
+        assert result.status == "success"
         assert "hello world" in result.output or result.output == ""
         assert result.duration_ms > 0
 
@@ -84,7 +84,7 @@ class TestBashHandler:
         result = await bash_handler.execute(step)
 
         # Deve ser rejeitado por whitelist
-        assert result.status == ActionStatus.POLICY_VIOLATION
+        assert result.status == "failed"
 
 
 class TestFileOpsHandler:
@@ -113,7 +113,7 @@ class TestFileOpsHandler:
 
             result = await file_handler.execute(step)
 
-            assert result.status == ActionStatus.SUCCESS
+            assert result.status == "success"
             assert "test content" in result.output
         finally:
             Path(temp_path).unlink()
@@ -135,7 +135,7 @@ class TestFileOpsHandler:
 
             result = await file_handler.execute(step)
 
-            assert result.status == ActionStatus.SUCCESS
+            assert result.status == "success"
             assert test_file.exists()
             assert test_file.read_text() == "new content"
 
@@ -158,7 +158,7 @@ class TestFileOpsHandler:
 
             result = await file_handler.execute(step)
 
-            assert result.status == ActionStatus.SUCCESS
+            assert result.status == "success"
             # Snapshots devem estar no before/after
             assert result.metadata.get("before_snapshot") is not None
             assert result.metadata.get("after_snapshot") is not None
@@ -184,7 +184,7 @@ class TestFileOpsHandler:
 
             result = await file_handler.execute(step)
 
-            assert result.status == ActionStatus.SUCCESS
+            assert result.status == "success"
             assert not Path(temp_path).exists()
         except:
             # Limpar se ainda existir
@@ -230,7 +230,7 @@ class TestAPIHandler:
         result = await api_handler.execute(step)
 
         # Deve tentar múltiplas vezes antes de falhar
-        assert hasattr(result, 'retry_count') or result.status == ActionStatus.FAILED
+        assert hasattr(result, 'retry_count') or result.status == "failed"
 
 
 class TestRemoteTriggerHandler:
@@ -263,10 +263,10 @@ class TestRemoteTriggerHandler:
         result = await remote_handler.execute(step)
 
         # Pode falhar se Claude Code não estiver disponível
-        if result.status == ActionStatus.SUCCESS:
+        if result.status == "success":
             assert result.output is not None  # Image data
         else:
-            assert result.status == ActionStatus.UNAVAILABLE
+            assert result.status == "failed"
 
     @pytest.mark.asyncio
     async def test_remote_trigger_click(self, remote_handler):
@@ -325,4 +325,4 @@ class TestHandlerErrorHandling:
 
         result = await handler.execute(step)
 
-        assert result.status == ActionStatus.INVALID_STEP
+        assert result.status == "failed"

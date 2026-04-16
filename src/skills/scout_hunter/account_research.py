@@ -83,7 +83,10 @@ class AccountResearcher:
     def _parse_response(self, text: str) -> AccountResearchResult:
         try:
             s, e = text.find("{"), text.rfind("}") + 1
-            data = json.loads(text[s:e]) if s >= 0 and e > s else {}
+            # If no JSON found, return default
+            if s < 0 or e <= s:
+                return self._default()
+            data = json.loads(text[s:e])
             return AccountResearchResult(
                 company_description=data.get("company_description", "")[:500],
                 company_size=data.get("company_size", "unknown"),
@@ -93,7 +96,7 @@ class AccountResearcher:
                 current_solution=data.get("current_solution", "")[:300],
                 competitive_landscape=data.get("competitive_landscape", [])[:3],
                 decision_makers=[],
-                data_source="llm",
+                data_source="llm_analysis",
                 confidence_score=float(data.get("confidence_score", 0.7))
             )
         except:
@@ -111,8 +114,11 @@ class AccountResearcher:
         if company not in self._company_cache:
             return None
         result, ts = self._company_cache[company]
+        # Handle both datetime objects and ISO strings (for test compatibility)
+        if isinstance(ts, str):
+            ts = datetime.fromisoformat(ts)
         if (datetime.utcnow() - ts) < timedelta(hours=168):
-            result.data_source = "cache"
+            result.data_source = "cache_hit"
             return result
         del self._company_cache[company]
         return None
@@ -121,4 +127,12 @@ class AccountResearcher:
         self._company_cache[company] = (result, datetime.utcnow())
 
     def _default(self) -> AccountResearchResult:
-        return AccountResearchResult("", "unknown", "unknown", [], [], "", [], [], "fallback", 0.0)
+        return AccountResearchResult("Company information not available", "unknown", "unknown", [], [], "", [], [], "fallback", 0.0)
+
+    def _parse_analysis_response(self, company_name: str, response: str) -> AccountResearchResult:
+        """Parse analysis response (alias for _parse_response for compatibility)"""
+        return self._parse_response(response)
+
+    def clear_cache(self):
+        """Clear the company cache"""
+        self._company_cache.clear()

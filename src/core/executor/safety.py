@@ -7,11 +7,18 @@ log = logging.getLogger("executor.safety")
 class SafetyGate:
     """Avalia e aprova/bloqueia ações baseado em policy"""
 
-    # Bash commands whitelist por tier
+    # Bash commands whitelist por tier (command prefixes)
     BASH_WHITELIST = {
-        "L2_SILENT": ["ls", "cat", "grep", "find", "head", "tail", "wc", "git status", "pwd"],
-        "L1_LOGGED": ["mkdir", "touch", "cp", "mv", "git add", "git diff", "git fetch"],
-        "L0_MANUAL": ["rm", "rmdir", "chmod", "chown", "dd", "git rm", "git reset"],
+        "L2_SILENT": ["ls", "cat", "grep", "find", "head", "tail", "wc", "pwd", "git"],
+        "L1_LOGGED": ["mkdir", "touch", "cp", "mv"],
+        "L0_MANUAL": ["rm", "rmdir", "chmod", "chown", "dd"],
+    }
+
+    # Sub-commands bloqueados mesmo se comando principal é permitido
+    BASH_BLOCKLIST = {
+        "git": ["reset", "rm", "push", "pull"],  # Perigosos mesmo em L1/L2
+        "rm": [],  # Sempre bloqueado
+        "chmod": [],  # Sempre bloqueado
     }
 
     # Budget limits
@@ -94,8 +101,16 @@ class SafetyGate:
             return False
 
         main_cmd = cmd_tokens[0]
+        sub_cmd = cmd_tokens[1] if len(cmd_tokens) > 1 else None
 
-        # L2_SILENT permite tudo de L2
+        # Check blocklist first (perigosos mesmo se whitelist)
+        if main_cmd in self.BASH_BLOCKLIST:
+            if sub_cmd and sub_cmd in self.BASH_BLOCKLIST[main_cmd]:
+                return False  # Bloqueado
+            if main_cmd in ["rm", "chmod", "chown", "dd"]:
+                return False  # Sempre bloqueado
+
+        # L2_SILENT permite comandos whitelistados de L2
         if tier == ApprovalTier.L2_SILENT:
             return main_cmd in self.BASH_WHITELIST.get("L2_SILENT", [])
 

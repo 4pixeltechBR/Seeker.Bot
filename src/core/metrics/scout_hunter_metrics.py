@@ -46,14 +46,19 @@ class ScoutHunterMetricsComputer:
         """Computa métricas a partir de resultados de campanha"""
         total_leads = campaign_results.get("total_unique", 1)
         qualified = campaign_results.get("qualified", 0)
-        
+        filtered_out = campaign_results.get("filtered_out", 0)
+
+        # Discovery Matrix pass rate: (leads_evaluated - filtered_out) / leads_evaluated
+        dm_pass_rate = ((total_leads - filtered_out) / total_leads) if total_leads > 0 else 0.0
+
         metrics = ScoutHunterMetrics(
             leads_scraped=campaign_results.get("total_raw", 0),
             leads_enriched=campaign_results.get("enriched", 0),
             enrichment_rate=(campaign_results.get("enriched", 0) / total_leads) if total_leads > 0 else 0.0,
             leads_evaluated_discovery_matrix=total_leads,
             avg_fit_score=campaign_results.get("avg_fit_score", 65.0),
-            discovery_matrix_filters_out=campaign_results.get("filtered_out", 0),
+            discovery_matrix_filters_out=filtered_out,
+            discovery_matrix_pass_rate=dm_pass_rate,
             accounts_researched=campaign_results.get("accounts_researched", 0),
             account_research_cache_hits=campaign_results.get("cache_hits", 0),
             decision_makers_found_total=campaign_results.get("decision_makers", 0),
@@ -65,7 +70,7 @@ class ScoutHunterMetricsComputer:
             avg_latency_ms=campaign_results.get("avg_latency_ms", 0.0),
             qualification_rate=(qualified / total_leads) if total_leads > 0 else 0.0,
         )
-        
+
         return metrics
 
     @staticmethod

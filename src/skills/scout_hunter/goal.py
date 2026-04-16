@@ -18,6 +18,7 @@ from src.core.goals.protocol import (
     AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
 )
 from src.skills.scout_hunter.scout import ScoutEngine
+from src.core.metrics.scout_hunter_metrics import ScoutHunterMetrics, ScoutHunterMetricsComputer
 
 log = logging.getLogger("seeker.scout_hunter_goal")
 
@@ -179,33 +180,52 @@ class ScoutHunter(AutonomousGoal):
         results: dict,
         dashboard: dict,
     ) -> str:
-        """Build Telegram notification message."""
-        qualified = results.get("qualified", 0)
-        written = results.get("written", 0)
-        rejected = results.get("rejected", 0)
-        funnel = dashboard.get("funnel", {})
+        """Build Telegram notification with Scout Hunter 2.0 metrics."""
+        # Compute Scout Hunter 2.0 metrics
+        campaign_data = {
+            "total_raw": results.get("total_scraped", 0),
+            "enriched": results.get("enriched", 0),
+            "total_unique": results.get("total_unique", results.get("qualified", 1)),
+            "filtered_out": results.get("filtered_out", 0),
+            "accounts_researched": results.get("accounts_researched", 0),
+            "cache_hits": results.get("cache_hits", 0),
+            "decision_makers": results.get("decision_makers", 0),
+            "qualified": results.get("qualified", 0),
+            "avg_bant_score": results.get("avg_bant_score", 75.0),
+            "high_priority": results.get("high_priority", 0),
+            "copy_generated": results.get("written", 0),
+            "total_cost": results.get("total_cost", 0.0),
+            "avg_latency_ms": results.get("avg_latency_ms", 0.0),
+        }
 
-        header = f"<b>🎯 SCOUT HUNTER — {niche.upper()} em {region.upper()}</b>\n\n"
+        metrics = ScoutHunterMetricsComputer.compute_from_db(campaign_data)
 
-        stats = (
-            f"<b>📊 Estatísticas:</b>\n"
-            f"✅ Qualificados: <code>{qualified}</code>\n"
-            f"📝 Com Copy: <code>{written}</code>\n"
-            f"❌ Rejeitados: <code>{rejected}</code>\n\n"
+        header = f"<b>🎯 SCOUT HUNTER 2.0 — {niche.upper()} em {region.upper()}</b>\n\n"
+
+        # Phase-by-phase breakdown
+        phases = (
+            f"<b>📊 PIPELINE (5 FASES):</b>\n"
+            f"1️⃣ Scrape: {metrics.leads_scraped} leads\n"
+            f"2️⃣ Enrich: {metrics.leads_enriched} ({metrics.enrichment_rate:.0%})\n"
+            f"2.5️⃣ Fit Score: {metrics.leads_evaluated_discovery_matrix} avaliados (avg {metrics.avg_fit_score:.0f}/100)\n"
+            f"2.75️⃣ Account Research: {metrics.accounts_researched} empresas, {metrics.decision_makers_found_total} decisores\n"
+            f"3️⃣ BANT Qualified: {metrics.leads_qualified_bant} leads (avg {metrics.avg_bant_score:.0f}/100)\n\n"
         )
 
-        funnel_str = "<b>📈 Funil Completo:</b>\n"
-        for status, count in funnel.items():
-            if count > 0:
-                emoji = "🔵" if status == "novo" else "🟢" if status == "aprovado" else "🔴"
-                funnel_str += f"{emoji} {status.upper()}: {count}\n"
+        quality = (
+            f"<b>⭐ QUALIDADE:</b>\n"
+            f"✅ High Priority: {metrics.high_priority_leads} leads\n"
+            f"📝 Copy Gerado: {metrics.copy_generated}\n"
+            f"📈 Taxa Qualificação: {metrics.qualification_rate:.1%}\n"
+        )
 
         footer = (
-            f"\n<b>ID Campanha:</b> <code>{campaign_id[:12]}</code>\n"
-            f"Use <code>/crm {campaign_id}</code> para ver detalhes dos leads."
+            f"\n<b>💰 Custo:</b> ${metrics.total_cost_usd:.3f} USD\n"
+            f"<b>🔗 Campanha:</b> <code>{campaign_id[:12]}</code>\n"
+            f"Use <code>/scout-leads {campaign_id}</code> para detalhes."
         )
 
-        return header + stats + funnel_str + footer
+        return header + phases + quality + footer
 
     # ──────────────────────────────────────────────────────────
     # State Management
