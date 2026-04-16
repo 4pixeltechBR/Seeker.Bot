@@ -383,6 +383,16 @@ class GoalScheduler:
 
     # ── Loop principal por goal ───────────────────────────
 
+    def _write_heartbeat(self) -> None:
+        """Escreve timestamp no arquivo de heartbeat para o watchdog monitorar."""
+        try:
+            import os, time
+            os.makedirs("logs", exist_ok=True)
+            with open("logs/bot_heartbeat.txt", "w") as f:
+                f.write(str(time.time()))
+        except Exception:
+            pass
+
     async def _run_goal_loop(self, goal: AutonomousGoal) -> None:
         """Loop independente para um goal. Roda até stop() com preemption support."""
         await asyncio.sleep(10)  # Respira pós-boot
@@ -438,6 +448,9 @@ class GoalScheduler:
                         self._paused_by_preemption.discard(goal.name)
 
                     try:
+                        # Heartbeat: atualiza timestamp para o watchdog
+                        self._write_heartbeat()
+
                         # Executa ciclo
                         _cycle_start = time.monotonic()
                         result = await goal.run_cycle()
