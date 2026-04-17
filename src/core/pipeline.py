@@ -37,7 +37,7 @@ from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
 from src.core.phases.deep import DeepPhase
 from src.providers.base import LLMRequest, invoke_with_fallback
-from src.providers.cascade import CascadeAdapter
+from src.providers.cascade_advanced import CascadeAdapter
 from src.core.batch_operations import BatchOperationsManager
 from src.core.metrics import Sprint11Tracker
 from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context

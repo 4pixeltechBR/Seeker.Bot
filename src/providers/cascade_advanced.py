@@ -117,15 +117,24 @@ class CascadeAdapter:
     - Roteamento inteligente baseado em latência histórica
     """
 
-    def __init__(self, providers_dict: dict, api_keys: dict):
+    def __init__(self, providers_dict_or_model_router, api_keys: dict):
         """
         Inicializa cascade com providers disponíveis
 
+        Aceita tanto um dictionário de providers quanto um ModelRouter para compatibilidade
+
         Args:
-            providers_dict: Dict com providers {nome: provider_instance}
+            providers_dict_or_model_router: Dict com {nome: provider_instance} OU ModelRouter
             api_keys: Dict com API keys
         """
-        self.providers = providers_dict
+        # Determina o tipo do primeiro argumento
+        if isinstance(providers_dict_or_model_router, dict):
+            self.providers = providers_dict_or_model_router
+        else:
+            # Assume que é um ModelRouter - cria providers vazios por enquanto
+            # (health checks não usarão providers reais, apenas rastreamento)
+            self.providers = {}
+
         self.api_keys = api_keys
 
         # Métricas de cada tier
