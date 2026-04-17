@@ -12,43 +12,89 @@ current_year = datetime.now().year
 last_year = current_year - 1
 last_last_year = current_year - 2
 
-# 10 Categorias Otimizadas (Incluindo Governamental e Tiktok)
+# Categorias de Busca Exaustivas — TODO evento que precise de som, luz, palco, banda ou estrutura
 EVENT_CATEGORIES = {
     "AGROPECUARIO": [
         f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "rodeio" OR "festa do peão" OR "expo agropecuária"',
         f'"{last_year}" OR "{last_last_year}" "sindicato rural" "{{cidade}}" exposição OR feira',
         f'site:instagram.com OR site:tiktok.com "@" "{{cidade}}" "rodeio" OR "peão"'
     ],
+    "AGRO_PREMIUM": [
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "vaquejada" OR "cavalgada" OR "comitiva" shows',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "leilão" OR "leilão de gado" "show" OR "festa" OR "jantar"'
+    ],
     "RELIGIOSO": [
         f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "festa do divino" OR "romaria" OR "festa do padroeiro"',
-        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "paróquia" programação festa shows'
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "paróquia" programação festa shows',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "cantata" OR "natal" OR "semana santa" programação'
     ],
     "MUNICIPAL": [
         f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "aniversário da cidade" programação shows',
-        f'site:instagram.com OR site:tiktok.com "prefeitura de {{cidade}}" "aniversário" shows palco'
+        f'site:instagram.com OR site:tiktok.com "prefeitura de {{cidade}}" "aniversário" shows palco',
+        f'"{{cidade}}" "agenda cultural" OR "programação cultural" {last_year} OR {current_year}'
     ],
     "JUNINO": [
         f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "festa junina" OR "arraial" OR "são joão" atrações',
         f'site:instagram.com "{{cidade}}" "arraial" shows'
     ],
     "SHOW_FESTIVAL": [
-        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "festival de música" OR "sertanejo" atrações line-up',
-        f'site:sympla.com.br OR site:eventbrite.com.br "{{cidade}}"'
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "festival" OR "sertanejo" OR "pagode" atrações line-up',
+        f'site:baladaapp.com.br OR site:ingressonacional.com.br OR site:bilheteriadigital.com OR site:sympla.com.br "{{cidade}}"'
     ],
     "GOVERNAMENTAL": [
-        f'site:transparencia.{{cidade_slug}}.*.gov.br "contratação" "show" OR "palco"',
         f'DIÁRIO OFICIAL "{{cidade}}" "contratação artística" OR "inexigibilidade" {last_year} OR {current_year}',
-        f'licitação "{{cidade}}" "sistema de som" OR "estrutura de palco" {current_year}',
+        f'licitação "{{cidade}}" "sistema de som" OR "estrutura de palco" OR "locação de palco" {current_year}',
         f'"{last_year}" OR "{current_year}" transferegov "{{cidade}}" evento OR cultura'
     ],
     "CORPORATIVO": [
         f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "congresso" OR "feira de negócios" OR "conferência" eventos',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "convenção" OR "encontro de vendas" OR "confraternização" shows',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "aniversário" "empresa" OR "loja" "inauguração" show OR banda'
+    ],
+    "FESTAS_PARTICULARES": [
+        f'site:instagram.com OR site:tiktok.com "{{cidade}}" "sunset" OR "festa exclusiva" OR "baile" "atrações"',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "formatura" OR "casamento" "banda" OR "palco" OR "estrutura"',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "debutante" OR "15 anos" OR "bodas" "banda" OR "DJ"'
+    ],
+    "FESTAS_SAZONAIS": [
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "réveillon" OR "ano novo" OR "virada" show OR palco',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "pool party" OR "open bar" OR "festa na piscina" DJ OR show',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "micareta" OR "carnaval fora de época" OR "trio elétrico" OR "bloco"'
     ],
     "CULTURAL": [
         f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "carnaval" OR "folclore" programação shows',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "festival gastronômico" OR "festival de cerveja" OR "festival do peixe" OR "food truck"'
     ],
     "ESPORTIVO": [
-        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "maratona" OR "torneio" encerramento show palco',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "maratona" OR "torneio" OR "campeonato" encerramento show palco',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "encontro de motos" OR "motoclube" OR "encontro de jipes" OR "carros antigos" show'
+    ],
+    "TURISMO_E_PRIVADO": [
+        f'site:instagram.com OR site:tiktok.com "{{cidade}}" "clube" OR "parque" OR "resort" "shows" OR "atrações"',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "clube" OR "parque aquático" "ingressos" "show"',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "hotel" OR "pousada" OR "resort" "música ao vivo" OR "show" OR "animação"'
+    ],
+    "BARES_E_VIDA_NOTURNA": [
+        f'site:instagram.com "{{cidade}}" "música ao vivo" OR "voz e violão" OR "sertanejo ao vivo" OR "pagode ao vivo"',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "bar" OR "pub" OR "casa noturna" OR "boate" "banda" OR "show" OR "DJ"'
+    ],
+    "DATAS_COMEMORATIVAS": [
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "dia das mães" OR "dia dos namorados" OR "dia dos pais" show OR música',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "páscoa" OR "dia das crianças" evento OR show OR programação'
+    ],
+    "EDUCACIONAL": [
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "colação de grau" OR "formatura" OR "semana universitária" show OR banda',
+        f'"{last_year}" OR "{last_last_year}" "{{cidade}}" "escola" OR "colégio" "festa" OR "encerramento" "som" OR "palco"'
+    ],
+    "META_INTELIGENCIA": [
+        f'"produtora de eventos" OR "empresa de eventos" "{{cidade}}" {last_year} OR {current_year}',
+        f'"contratação de artista" OR "contratação de banda" "{{cidade}}" {last_year} OR {current_year}',
+        f'site:instagram.com "{{cidade}}" "contrate" OR "orçamento" "som" OR "iluminação" OR "palco" OR "DJ"'
+    ],
+    "REDES_SOCIAIS_BROAD": [
+        f'site:instagram.com "{{cidade}}" "ingressos" "line-up" OR "atração principal"',
+        f'site:tiktok.com "{{cidade}}" "camarote" OR "área vip" OR "pista" ingressos shows',
+        f'site:instagram.com "{{cidade}}" "agenda" OR "programação" "show" OR "música ao vivo" OR "sertanejo"'
     ]
 }
 

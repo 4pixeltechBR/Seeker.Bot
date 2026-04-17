@@ -26,9 +26,10 @@ async def test_caldas():
     await pipeline.init()
     
     # Injetando cidade de teste
-    print("Injetando Caldas Novas na fila de scan...")
+    print("Injetando Caldas Novas na fila de scan e limpando base antiga...")
     # Using explicit dictionary to pass city info to memory directly
     await pipeline.memory._db.execute("DELETE FROM city_scan_queue")
+    await pipeline.memory._db.execute("DELETE FROM event_map WHERE cidade='Caldas Novas'")
     await pipeline.memory._db.execute("INSERT INTO city_scan_queue (cidade, estado, status) VALUES ('Caldas Novas', 'GO', 'pending')")
     await pipeline.memory._db.commit()
     

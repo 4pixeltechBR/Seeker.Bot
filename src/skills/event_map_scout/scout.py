@@ -233,7 +233,7 @@ class EventMapEngine:
             )
             report_md = resp.text.strip('`').removeprefix("markdown\n").removeprefix("md\n")
             
-            pdf_path = build_event_map_pdf(report_md, cidade, estado)
+            pdf_path = build_event_map_pdf(report_md, cidade, estado, events=event_dicts)
             return report_md, pdf_path
             
         except Exception as e:
