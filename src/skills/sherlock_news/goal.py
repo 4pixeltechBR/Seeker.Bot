@@ -99,32 +99,52 @@ class SherlockNewsGoal:
             return GoalResult(success=True, summary="Nenhum alvo pendente no SherlockNews", cost_usd=0.0)
 
         log.info(f"[sherlock] Verificando {len(targets)} alvos: {targets}")
-        
+
         # Constrói query de busca combinada
         targets_str = ", ".join(targets)
         search_query = f"launch status {targets_str} model"
-        
-        # Executa descoberta via Pipeline (Web Search + LLM Reasoning)
-        # Usamos o pipeline para fazer o "trabalho sujo" de decidir profundidade
+
+        # Executa descoberta via Web Search + LLM Analysis
         try:
-            # Forçamos busca web e análise detalhada
-            result = await self.pipeline.execute(
-                user_input=f"SherlockNews: {search_query}",
-                depth_override="deliberate", # Focado em fatos/web
-                system_override=SYSTEM_PROMPT.format(targets=targets_str)
+            # 1. Busca web sobre os modelos
+            search_results = await self.pipeline.searcher.search(search_query, max_results=5)
+
+            if not search_results or not search_results.results:
+                self._last_run_date = today_str
+                self._status = GoalStatus.IDLE
+                return GoalResult(
+                    success=True,
+                    summary=f"SherlockNews: Nenhum resultado encontrado para {len(targets)} modelos",
+                    cost_usd=0.0
+                )
+
+            # 2. Formata resultados para análise
+            search_snippet = "\n".join([
+                f"- {r.title}: {r.snippet}"
+                for r in search_results.results[:5]
+            ])
+
+            # 3. Análise com LLM usando cascade
+            analysis_prompt = SYSTEM_PROMPT.format(targets=targets_str)
+            user_message = f"{search_query}\n\nResultados:\n{search_snippet}"
+
+            result = await self.pipeline.cascade_adapter.call(
+                messages=[
+                    {"role": "system", "content": analysis_prompt},
+                    {"role": "user", "content": user_message}
+                ],
+                temperature=0.7,
+                max_tokens=1024
             )
-            
+
             self._last_run_date = today_str
             self._status = GoalStatus.IDLE
-            
-            # Limpa o resultado (markdown para HTML simples que o Telegram aceita)
-            # No Seeker.Bot, o Notifier costuma usar md_to_telegram_html
-            
+
             return GoalResult(
-                success=result.success,
-                summary=f"Checagem SherlockNews para {len(targets)} modelos",
-                notification=result.content,
-                cost_usd=result.total_cost_usd
+                success=True,
+                summary=f"SherlockNews: Checagem concluída para {len(targets)} modelos",
+                notification=result.get("content", ""),
+                cost_usd=result.get("cost_usd", 0.0)
             )
 
         except Exception as e:
