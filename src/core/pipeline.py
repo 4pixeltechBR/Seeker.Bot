@@ -15,7 +15,8 @@ import asyncio
 import logging
 import os
 import time
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
 
 from config.models import ModelRouter, CognitiveRole, build_default_router
 from src.core.router.cognitive_load import (
@@ -37,7 +38,8 @@ from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
 from src.core.phases.deep import DeepPhase
 from src.providers.base import LLMRequest, invoke_with_fallback
-from src.providers.cascade_advanced import CascadeAdapter
+from src.providers.cascade import CascadeAdapter
+from src.core.rl import RewardCollector, StateEncoder, SeekerState, CascadeBandit, BanditMode
 from src.core.batch_operations import BatchOperationsManager
 from src.core.metrics import Sprint11Tracker
 from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context
@@ -63,6 +65,7 @@ class PipelineResult:
     llm_calls: int = 0
     image_bytes: bytes | None = None
     facts_used: int = 0  # fatos de memória injetados no contexto desta resposta
+    decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # ID p/ RL feedback
 
 
 class SeekerPipeline:
@@ -107,6 +110,14 @@ class SeekerPipeline:
 
         # Cascade Adapter — multi-tier LLM routing com fallback
         self.cascade_adapter = CascadeAdapter(self.model_router, api_keys)
+
+        # RL Infrastructure — coleta dados para aprendizado (Sprint 1)
+        self.reward_collector = RewardCollector()
+        self.state_encoder = StateEncoder()
+
+        # Sprint 2 — LinUCB Bandit (shadow mode: prediz mas não age)
+        self.cascade_bandit = CascadeBandit(mode=BanditMode.SHADOW)
+        self.cascade_bandit.load()  # carrega modelo salvo se existir
 
         # Batch Operations Manager — consolidação de commits (Sprint 11.3)
         self.batch_manager = BatchOperationsManager(max_pending=100)
@@ -243,6 +254,49 @@ class SeekerPipeline:
             f"web={decision.needs_web}"
         )
 
+        # ── RL: captura estado antes da execução ──────────────
+        decision_id = str(uuid.uuid4())
+        rl_state = SeekerState(
+            query=user_input,
+            budget_daily_used_usd=self.cost_tracker._gastos_diarios.get(
+                str(time.strftime("%Y-%m-%d")), 0.0
+            ),
+            budget_daily_limit_usd=self.cost_tracker.limite_diario_usd,
+            budget_monthly_used_usd=self.cost_tracker._gastos_mensais.get(
+                str(time.strftime("%Y-%m")), 0.0
+            ),
+            budget_monthly_limit_usd=self.cost_tracker.limite_mensal_usd,
+            session_turns=len(self.session._cache.get(session_id, [])),
+        )
+        self.reward_collector.open_event(
+            decision_id=decision_id,
+            action_taken=decision.depth.value,
+            context=f"query={user_input[:80]!r}",
+            state_snapshot=self.state_encoder.describe(rl_state),
+        )
+
+        # ── Sprint 2: LinUCB Bandit (shadow) ─────────────────────────
+        # Prediz qual depth seria ideal. Em SHADOW: só loga, não interfere.
+        # Em ACTIVE/FULL (futuro): substituirá o CognitiveLoadRouter.
+        try:
+            rl_features = self.state_encoder.encode(rl_state)
+            bandit_decision = self.cascade_bandit.predict(
+                features=rl_features,
+                router_arm=decision.depth.value,
+                decision_id=decision_id,
+            )
+            if not bandit_decision.agrees:
+                log.info(
+                    f"[bandit:shadow] Diverge: router={bandit_decision.router_arm} "
+                    f"→ bandit sugeriria={bandit_decision.recommended_arm} "
+                    f"(α={bandit_decision.alpha:.3f})"
+                )
+        except Exception as e:
+            log.debug(f"[bandit] Erro no predict (ignorado): {e}")
+
+        # Fecha eventos stale de decisões anteriores sem feedback
+        self.reward_collector.close_stale_events()
+
         # ── 2.5. Intent Classification + Safety Check ─────────
         intent_card = self.intent_classifier.classify(user_input, user_id=session_id)
         log.info(intent_card.to_log_entry())
@@ -346,6 +400,7 @@ class SeekerPipeline:
                 raise
 
         # ── 4. Monta resultado ────────────────────────────────
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
         result = PipelineResult(
             response=phase_result.response,
             depth=decision.depth,
@@ -353,11 +408,34 @@ class SeekerPipeline:
             arbitrage=phase_result.arbitrage,
             verdict=phase_result.verdict,
             total_cost_usd=phase_result.cost_usd,
-            total_latency_ms=int((time.perf_counter() - start) * 1000),
+            total_latency_ms=elapsed_ms,
             llm_calls=phase_result.llm_calls,
             image_bytes=phase_result.image_bytes,
             facts_used=facts_used,
+            decision_id=decision_id,
         )
+
+        # ── RL: registra sinal técnico ────────────────────────
+        self.reward_collector.record_technical(
+            decision_id=decision_id,
+            success=True,
+            cost_usd=phase_result.cost_usd,
+            latency_ms=elapsed_ms,
+        )
+
+        # ── Sprint 2: update bandit com reward técnico imediato ───────
+        # O reward final (com feedback do Victor) chega depois via observe_follow_up.
+        # Aqui fazemos um update preliminar com sinal técnico para o bandit
+        # começar a aprender mesmo antes do feedback comportamental.
+        try:
+            tech_event = self.reward_collector._open_events.get(decision_id)
+            if tech_event:
+                self.cascade_bandit.update(
+                    decision_id=decision_id,
+                    reward=tech_event.reward_technical,
+                )
+        except Exception as e:
+            log.debug(f"[bandit] Erro no update técnico (ignorado): {e}")
 
         # Acumula métricas de uso de memória
         self._memory_stats["responses"] += 1
@@ -369,6 +447,50 @@ class SeekerPipeline:
         self._spawn_background(self._post_process(session_id, user_input, result))
 
         return result
+
+    # ─────────────────────────────────────────────────────────
+    # RL FEEDBACK
+    # ─────────────────────────────────────────────────────────
+
+    def observe_follow_up(
+        self,
+        decision_id: str,
+        message: str,
+        response_delay_seconds: float = 0.0,
+    ) -> None:
+        """
+        Registra resposta do Victor após o bot ter dado output.
+        Chamado pelo bot.py sempre que Victor envia uma nova mensagem.
+
+        Args:
+            decision_id: ID retornado no PipelineResult.decision_id
+            message: Texto da mensagem do Victor
+            response_delay_seconds: Segundos desde que o bot respondeu
+        """
+        self.reward_collector.observe_user_message(
+            decision_id=decision_id,
+            message=message,
+            response_delay_seconds=response_delay_seconds,
+        )
+
+        # Sprint 2: update do bandit com reward total (técnico + comportamental)
+        try:
+            event = self.reward_collector._open_events.get(decision_id)
+            if event:
+                self.cascade_bandit.update(
+                    decision_id=decision_id,
+                    reward=event.reward_total,
+                )
+        except Exception:
+            pass  # bandit nunca quebra o fluxo
+
+    def get_rl_stats(self) -> dict:
+        """Estatísticas do sistema de RL — para /perf ou debug."""
+        return self.reward_collector.get_stats()
+
+    def get_bandit_stats(self) -> str:
+        """Formata stats do LinUCB Bandit para Telegram."""
+        return self.cascade_bandit.format_stats()
 
     # ─────────────────────────────────────────────────────────
     # LIFECYCLE

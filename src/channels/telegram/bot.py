@@ -161,6 +161,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/rate — status dos rate limiters\n"
             "/habits — padrões de decisão aprendidos\n"
             "/decay — limpeza manual de memória\n\n"
+            "<b>🤖 Aprendizado (RL):</b>\n"
+            "/bandit — progresso do LinUCB (shadow mode)\n\n"
             "<b>🚀 Produção:</b>\n"
             "/scout — campanha B2B (leads qualificados)\n"
             "/crm — histórico de leads\n"
@@ -1081,6 +1083,79 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                 "❌ Erro inesperado ao gerar status da cascata",
                 parse_mode=ParseMode.HTML
             )
+
+    @dp.message(F.text.in_({"/bandit", "/bandit_stats"}))
+    async def cmd_bandit(message: Message):
+        """Status do LinUCB Cascade Bandit e progresso de aprendizado"""
+        if not _is_allowed(message, allowed_users):
+            return
+        try:
+            bandit = pipeline.cascade_bandit
+            stats  = bandit.get_stats()
+            rl_stats = pipeline.get_rl_stats()
+
+            # Progresso para ativar modo ACTIVE
+            updates = stats["total_updates"]
+            needed  = 100
+            pct     = min(100, int(updates / needed * 100))
+            bar_filled = int(pct / 10)
+            progress_bar = "█" * bar_filled + "░" * (10 - bar_filled)
+
+            # Divergência: quando o bandit discordaria do router
+            divergences = stats["divergences"]
+            predicts    = stats["total_predicts"]
+            div_pct     = round((divergences / predicts * 100) if predicts > 0 else 0, 1)
+
+            # Reward médio do collector
+            avg_reward = round(rl_stats.get("avg_reward", 0.0), 3) if rl_stats.get("total_events", 0) > 0 else 0.0
+
+            # Top features aprendidas (só se tiver updates suficientes)
+            features_section = ""
+            if updates >= 10:
+                try:
+                    top = bandit.top_features_by_arm()
+                    lines = []
+                    for arm, feats in top.items():
+                        top2 = ", ".join(f"{n}={v:+.2f}" for n, v in feats[:2])
+                        lines.append(f"  <b>{arm}</b>: {top2}")
+                    features_section = "\n\n<b>📐 Top features aprendidas:</b>\n" + "\n".join(lines)
+                except Exception:
+                    pass
+
+            # Status de prontidão
+            if stats["ready_for_active"]:
+                status_line = "🟢 <b>PRONTO para modo ACTIVE</b> (A/B test 50%)"
+            elif updates >= 50:
+                status_line = f"🟡 Coletando ({pct}% — faltam {needed - updates} updates)"
+            else:
+                status_line = f"🔵 Fase inicial ({pct}% — faltam {needed - updates} updates)"
+
+            msg = (
+                f"<b>🤖 LinUCB Cascade Bandit</b>\n"
+                f"Modo: <code>{stats['mode'].upper()}</code>\n\n"
+                f"<b>📊 Progresso para A/B test:</b>\n"
+                f"[{progress_bar}] {pct}% ({updates}/{needed} updates)\n"
+                f"{status_line}\n\n"
+                f"<b>🔍 Atividade:</b>\n"
+                f"  Predições: {predicts}\n"
+                f"  Divergências do router: {divergences} ({div_pct}%)\n"
+                f"  Alpha (exploração): {stats['alpha']:.3f}\n"
+                f"  Concorda com router: {stats['agreement_rate']:.0%}\n\n"
+                f"<b>🎯 Updates por arm:</b>\n"
+                f"  reflex:     {stats['updates_per_arm'].get('reflex', 0)}\n"
+                f"  deliberate: {stats['updates_per_arm'].get('deliberate', 0)}\n"
+                f"  deep:       {stats['updates_per_arm'].get('deep', 0)}\n\n"
+                f"<b>💰 Reward médio:</b> {avg_reward:+.3f} "
+                f"(eventos: {rl_stats.get('total_events', 0)})"
+                f"{features_section}\n\n"
+                f"<i>Shadow mode: o bandit aprende mas não interfere nas respostas ainda.</i>"
+            )
+
+            await message.answer(msg, parse_mode=ParseMode.HTML)
+
+        except Exception as e:
+            log.error(f"[bandit] Erro ao gerar status: {e}", exc_info=True)
+            await message.answer("❌ Erro ao gerar status do bandit", parse_mode=ParseMode.HTML)
 
     @dp.message(F.text == "/recovery")
     async def cmd_recovery(message: Message):
@@ -2128,6 +2203,24 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         # Session ID baseado no chat (suporta múltiplos chats futuramente)
         session_id = f"telegram:{message.chat.id}"
 
+        # ── RL: envia feedback da resposta anterior ao Reward Collector ──
+        # A mensagem atual DO Victor é o sinal comportamental da resposta anterior.
+        # Delay entre resposta do bot e nova mensagem do Victor indica engajamento.
+        _rl_key = f"rl_last_{message.chat.id}"
+        _last_rl = dp.get(_rl_key)
+        if _last_rl:
+            try:
+                _delay = time.time() - _last_rl["response_ts"]
+                pipeline.observe_follow_up(
+                    decision_id=_last_rl["decision_id"],
+                    message=user_input,
+                    response_delay_seconds=_delay,
+                )
+                # Fecha o evento após receber o feedback
+                pipeline.reward_collector.close_event(_last_rl["decision_id"])
+            except Exception:
+                pass  # RL nunca deve quebrar o fluxo principal
+
         # OODA Loop for structured decision-making
         ooda_loop = dp.get("ooda_loop")
 
@@ -2215,6 +2308,12 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                         await message.answer(part, parse_mode=ParseMode.HTML)
                     except Exception:
                         await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
+
+            # ── RL: guarda decision_id para o próximo feedback ────────
+            dp[f"rl_last_{message.chat.id}"] = {
+                "decision_id": result.decision_id,
+                "response_ts": time.time(),
+            }
 
         except Exception as e:
             log.error(f"Erro: {e}", exc_info=True)
