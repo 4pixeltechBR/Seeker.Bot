@@ -27,7 +27,7 @@ CRASH_LOOP_COOLDOWN   = 300     # 5 min de pausa se atingir MAX_RESTARTS
 LOG_FILE              = "logs/watchdog.log"
 BOT_LOG_FILE          = "logs/seeker.log"
 HEARTBEAT_FILE        = "logs/bot_heartbeat.txt"  # Bot escreve aqui periodicamente
-HEARTBEAT_TIMEOUT     = 600     # 10 min sem heartbeat = bot travado
+HEARTBEAT_TIMEOUT     = 900     # 15 min sem heartbeat = bot travado (aumentado de 600 para dar tempo de inicialização)
 
 # ── Logging ─────────────────────────────────────────────────────────────
 os.makedirs("logs", exist_ok=True)
