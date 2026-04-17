@@ -2310,7 +2310,6 @@ async def main():
     # Limpar arquivo de heartbeat antigo para evitar que watchdog
     # mate o bot logo após iniciar pensando que está travado
     try:
-        import os
         hb_path = "logs/bot_heartbeat.txt"
         if os.path.exists(hb_path):
             os.remove(hb_path)
