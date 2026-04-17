@@ -80,8 +80,26 @@ def tail_log(n: int = 20) -> str:
         return "(log não disponível)"
 
 
+def reset_heartbeat() -> None:
+    """
+    Remove arquivo de heartbeat antigo antes de iniciar o bot.
+    Isso evita que watchdog mate o bot logo após iniciar pensando
+    que está travado quando na verdade ainda está inicializando.
+    """
+    hb_path = Path(HEARTBEAT_FILE)
+    if hb_path.exists():
+        try:
+            hb_path.unlink()
+            log.info(f"Heartbeat file resetado antes de iniciar bot")
+        except Exception as e:
+            log.warning(f"Erro ao resetar heartbeat: {e}")
+
+
 def run_bot() -> subprocess.Popen:
     """Inicia o processo do bot e retorna o Popen."""
+    # Reset heartbeat ANTES de iniciar para evitar falsos positivos
+    reset_heartbeat()
+
     python = get_python_executable()
     log.info(f"Iniciando bot: {python} -m src")
 
