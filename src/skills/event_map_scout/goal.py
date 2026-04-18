@@ -104,5 +104,5 @@ class EventMapGoal(AutonomousGoal):
                 
         return result
 
-def create_goal() -> AutonomousGoal:
+def create_goal(pipeline: SeekerPipeline = None) -> AutonomousGoal:
     return EventMapGoal()

@@ -250,33 +250,12 @@ class EmailMonitorGoal:
 
     async def _fetch_unread_gmail_api(self) -> list[dict] | None:
         """
-        Busca emails não lidos via Gmail API (alternativa ao IMAP).
-        Mais confiável e sem problemas de SSL/Windows.
+        Placeholder para integração futura com Gmail API.
+        MCPs (como Gmail MCP) só ficam disponíveis no contexto do Claude,
+        não como imports Python em processos independentes.
+        O Seeker.Bot usa IMAP como fonte primária de emails.
         """
-        try:
-            from mcp__b23351a3_c0fc_4272_b199_a78590884214__gmail_search_messages import (
-                gmail_search_messages
-            )
-        except ImportError:
-            log.debug("[email_monitor] Gmail API MCP não disponível, usando IMAP")
-            return None
-
-        try:
-            # Importa a função MCP direto
-            import sys
-            sys.path.insert(0, str(__file__).rsplit('\\', 4)[0])  # Vai para src/
-
-            # Busca emails não lidos via Gmail API
-            # Usar a mcp__b23351a3_c0fc_4272_b199_a78590884214__gmail_search_messages
-            log.debug("[email_monitor] Tentando buscar via Gmail API...")
-
-            # Por enquanto, retorna None para usar fallback IMAP
-            # TODO: Integrar MCP Gmail API quando disponível
-            return None
-
-        except Exception as e:
-            log.debug(f"[email_monitor] Gmail API fallback: {e}")
-            return None
+        return None  # Sempre usa IMAP
 
     def _format_for_llm(self, emails: list[dict]) -> str:
         lines = []

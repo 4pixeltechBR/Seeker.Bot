@@ -102,13 +102,27 @@ class IMAPReader:
                 if res != 'OK':
                     continue
 
-                # aioimaplib retorna dados do fetch em uma lista. O email cru geralmente está no índice 1 ou 2.
+                # aioimaplib retorna: [b'<ID> FETCH (BODY[] {N}', bytearray(<email>), b')']
+                # O email bruto está no item[1] como bytearray (não tuple).
+                # Suporte a tuple mantido para compatibilidade com outras versões.
                 raw_email = None
                 for item in fetch_data:
-                    if isinstance(item, tuple) and len(item) > 1:
-                        raw_email = item[1]
+                    if isinstance(item, (bytes, bytearray)) and len(item) > 100:
+                        # Descarta a linha de metadata (ex: b'836 FETCH (BODY[] {82349}')
+                        decoded = item if isinstance(item, bytes) else bytes(item)
+                        if b'Delivered-To' in decoded or b'From:' in decoded or b'Subject:' in decoded or b'MIME' in decoded:
+                            raw_email = decoded
+                            break
+                    elif isinstance(item, tuple) and len(item) > 1:
+                        # Formato alternativo (algumas versões do aioimaplib)
+                        raw_email = item[1] if isinstance(item[1], bytes) else bytes(item[1])
                         break
-                
+
+                if not raw_email:
+                    # Fallback: usa item[1] diretamente se existir e for bytearray/bytes
+                    if len(fetch_data) > 1 and isinstance(fetch_data[1], (bytes, bytearray)):
+                        raw_email = bytes(fetch_data[1]) if isinstance(fetch_data[1], bytearray) else fetch_data[1]
+
                 if not raw_email:
                     continue
 
@@ -140,8 +154,10 @@ class IMAPReader:
             try:
                 await client.logout()
                 log.debug("[imap] Desconectado do servidor IMAP")
-            except Exception as e:
-                log.debug(f"[imap] Erro ao desconectar: {e}")
+            except Exception:
+                # Windows ProactorEventLoop lança AttributeError 'NoneType'.send
+                # no cleanup do SSL após o event loop fechar — é noise, não erro real.
+                pass
 
     def _decode_header(self, header_str: str) -> str:
         """Decodifica strings de cabeçalho de email (ex: =?utf-8?q?...)"""
