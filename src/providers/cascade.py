@@ -95,6 +95,15 @@ class CascadeAdapter:
         self._failure_threshold = 3
         self._recovery_time = 60.0  # segundos
 
+    def start_health_checks(self) -> None:
+        """
+        No-op compatibility stub.
+
+        The advanced CascadeAdapter (cascade_advanced.py) runs background
+        health checks. The simple adapter doesn't — just a compatibility shim.
+        """
+        return None
+
     def stop_health_checks(self) -> None:
         """
         No-op compatibility stub.

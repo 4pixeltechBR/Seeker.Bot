@@ -20,6 +20,7 @@ from src.skills.event_map_scout.prompts import (
     EVENT_CATEGORIES, EXTRACTION_PROMPT, SYNTHESIS_PROMPT
 )
 from src.skills.event_map_scout.pdf_builder import build_event_map_pdf
+from src.core.search.headless import HeadlessScraper
 
 log = logging.getLogger("seeker.event_map.engine")
 
@@ -53,7 +54,11 @@ class EventMapEngine:
         
         # FASE 3: Persistir no DB
         saved_count = await self._save_to_db(dedup_events, cidade, estado)
-        
+
+        # FASE 3.5: Enriquecimento Headless — extrai contatos via Instagram/Linktree
+        enriched_count = await self._enrich_contacts_headless(dedup_events, cidade, estado)
+        log.info(f"[event_map] 📱 Contatos enriquecidos via headless: {enriched_count}")
+
         # FASE 4: Síntese e PDF
         report_md, pdf_path = await self._generate_report(cidade, estado)
         
@@ -63,6 +68,7 @@ class EventMapEngine:
             "total_extracted": len(todas_extracao),
             "total_unique": len(dedup_events),
             "total_saved": saved_count,
+            "enriched_contacts": enriched_count,
             "pdf_path": pdf_path,
             "markdown": report_md
         }
@@ -205,6 +211,78 @@ class EventMapEngine:
                 
         await self.pipeline.memory._db.commit()
         return count
+
+    async def _enrich_contacts_headless(
+        self, eventos: list, cidade: str, estado: str
+    ) -> int:
+        """
+        Fase 3.5 — Para eventos com @instagram mas sem telefone/email,
+        usa o HeadlessScraper para visitar o perfil e extrair contatos da bio/Linktree.
+
+        Critérios de ativação por evento:
+          - Tem campo 'instagram' preenchido com @handle
+          - Não tem 'telefone' preenchido
+          - score_oportunidade >= 6 (prioriza eventos relevantes)
+
+        Atualiza o DB com os contatos encontrados.
+        """
+        scraper = HeadlessScraper()
+        enriched = 0
+
+        candidatos = [
+            ev for ev in eventos
+            if ev.get("instagram")
+            and not ev.get("telefone")
+            and float(ev.get("score_oportunidade", 0)) >= 6.0
+        ]
+
+        if not candidatos:
+            log.info("[event_map] Nenhum candidato para enriquecimento headless.")
+            return 0
+
+        log.info(f"[event_map] 📱 Iniciando headless scraping para {len(candidatos)} evento(s)...")
+
+        for ev in candidatos:
+            handle = ev["instagram"]
+            nome = ev.get("nome_evento", "?")
+            try:
+                contacts = await scraper.extract_contacts_from_instagram(handle)
+
+                whatsapp = contacts.get("whatsapp")
+                email    = contacts.get("email")
+                site     = contacts.get("site")
+
+                if not whatsapp and not email:
+                    log.debug(f"[event_map] @{handle} ({nome}): nenhum contato novo.")
+                    continue
+
+                # Atualiza em memória (para PDF ter dado atualizado)
+                if whatsapp:
+                    ev["telefone"] = whatsapp
+                if email and not ev.get("email"):
+                    ev["email"] = email
+
+                # Persiste no DB
+                sql = """
+                    UPDATE event_map
+                    SET telefone = COALESCE(NULLIF(telefone,''), ?),
+                        atualizado_em = CURRENT_TIMESTAMP
+                    WHERE estado = ? AND cidade = ? AND nome_normalizado = ?
+                """
+                await self.pipeline.memory._db.execute(
+                    sql,
+                    (whatsapp or ev.get("telefone", ""), estado, cidade, ev.get("nome_normalizado", "")),
+                )
+                enriched += 1
+                log.info(f"[event_map] ✅ Contato headless para '{nome}': {whatsapp or email}")
+
+            except Exception as e:
+                log.warning(f"[event_map] Headless falhou para @{handle}: {e}")
+
+        if enriched:
+            await self.pipeline.memory._db.commit()
+
+        return enriched
 
     async def _generate_report(self, cidade: str, estado: str) -> tuple[str, str]:
         # Busca no banco

@@ -100,30 +100,20 @@ class IMAPReader:
                 # Faz fetch do corpo sem marcar como lido (PEEK)
                 res, fetch_data = await client.fetch(b_id, '(BODY.PEEK[])')
                 if res != 'OK':
+                    log.debug(f"[imap] fetch retornou res={res} para id={b_id}")
                     continue
 
-                # aioimaplib retorna: [b'<ID> FETCH (BODY[] {N}', bytearray(<email>), b')']
-                # O email bruto está no item[1] como bytearray (não tuple).
-                # Suporte a tuple mantido para compatibilidade com outras versões.
-                raw_email = None
-                for item in fetch_data:
-                    if isinstance(item, (bytes, bytearray)) and len(item) > 100:
-                        # Descarta a linha de metadata (ex: b'836 FETCH (BODY[] {82349}')
-                        decoded = item if isinstance(item, bytes) else bytes(item)
-                        if b'Delivered-To' in decoded or b'From:' in decoded or b'Subject:' in decoded or b'MIME' in decoded:
-                            raw_email = decoded
-                            break
-                    elif isinstance(item, tuple) and len(item) > 1:
-                        # Formato alternativo (algumas versões do aioimaplib)
-                        raw_email = item[1] if isinstance(item[1], bytes) else bytes(item[1])
-                        break
+                # DIAGNÓSTICO temporário — remove após confirmar fix
+                log.warning(
+                    f"[imap:diag] id={b_id} fetch_data len={len(fetch_data)} "
+                    f"types={[type(x).__name__ for x in fetch_data]} "
+                    f"sizes={[len(x) if isinstance(x, (bytes, bytearray, str)) else '?' for x in fetch_data]}"
+                )
+
+                raw_email = self._extract_raw_email(fetch_data, b_id)
 
                 if not raw_email:
-                    # Fallback: usa item[1] diretamente se existir e for bytearray/bytes
-                    if len(fetch_data) > 1 and isinstance(fetch_data[1], (bytes, bytearray)):
-                        raw_email = bytes(fetch_data[1]) if isinstance(fetch_data[1], bytearray) else fetch_data[1]
-
-                if not raw_email:
+                    log.warning(f"[imap] ⚠ Não foi possível extrair raw_email para id={b_id}")
                     continue
 
                 msg = email.message_from_bytes(raw_email)
@@ -158,6 +148,50 @@ class IMAPReader:
                 # Windows ProactorEventLoop lança AttributeError 'NoneType'.send
                 # no cleanup do SSL após o event loop fechar — é noise, não erro real.
                 pass
+
+    def _extract_raw_email(self, fetch_data: list, b_id) -> bytes | None:
+        """
+        Extrai o email bruto da resposta do aioimaplib.fetch().
+
+        aioimaplib pode retornar fetch_data em vários formatos dependendo da versão/SO:
+          Formato A: [b'836 FETCH (BODY[] {82349}', bytearray(email), b')']
+          Formato B: [(b'836 FETCH (BODY[] {82349}', b'email...'), b')']
+          Formato C: [b'TAG OK', b'email...']
+
+        Estratégia: tenta cada item, usa o que parece ser um email válido.
+        """
+        candidates = []
+
+        for item in fetch_data:
+            if isinstance(item, (bytes, bytearray)):
+                data = bytes(item) if isinstance(item, bytearray) else item
+                if len(data) > 50:
+                    candidates.append(data)
+            elif isinstance(item, tuple):
+                for sub in item:
+                    if isinstance(sub, (bytes, bytearray)) and len(sub) > 50:
+                        candidates.append(bytes(sub) if isinstance(sub, bytearray) else sub)
+
+        # Tenta cada candidato — usa o primeiro que parseia como email válido
+        for data in candidates:
+            try:
+                msg = email.message_from_bytes(data)
+                # Considera válido se tiver pelo menos From OU Subject
+                if msg.get('From') or msg.get('Subject') or msg.get('Date'):
+                    log.info(f"[imap] ✓ raw_email válido id={b_id} size={len(data)} from='{msg.get('From','?')[:60]}'")
+                    return data
+            except Exception as e:
+                log.debug(f"[imap] candidato inválido id={b_id}: {e}")
+                continue
+
+        # Último recurso: retorna o maior candidato (pode ser o email mesmo sem headers detectáveis)
+        if candidates:
+            biggest = max(candidates, key=len)
+            if len(biggest) > 500:
+                log.debug(f"[imap] ⚠ Usando maior candidato id={b_id} size={len(biggest)} (sem headers detectados)")
+                return biggest
+
+        return None
 
     def _decode_header(self, header_str: str) -> str:
         """Decodifica strings de cabeçalho de email (ex: =?utf-8?q?...)"""

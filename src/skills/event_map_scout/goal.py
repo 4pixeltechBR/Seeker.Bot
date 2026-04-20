@@ -8,7 +8,7 @@ Coordena a varredura contínua de cidades.
 import logging
 from typing import Optional, Dict, Any, List
 
-from src.core.goals.protocol import AutonomousGoal
+from src.core.goals.protocol import AutonomousGoal, GoalBudget, GoalStatus, NotificationChannel
 from src.core.pipeline import SeekerPipeline
 from src.skills.event_map_scout.scout import EventMapEngine
 
@@ -18,18 +18,22 @@ class EventMapGoal(AutonomousGoal):
     """
     Goal que varre uma cidade da fila por dia e envia o mapa gerado para o usuário.
     """
+    def __init__(self):
+        self._status = GoalStatus.IDLE
+        self._budget = GoalBudget(max_per_cycle_usd=0.50, max_daily_usd=1.00)
+
     @property
     def id(self) -> str:
         return "event_map_scout"
-        
+
     @property
     def name(self) -> str:
         return "Event Map Scout"
-        
+
     @property
     def description(self) -> str:
         return "Mapeamento cirúrgico preditivo de eventos B2B por município."
-        
+
     @property
     def interval_seconds(self) -> int:
         return 86400  # 1 vez por dia
@@ -37,6 +41,17 @@ class EventMapGoal(AutonomousGoal):
     @property
     def execution_window(self) -> tuple[int, int]:
         return (7, 10)  # Roda entre 7h e 10h da manhã
+
+    @property
+    def budget(self) -> GoalBudget:
+        return self._budget
+
+    @property
+    def channels(self) -> list[NotificationChannel]:
+        return [NotificationChannel.TELEGRAM]
+
+    def get_status(self) -> GoalStatus:
+        return self._status
 
     async def execute(self, pipeline: SeekerPipeline) -> Optional[Dict[str, Any]]:
         engine = EventMapEngine(pipeline)
