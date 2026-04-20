@@ -1,0 +1,1406 @@
+============================= test session starts =============================
+collecting ... collected 672 items
+
+tests/test_account_research.py::TestAccountResearch::test_research_account_success PASSED [  0%]
+tests/test_account_research.py::TestAccountResearch::test_research_account_cache_hit PASSED [  0%]
+tests/test_account_research.py::TestAccountResearch::test_research_account_cache_expiry PASSED [  0%]
+tests/test_account_research.py::TestAccountResearch::test_research_account_llm_error PASSED [  0%]
+tests/test_account_research.py::TestAccountResearch::test_decision_maker_dataclass PASSED [  0%]
+tests/test_account_research.py::TestAccountResearch::test_account_research_result_dataclass PASSED [  0%]
+tests/test_account_research.py::TestAccountResearch::test_parse_analysis_response_valid PASSED [  1%]
+tests/test_account_research.py::TestAccountResearch::test_parse_analysis_response_invalid_json PASSED [  1%]
+tests/test_account_research.py::TestAccountResearch::test_research_batch PASSED [  1%]
+tests/test_account_research.py::TestAccountResearch::test_cache_clear PASSED [  1%]
+tests/test_afk_protocol_race_condition.py::TestAFKProtocolRaceCondition::test_single_request_sequence PASSED [  1%]
+tests/test_afk_protocol_race_condition.py::TestAFKProtocolRaceCondition::test_single_request_denied PASSED [  1%]
+tests/test_afk_protocol_race_condition.py::TestAFKProtocolRaceCondition::test_sequential_requests PASSED [  1%]
+tests/test_afk_protocol_race_condition.py::TestAFKProtocolRaceCondition::test_resolve_without_pending_request PASSED [  2%]
+tests/test_afk_protocol_race_condition.py::TestAFKProtocolRaceCondition::test_multiple_concurrent_requests_serialized PASSED [  2%]
+tests/test_afk_protocol_race_condition.py::TestAFKProtocolRaceCondition::test_lock_prevents_concurrent_inner_calls PASSED [  2%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_initialization PASSED [  2%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_queue_single_operation PASSED [  2%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_queue_multiple_operations PASSED [  2%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_commit_single_operation PASSED [  2%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_commit_multiple_operations PASSED [  3%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_commit_with_failures PASSED [  3%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_commit_empty_queue PASSED [  3%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_concurrent_commit_protection PASSED [  3%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_auto_commit_on_max_pending PASSED [  3%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_clear_pending PASSED [  3%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_batch_stats_tracking PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_get_stats PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_health_status_healthy PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_health_status_warning PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_health_status_critical PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_operation_latency PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_commit_transaction PASSED [  4%]
+tests/test_batch_operations.py::TestBatchOperationsManager::test_operation_order_preserved PASSED [  5%]
+tests/test_batch_operations.py::TestPendingOperation::test_pending_operation_execution PASSED [  5%]
+tests/test_batch_operations.py::TestPendingOperation::test_pending_operation_with_kwargs PASSED [  5%]
+tests/test_batch_operations.py::TestBatchResult::test_batch_result_success_rate PASSED [  5%]
+tests/test_batch_operations.py::TestBatchResult::test_batch_result_zero_operations PASSED [  5%]
+tests/test_bug_analyzer_integration.py::test_context_collection PASSED   [  5%]
+tests/test_bug_analyzer_integration.py::test_bug_analysis PASSED         [  5%]
+tests/test_bug_analyzer_integration.py::test_bug_analyzer_telegram_interface PASSED [  6%]
+tests/test_bug_analyzer_integration.py::test_wizard_state_transitions PASSED [  6%]
+tests/test_bug_analyzer_integration.py::test_chat_message_creation PASSED [  6%]
+tests/test_bug_analyzer_integration.py::test_terminal_line_error_detection PASSED [  6%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_successful_on_first_tier ERROR [  6%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_fallback_on_failure ERROR [  6%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_multiple_fallbacks ERROR [  6%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_degraded_mode_fallback ERROR [  7%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_metrics_tracking ERROR [  7%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_health_status ERROR [  7%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_cost_analysis ERROR [  7%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_role_determines_start_tier ERROR [  7%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_call_history ERROR [  7%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_timeout_per_tier ERROR [  8%]
+tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_latency_measurement ERROR [  8%]
+tests/test_cascade_adapter.py::TestCascadeMetrics::test_metrics_success_rate PASSED [  8%]
+tests/test_cascade_adapter.py::TestCascadeMetrics::test_metrics_is_healthy PASSED [  8%]
+tests/test_cascade_adapter.py::TestCascadeResult::test_cascade_result_creation PASSED [  8%]
+tests/test_cascade_integration.py::TestErrorClassification::test_classify_timeout_error PASSED [  8%]
+tests/test_cascade_integration.py::TestErrorClassification::test_classify_rate_limit_error PASSED [  8%]
+tests/test_cascade_integration.py::TestErrorClassification::test_classify_connection_error PASSED [  9%]
+tests/test_cascade_integration.py::TestCascadeIntegration::test_cascade_call_succeeds PASSED [  9%]
+tests/test_cascade_integration.py::TestCascadeIntegration::test_cost_analysis PASSED [  9%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_reflex_simple_question PASSED [  9%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_reflex_greeting PASSED [  9%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_reflex_status_check PASSED [  9%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_deliberate_analysis_needed PASSED [  9%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_deliberate_explain_concept PASSED [ 10%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_deep_complex_analysis PASSED [ 10%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_deep_multi_step_reasoning PASSED [ 10%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_web_search_needed PASSED [ 10%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_no_web_search_for_general PASSED [ 10%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_god_mode_flag PASSED [ 10%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_no_god_mode_default PASSED [ 11%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_decision_has_reason PASSED [ 11%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_empty_input PASSED [ 11%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_very_long_input PASSED [ 11%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_special_characters PASSED [ 11%]
+tests/test_cognitive_load.py::TestCognitiveDepthRouting::test_multiple_languages PASSED [ 11%]
+tests/test_cognitive_load.py::TestRoutingConsistency::test_same_input_same_depth PASSED [ 11%]
+tests/test_cognitive_load.py::TestRoutingConsistency::test_case_insensitivity PASSED [ 12%]
+tests/test_cognitive_load.py::TestEdgeCases::test_only_numbers PASSED    [ 12%]
+tests/test_cognitive_load.py::TestEdgeCases::test_only_punctuation PASSED [ 12%]
+tests/test_cognitive_load.py::TestEdgeCases::test_url_input PASSED       [ 12%]
+tests/test_cognitive_load.py::TestEdgeCases::test_code_snippet_input PASSED [ 12%]
+tests/test_decay.py::test_detect_domain_crypto PASSED                    [ 12%]
+tests/test_decay.py::test_detect_domain_news PASSED                      [ 12%]
+tests/test_decay.py::test_detect_domain_tech_api PASSED                  [ 13%]
+tests/test_decay.py::test_detect_domain_tech_arch PASSED                 [ 13%]
+tests/test_decay.py::test_detect_domain_science PASSED                   [ 13%]
+tests/test_decay.py::test_detect_domain_business PASSED                  [ 13%]
+tests/test_decay.py::test_detect_domain_history PASSED                   [ 13%]
+tests/test_decay.py::test_detect_domain_geral_sem_keywords PASSED        [ 13%]
+tests/test_decay.py::test_detect_domain_prioriza_mais_keywords PASSED    [ 13%]
+tests/test_decay.py::test_detect_domain_case_insensitive PASSED          [ 14%]
+tests/test_decay.py::test_time_decay_fator_1_para_agora PASSED           [ 14%]
+tests/test_decay.py::test_time_decay_fator_reduz_com_tempo PASSED        [ 14%]
+tests/test_decay.py::test_time_decay_half_life_correto PASSED            [ 14%]
+tests/test_decay.py::test_time_decay_crypto_decai_rapido PASSED          [ 14%]
+tests/test_decay.py::test_time_decay_historia_decai_lento PASSED         [ 14%]
+tests/test_decay.py::test_time_decay_aceita_domain_como_string PASSED    [ 15%]
+tests/test_decay.py::test_time_decay_string_invalida_usa_general PASSED  [ 15%]
+tests/test_decay.py::test_time_decay_timestamp_futuro_retorna_1 PASSED   [ 15%]
+tests/test_decay.py::test_verification_multiplier_depth_0 PASSED         [ 15%]
+tests/test_decay.py::test_verification_multiplier_depth_1 PASSED         [ 15%]
+tests/test_decay.py::test_verification_multiplier_depth_2 PASSED         [ 15%]
+tests/test_decay.py::test_verification_multiplier_depth_3 PASSED         [ 15%]
+tests/test_decay.py::test_verification_multiplier_depth_invalido PASSED  [ 16%]
+tests/test_decay.py::test_effective_confidence_basico PASSED             [ 16%]
+tests/test_decay.py::test_effective_confidence_minimo_0_05 PASSED        [ 16%]
+tests/test_decay.py::test_effective_confidence_maximo_0_95 PASSED        [ 16%]
+tests/test_decay.py::test_effective_confidence_penalty_verificacao PASSED [ 16%]
+tests/test_decay.py::test_effective_confidence_decai_com_tempo PASSED    [ 16%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_evaluate_lead_success PASSED [ 16%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_evaluate_lead_below_threshold PASSED [ 17%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_evaluate_lead_llm_error PASSED [ 17%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_parse_llm_response_valid_json PASSED [ 17%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_parse_llm_response_invalid_json PASSED [ 17%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_fit_score_clamping PASSED [ 17%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_intent_signals_clamping PASSED [ 17%]
+tests/test_discovery_matrix.py::TestDiscoveryMatrix::test_evaluate_batch PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_put_and_get PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_hit_rate PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_lru_eviction PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_lru_priority PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_ttl_expiration PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_force_refresh PASSED [ 18%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_access_count PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_stats PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_memory_usage PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_clear PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_hot_embeddings PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_health_status PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_hash_consistency PASSED [ 19%]
+tests/test_embedding_cache.py::TestSmartEmbeddingCache::test_cache_update_existing PASSED [ 20%]
+tests/test_embedding_cache.py::TestCacheStats::test_hit_rate_calculation PASSED [ 20%]
+tests/test_embedding_cache.py::TestCacheStats::test_miss_rate_calculation PASSED [ 20%]
+tests/test_embedding_cache.py::TestCachedEmbedding::test_age_calculation PASSED [ 20%]
+tests/test_embedding_cache.py::TestCachedEmbedding::test_time_since_access PASSED [ 20%]
+tests/test_evidence_layer.py::TestEvidenceStorage::test_store_and_retrieve PASSED [ 20%]
+tests/test_evidence_layer.py::TestEvidenceStorage::test_evidence_persistence PASSED [ 20%]
+tests/test_evidence_layer.py::TestEvidenceStorage::test_list_by_feature PASSED [ 21%]
+tests/test_evidence_layer.py::TestEvidenceStorage::test_stats PASSED     [ 21%]
+tests/test_evidence_layer.py::TestDecisionTrace::test_simple_trace PASSED [ 21%]
+tests/test_evidence_layer.py::TestDecisionTrace::test_trace_with_ancestry PASSED [ 21%]
+tests/test_evidence_layer.py::TestDecisionTrace::test_trace_chain_output PASSED [ 21%]
+tests/test_evidence_layer.py::TestEvidenceMetadata::test_execution_tracking PASSED [ 21%]
+tests/test_evidence_layer.py::TestEvidenceMetadata::test_cost_tracking PASSED [ 22%]
+tests/test_evidence_layer.py::TestEvidenceIntegration::test_vision_routing_evidence PASSED [ 22%]
+tests/test_evidence_layer.py::TestEvidenceIntegration::test_executor_evidence_with_lineage PASSED [ 22%]
+tests/test_evidence_layer.py::TestEvidenceIntegration::test_scout_qualification_evidence PASSED [ 22%]
+tests/test_evidence_layer.py::TestEvidenceQueryMethods::test_filter_by_date_range PASSED [ 22%]
+tests/test_evidence_layer.py::TestEvidenceQueryMethods::test_confidence_ranking PASSED [ 22%]
+tests/test_executor_handlers.py::TestBashHandler::test_bash_simple_command PASSED [ 22%]
+tests/test_executor_handlers.py::TestBashHandler::test_bash_with_timeout FAILED [ 23%]
+tests/test_executor_handlers.py::TestBashHandler::test_bash_command_whitelist PASSED [ 23%]
+tests/test_executor_handlers.py::TestFileOpsHandler::test_file_read FAILED [ 23%]
+tests/test_executor_handlers.py::TestFileOpsHandler::test_file_write FAILED [ 23%]
+tests/test_executor_handlers.py::TestFileOpsHandler::test_file_snapshot FAILED [ 23%]
+tests/test_executor_handlers.py::TestFileOpsHandler::test_file_delete PASSED [ 23%]
+tests/test_executor_handlers.py::TestAPIHandler::test_api_get_request FAILED [ 23%]
+tests/test_executor_handlers.py::TestAPIHandler::test_api_retry_on_failure PASSED [ 24%]
+tests/test_executor_handlers.py::TestRemoteTriggerHandler::test_remote_trigger_health_check FAILED [ 24%]
+tests/test_executor_handlers.py::TestRemoteTriggerHandler::test_remote_trigger_screenshot PASSED [ 24%]
+tests/test_executor_handlers.py::TestRemoteTriggerHandler::test_remote_trigger_click FAILED [ 24%]
+tests/test_executor_handlers.py::TestHandlerErrorHandling::test_handler_graceful_timeout FAILED [ 24%]
+tests/test_executor_handlers.py::TestHandlerErrorHandling::test_handler_invalid_step_type FAILED [ 24%]
+tests/test_executor_orchestrator.py::test_orchestrator_basic_planning FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_step_dependencies FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_cost_estimation FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_timeout_calculation FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_multi_step_plan FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_approval_tiers FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_safety_notes FAILED [ 25%]
+tests/test_executor_orchestrator.py::test_orchestrator_max_steps_limit FAILED [ 26%]
+tests/test_executor_safety.py::TestBashWhitelist::test_bash_safe_command_l2_silent PASSED [ 26%]
+tests/test_executor_safety.py::TestBashWhitelist::test_bash_medium_command_l1_logged PASSED [ 26%]
+tests/test_executor_safety.py::TestBashWhitelist::test_bash_dangerous_command_l0_manual PASSED [ 26%]
+tests/test_executor_safety.py::TestBashWhitelist::test_bash_unknown_command_l1 FAILED [ 26%]
+tests/test_executor_safety.py::TestBudgetEnforcement::test_per_action_budget_limit FAILED [ 26%]
+tests/test_executor_safety.py::TestBudgetEnforcement::test_per_action_within_budget PASSED [ 26%]
+tests/test_executor_safety.py::TestAFKWindowEnforcement::test_l2_silent_no_afk_window_limit PASSED [ 27%]
+tests/test_executor_safety.py::TestAFKWindowEnforcement::test_l1_logged_afk_window_6h FAILED [ 27%]
+tests/test_executor_safety.py::TestAFKWindowEnforcement::test_l0_manual_afk_window_5m FAILED [ 27%]
+tests/test_executor_safety.py::TestPolicyViolations::test_injection_attempt_in_bash PASSED [ 27%]
+tests/test_executor_safety.py::TestPolicyViolations::test_sensitive_file_access FAILED [ 27%]
+tests/test_executor_safety.py::TestApprovalTierClassification::test_git_command_classification PASSED [ 27%]
+tests/test_executor_safety.py::TestApprovalTierClassification::test_file_deletion_classification PASSED [ 27%]
+tests/test_goal_manager_unified.py::TestPrioritySystem::test_register_with_priority PASSED [ 28%]
+tests/test_goal_manager_unified.py::TestPrioritySystem::test_default_priority_is_normal PASSED [ 28%]
+tests/test_goal_manager_unified.py::TestPrioritySystem::test_priority_levels_ordering PASSED [ 28%]
+tests/test_goal_manager_unified.py::TestPreemption::test_critical_goal_pauses_normal PASSED [ 28%]
+tests/test_goal_manager_unified.py::TestPreemption::test_high_priority_not_preempted_by_normal PASSED [ 28%]
+tests/test_goal_manager_unified.py::TestPreemption::test_pause_tracking PASSED [ 28%]
+tests/test_goal_manager_unified.py::TestPooling::test_pool_semaphore_initialized PASSED [ 29%]
+tests/test_goal_manager_unified.py::TestPooling::test_running_goals_tracking PASSED [ 29%]
+tests/test_goal_manager_unified.py::TestSchedulerIntegration::test_critical_has_higher_priority PASSED [ 29%]
+tests/test_goal_manager_unified.py::TestSchedulerIntegration::test_multiple_priority_levels PASSED [ 29%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_get_health_dashboard_empty PASSED [ 29%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_get_goal_metrics_no_history PASSED [ 29%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_get_goal_metrics_with_successful_cycles PASSED [ 29%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_get_goal_metrics_with_failures PASSED [ 30%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_trend_analysis PASSED [ 30%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_latency_metrics PASSED [ 30%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_last_run_metadata PASSED [ 30%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_multi_goal_health_aggregation PASSED [ 30%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_cycle_history_maxlen PASSED [ 30%]
+tests/test_health_dashboard.py::TestHealthDashboard::test_global_budget_tracking PASSED [ 30%]
+tests/test_hierarchy.py::test_get_layer_categorias_conhecidas PASSED     [ 31%]
+tests/test_hierarchy.py::test_get_layer_categoria_desconhecida_usa_system PASSED [ 31%]
+tests/test_hierarchy.py::test_get_layer_aliases_extractor_estao_mapeados PASSED [ 31%]
+tests/test_hierarchy.py::test_get_layer_user_pref_eh_user_layer PASSED   [ 31%]
+tests/test_hierarchy.py::test_get_layer_decision_eh_user_layer PASSED    [ 31%]
+tests/test_hierarchy.py::test_get_layer_pattern_eh_user_layer PASSED     [ 31%]
+tests/test_hierarchy.py::test_score_fact_camada_mais_especifica_ganha PASSED [ 31%]
+tests/test_hierarchy.py::test_score_fact_user_acima_de_system PASSED     [ 32%]
+tests/test_hierarchy.py::test_score_fact_project_acima_de_domain PASSED  [ 32%]
+tests/test_hierarchy.py::test_score_fact_mais_recente_pontua_mais PASSED [ 32%]
+tests/test_hierarchy.py::test_score_fact_confianca_alta_pontua_mais PASSED [ 32%]
+tests/test_hierarchy.py::test_score_fact_categoria_ausente_usa_system PASSED [ 32%]
+tests/test_hierarchy.py::test_prioritize_facts_ordena_por_score PASSED   [ 32%]
+tests/test_hierarchy.py::test_prioritize_facts_respeita_limit PASSED     [ 33%]
+tests/test_hierarchy.py::test_prioritize_facts_lista_vazia PASSED        [ 33%]
+tests/test_hierarchy.py::test_prioritize_facts_limit_maior_que_lista PASSED [ 33%]
+tests/test_hierarchy.py::test_format_hierarchical_context_vazio PASSED   [ 33%]
+tests/test_hierarchy.py::test_format_hierarchical_context_contem_header PASSED [ 33%]
+tests/test_hierarchy.py::test_format_hierarchical_context_contem_layer_name PASSED [ 33%]
+tests/test_hierarchy.py::test_format_hierarchical_context_contem_confianca PASSED [ 33%]
+tests/test_hierarchy.py::test_format_hierarchical_context_agrupa_por_layer PASSED [ 34%]
+tests/test_hierarchy_phase0.py::test_imports PASSED                      [ 34%]
+tests/test_hierarchy_phase0.py::test_interfaces PASSED                   [ 34%]
+tests/test_hierarchy_phase0.py::test_crews_exist PASSED                  [ 34%]
+tests/test_hierarchy_phase0.py::test_supervisor_instantiation PASSED     [ 34%]
+tests/test_hierarchy_phase0.py::test_event_log PASSED                    [ 34%]
+tests/test_hierarchy_phase0.py::test_crew_execution PASSED               [ 34%]
+tests/test_hierarchy_phase1.py::test_cognitive_router PASSED             [ 35%]
+tests/test_hierarchy_phase1.py::test_crew_router_reflex PASSED           [ 35%]
+tests/test_hierarchy_phase1.py::test_crew_router_deliberate PASSED       [ 35%]
+tests/test_hierarchy_phase1.py::test_crew_router_deep PASSED             [ 35%]
+tests/test_hierarchy_phase1.py::test_crew_router_action_intent PASSED    [ 35%]
+tests/test_hierarchy_phase1.py::test_crew_router_vision PASSED           [ 35%]
+tests/test_hierarchy_phase1.py::test_supervisor_routing PASSED           [ 36%]
+tests/test_hierarchy_phase1.py::test_supervisor_process PASSED           [ 36%]
+tests/test_hierarchy_phase1.py::test_response_compilation PASSED         [ 36%]
+tests/test_hierarchy_phase2.py::test_monitor_crew_health_check PASSED    [ 36%]
+tests/test_hierarchy_phase2.py::test_executor_crew_git_action PASSED     [ 36%]
+tests/test_hierarchy_phase2.py::test_executor_crew_action_detection PASSED [ 36%]
+tests/test_hierarchy_phase2.py::test_executor_crew_no_action PASSED      [ 36%]
+tests/test_hierarchy_phase2.py::test_analyst_crew_briefing PASSED        [ 37%]
+tests/test_hierarchy_phase2.py::test_analyst_crew_improvement PASSED     [ 37%]
+tests/test_hierarchy_phase2.py::test_analyst_crew_revenue PASSED         [ 37%]
+tests/test_hierarchy_phase2.py::test_supervisor_with_monitor_crew PASSED [ 37%]
+tests/test_hierarchy_phase2.py::test_supervisor_with_executor_crew PASSED [ 37%]
+tests/test_hierarchy_phase2.py::test_supervisor_with_analyst_crew PASSED [ 37%]
+tests/test_hierarchy_phase2.py::test_crew_error_handling PASSED          [ 37%]
+tests/test_hierarchy_phase2.py::test_monitor_crew_status PASSED          [ 38%]
+tests/test_hierarchy_phase2.py::test_executor_crew_status PASSED         [ 38%]
+tests/test_hierarchy_phase2.py::test_analyst_crew_status PASSED          [ 38%]
+tests/test_hierarchy_phase2.py::test_hunter_crew_prospecting PASSED      [ 38%]
+tests/test_hierarchy_phase2.py::test_hunter_crew_default_region_niche PASSED [ 38%]
+tests/test_hierarchy_phase2.py::test_hunter_crew_no_prospecting PASSED   [ 38%]
+tests/test_hierarchy_phase2.py::test_hunter_crew_status PASSED           [ 38%]
+tests/test_hierarchy_phase2.py::test_supervisor_with_hunter_crew PASSED  [ 39%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_load_loads_only_metadata PASSED [ 39%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_get_vector_lazy_loads_on_demand PASSED [ 39%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_lru_eviction_when_cache_full PASSED [ 39%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_get_vector_lazy_returns_none_for_nonexistent PASSED [ 39%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_find_similar_lazy_loads_vectors PASSED [ 39%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_add_synchronizes_vector_ids PASSED [ 40%]
+tests/test_lazy_embeddings.py::TestLazyEmbeddings::test_remove_synchronizes_vector_ids PASSED [ 40%]
+tests/test_live.py::test_all_providers SKIPPED (live integration tes...) [ 40%]
+tests/test_live.py::test_arbitrage SKIPPED (live integration test — ...) [ 40%]
+tests/test_live.py::test_router_quick SKIPPED (live integration test...) [ 40%]
+tests/test_memory_store.py::TestMemoryStoreInitialization::test_store_initialization PASSED [ 40%]
+tests/test_memory_store.py::TestMemoryStoreInitialization::test_store_persists_between_sessions PASSED [ 40%]
+tests/test_memory_store.py::TestCRUDOperations::test_create_fact PASSED  [ 41%]
+tests/test_memory_store.py::TestCRUDOperations::test_read_facts_by_category PASSED [ 41%]
+tests/test_memory_store.py::TestCRUDOperations::test_update_fact_confidence PASSED [ 41%]
+tests/test_memory_store.py::TestCRUDOperations::test_delete_fact PASSED  [ 41%]
+tests/test_memory_store.py::TestSessionIsolation::test_email_telegram_isolation PASSED [ 41%]
+tests/test_memory_store.py::TestSessionIsolation::test_multiple_turns_per_session SKIPPED [ 41%]
+tests/test_memory_store.py::TestUTF8Encoding::test_portuguese_accents_in_facts PASSED [ 41%]
+tests/test_memory_store.py::TestUTF8Encoding::test_utf8_in_episode_metadata SKIPPED [ 42%]
+tests/test_memory_store.py::TestUTF8Encoding::test_utf8_in_session_turns SKIPPED [ 42%]
+tests/test_memory_store.py::TestConcurrentAccess::test_concurrent_upsert_same_fact PASSED [ 42%]
+tests/test_memory_store.py::TestConcurrentAccess::test_concurrent_session_turns PASSED [ 42%]
+tests/test_memory_store.py::TestDatabaseIntegrity::test_foreign_key_cascade PASSED [ 42%]
+tests/test_memory_store.py::TestDatabaseIntegrity::test_unique_constraint_on_fact PASSED [ 42%]
+tests/test_memory_store.py::TestDatabaseIntegrity::test_batch_commit PASSED [ 43%]
+tests/test_memory_store.py::TestEmbeddingPersistence::test_store_and_load_embedding SKIPPED [ 43%]
+tests/test_ooda_loop.py::TestOODABasicFlow::test_full_cycle_success PASSED [ 43%]
+tests/test_ooda_loop.py::TestOODABasicFlow::test_cycle_has_timing PASSED [ 43%]
+tests/test_ooda_loop.py::TestOODABasicFlow::test_cycle_has_iteration_id PASSED [ 43%]
+tests/test_ooda_loop.py::TestOODABlocking::test_blocks_on_manual_approval_required PASSED [ 43%]
+tests/test_ooda_loop.py::TestOODABlocking::test_blocks_on_verification_failure PASSED [ 43%]
+tests/test_ooda_loop.py::TestOODAHistory::test_history_tracks_iterations PASSED [ 44%]
+tests/test_ooda_loop.py::TestOODAHistory::test_history_limit PASSED      [ 44%]
+tests/test_ooda_loop.py::TestOODAStats::test_stats_empty_loop PASSED     [ 44%]
+tests/test_ooda_loop.py::TestOODAStats::test_stats_after_iterations PASSED [ 44%]
+tests/test_ooda_loop.py::TestOODAStats::test_stats_tracks_blocked PASSED [ 44%]
+tests/test_ooda_loop.py::TestStreamingOODA::test_streaming_calls_callbacks PASSED [ 44%]
+tests/test_ooda_loop.py::TestStreamingOODA::test_streaming_no_callback PASSED [ 44%]
+tests/test_ooda_loop.py::TestOODALoggingAndMetadata::test_iteration_log_entry PASSED [ 45%]
+tests/test_parse_llm_json.py::test_json_puro_objeto PASSED               [ 45%]
+tests/test_parse_llm_json.py::test_json_puro_array PASSED                [ 45%]
+tests/test_parse_llm_json.py::test_json_com_texto_antes_e_depois PASSED  [ 45%]
+tests/test_parse_llm_json.py::test_json_com_fence_json PASSED            [ 45%]
+tests/test_parse_llm_json.py::test_json_com_fence_generica PASSED        [ 45%]
+tests/test_parse_llm_json.py::test_array_com_texto_ao_redor PASSED       [ 45%]
+tests/test_parse_llm_json.py::test_array_vem_antes_de_objeto PASSED      [ 46%]
+tests/test_parse_llm_json.py::test_objeto_vem_antes_de_array PASSED      [ 46%]
+tests/test_parse_llm_json.py::test_json_aninhado PASSED                  [ 46%]
+tests/test_parse_llm_json.py::test_whitespace_extenso PASSED             [ 46%]
+tests/test_parse_llm_json.py::test_fence_sem_quebra_de_linha PASSED      [ 46%]
+tests/test_parse_llm_json.py::test_json_com_unicode PASSED               [ 46%]
+tests/test_parse_llm_json.py::test_objeto_vazio PASSED                   [ 47%]
+tests/test_parse_llm_json.py::test_array_vazio PASSED                    [ 47%]
+tests/test_parse_llm_json.py::test_texto_sem_json_levanta_valueerror PASSED [ 47%]
+tests/test_parse_llm_json.py::test_texto_vazio_levanta_valueerror PASSED [ 47%]
+tests/test_parse_llm_json.py::test_apenas_espaco_levanta_valueerror PASSED [ 47%]
+tests/test_parse_llm_json.py::test_json_malformado_levanta_valueerror PASSED [ 47%]
+tests/test_parse_llm_json.py::test_chave_sem_fechar_levanta_valueerror PASSED [ 47%]
+tests/test_parse_llm_json.py::test_apenas_abre_chave_levanta_valueerror PASSED [ 48%]
+tests/test_parse_llm_json.py::test_resposta_extractor_completa PASSED    [ 48%]
+tests/test_parse_llm_json.py::test_resposta_search_queries PASSED        [ 48%]
+tests/test_parse_llm_json.py::test_resposta_l3_params PASSED             [ 48%]
+tests/test_pipeline_intent.py::TestIntentCardClassification::test_intent_classifier_initialized PASSED [ 48%]
+tests/test_pipeline_intent.py::TestIntentCardClassification::test_classify_information_intent ERROR [ 48%]
+tests/test_pipeline_intent.py::TestIntentCardClassification::test_classify_action_intent ERROR [ 48%]
+tests/test_pipeline_intent.py::TestIntentCardClassification::test_classify_maintenance_intent ERROR [ 49%]
+tests/test_pipeline_intent.py::TestHighRiskBlocking::test_blocks_delete_action ERROR [ 49%]
+tests/test_pipeline_intent.py::TestHighRiskBlocking::test_blocks_send_money_action SKIPPED [ 49%]
+tests/test_pipeline_intent.py::TestHighRiskBlocking::test_blocks_irreversible_actions ERROR [ 49%]
+tests/test_pipeline_intent.py::TestMediumRiskActions::test_allows_reversible_actions SKIPPED [ 49%]
+tests/test_pipeline_intent.py::TestLowRiskActions::test_low_risk_classification ERROR [ 49%]
+tests/test_pipeline_intent.py::TestLowRiskActions::test_analysis_low_risk ERROR [ 50%]
+tests/test_pipeline_intent.py::TestIntentCardLogging::test_intent_card_generates_log_entry ERROR [ 50%]
+tests/test_pipeline_intent.py::TestIntentCardLogging::test_blocked_action_has_reasoning ERROR [ 50%]
+tests/test_pipeline_intent.py::TestIntentPermissions::test_information_permissions ERROR [ 50%]
+tests/test_pipeline_intent.py::TestIntentPermissions::test_action_permissions ERROR [ 50%]
+tests/test_pipeline_intent.py::TestIntentPermissions::test_high_risk_requires_approval ERROR [ 50%]
+tests/test_pipeline_intent.py::TestPipelineIntegration::test_pipeline_has_intent_classifier ERROR [ 50%]
+tests/test_pipeline_intent.py::TestPipelineIntegration::test_blocked_action_early_return ERROR [ 51%]
+tests/test_pipeline_intent.py::TestConfidenceAndReasoning::test_maintenance_high_confidence ERROR [ 51%]
+tests/test_pipeline_intent.py::TestConfidenceAndReasoning::test_unknown_low_confidence ERROR [ 51%]
+tests/test_pipeline_intent.py::TestConfidenceAndReasoning::test_reasoning_explains_classification ERROR [ 51%]
+tests/test_providers.py::TestAsyncRateLimiter::test_rate_limiter_initialization PASSED [ 51%]
+tests/test_providers.py::TestAsyncRateLimiter::test_rate_limiter_with_unlimited_rpm PASSED [ 51%]
+tests/test_providers.py::TestRetryLogic::test_retryable_status_codes PASSED [ 51%]
+tests/test_providers.py::TestRetryLogic::test_timeout_is_not_retryable PASSED [ 52%]
+tests/test_providers.py::TestCostCalculation::test_cost_calculation_deepseek PASSED [ 52%]
+tests/test_providers.py::TestCostCalculation::test_cost_calculation_free_tier PASSED [ 52%]
+tests/test_providers.py::TestFallbackChain::test_fallback_chain_single_provider_success PASSED [ 52%]
+tests/test_providers.py::TestFallbackChain::test_cognitive_roles_defined PASSED [ 52%]
+tests/test_providers.py::TestFallbackChain::test_invoke_with_fallback_function_exists PASSED [ 52%]
+tests/test_providers.py::TestConnectionPool::test_connection_pool_exists PASSED [ 52%]
+tests/test_providers.py::TestConnectionPool::test_client_pool_has_pool_limits PASSED [ 53%]
+tests/test_providers.py::TestProviderTimeouts::test_provider_timeout_values_exist PASSED [ 53%]
+tests/test_providers.py::TestProviderTimeouts::test_timeout_values_are_reasonable PASSED [ 53%]
+tests/test_providers.py::TestLLMResponse::test_llm_response_creation PASSED [ 53%]
+tests/test_providers.py::TestLLMResponse::test_llm_response_total_tokens PASSED [ 53%]
+tests/test_providers.py::TestLLMRequest::test_llm_request_creation PASSED [ 53%]
+tests/test_remote_executor_full.py::test_miner_detects_bash_commands PASSED [ 54%]
+tests/test_remote_executor_full.py::test_miner_classifies_autonomy_tiers PASSED [ 54%]
+tests/test_remote_executor_full.py::test_afk_protocol_enforcement PASSED [ 54%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_output_dimension PASSED [ 54%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_all_values_in_range PASSED [ 54%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_empty_state_no_crash PASSED [ 54%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_query_features PASSED   [ 54%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_time_encoding_cyclic PASSED [ 55%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_budget_pressure PASSED  [ 55%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_last_reward_encoding PASSED [ 55%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_feature_names_match_dim PASSED [ 55%]
+tests/test_rl_sprint1.py::TestStateEncoder::test_describe_returns_dict PASSED [ 55%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_open_close_event PASSED [ 55%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_technical_signal_success PASSED [ 55%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_technical_signal_failure PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_behavioral_positive_feedback PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_behavioral_negative_feedback PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_behavioral_positive_emoji PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_explicit_feedback_overrides_behavioral PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_reward_total_uses_weights PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_persist_and_export PASSED [ 56%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_close_stale_events PASSED [ 57%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_unknown_decision_id_is_noop PASSED [ 57%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_get_stats_empty PASSED [ 57%]
+tests/test_rl_sprint1.py::TestRewardCollector::test_get_stats_with_data PASSED [ 57%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_empty_log PASSED         [ 57%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_routing_without_cascade_result PASSED [ 57%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_routing_with_cascade_success PASSED [ 58%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_routing_with_cascade_failure PASSED [ 58%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_dry_run_does_not_write PASSED [ 58%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_nonexistent_log PASSED   [ 58%]
+tests/test_rl_sprint1.py::TestLogBackfill::test_multiple_routing_cascade_pairs PASSED [ 58%]
+tests/test_rl_sprint2.py::TestCascadeBanditInit::test_arms_initialized PASSED [ 58%]
+tests/test_rl_sprint2.py::TestCascadeBanditInit::test_identity_init PASSED [ 58%]
+tests/test_rl_sprint2.py::TestCascadeBanditInit::test_alpha_starts_at_init_value PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditInit::test_mode_shadow PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_returns_bandit_decision PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_recommended_arm_is_valid PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_ucb_scores_all_arms PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_agrees_field PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_agreement_counter_increments PASSED [ 59%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_pending_stored PASSED [ 60%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_shadow_log_written PASSED [ 60%]
+tests/test_rl_sprint2.py::TestCascadeBanditPredict::test_ucb_symmetry_untrained PASSED [ 60%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_update_increments_counter PASSED [ 60%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_update_modifies_A_and_b PASSED [ 60%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_update_clears_pending PASSED [ 60%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_update_unknown_id_returns_false PASSED [ 61%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_positive_reward_increases_theta PASSED [ 61%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_negative_reward_modifies_A PASSED [ 61%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_partial_negative_reward_changes_b PASSED [ 61%]
+tests/test_rl_sprint2.py::TestCascadeBanditUpdate::test_only_router_arm_updated PASSED [ 61%]
+tests/test_rl_sprint2.py::TestAlphaDecay::test_alpha_starts_at_init PASSED [ 61%]
+tests/test_rl_sprint2.py::TestAlphaDecay::test_alpha_decays_with_updates PASSED [ 61%]
+tests/test_rl_sprint2.py::TestAlphaDecay::test_alpha_floors_after_decay_threshold PASSED [ 62%]
+tests/test_rl_sprint2.py::TestLearningConvergence::test_bandit_learns_reflex_for_short_queries PASSED [ 62%]
+tests/test_rl_sprint2.py::TestLearningConvergence::test_agreement_rate_high_when_aligned PASSED [ 62%]
+tests/test_rl_sprint2.py::TestPersistence::test_save_and_load PASSED     [ 62%]
+tests/test_rl_sprint2.py::TestPersistence::test_load_nonexistent_returns_false PASSED [ 62%]
+tests/test_rl_sprint2.py::TestPersistence::test_autosave_at_50_updates PASSED [ 62%]
+tests/test_rl_sprint2.py::TestStats::test_get_stats_keys PASSED          [ 62%]
+tests/test_rl_sprint2.py::TestStats::test_not_ready_with_zero_updates PASSED [ 63%]
+tests/test_rl_sprint2.py::TestStats::test_ready_after_100_updates PASSED [ 63%]
+tests/test_rl_sprint2.py::TestStats::test_format_stats_returns_string PASSED [ 63%]
+tests/test_rl_sprint2.py::TestStats::test_top_features_returns_5_per_arm PASSED [ 63%]
+tests/test_router.py::test_reflex[ok-confirma\xe7\xe3o simples] PASSED   [ 63%]
+tests/test_router.py::test_reflex[sim-confirma\xe7\xe3o sim] PASSED      [ 63%]
+tests/test_router.py::test_reflex[bom dia-sauda\xe7\xe3o] PASSED         [ 63%]
+tests/test_router.py::test_reflex[blz-g\xedria de confirma\xe7\xe3o] PASSED [ 64%]
+tests/test_router.py::test_reflex[valeu!-agradecimento] PASSED           [ 64%]
+tests/test_router.py::test_reflex[status-comando curto] PASSED           [ 64%]
+tests/test_router.py::test_reflex[next-navega\xe7\xe3o] PASSED           [ 64%]
+tests/test_router.py::test_reflex[entendi-acknowledgement] PASSED        [ 64%]
+tests/test_router.py::test_reflex[que horas s\xe3o?-pergunta de hora] PASSED [ 64%]
+tests/test_router.py::test_reflex[que dia \xe9 hoje?-pergunta de data] PASSED [ 65%]
+tests/test_router.py::test_deliberate[como configuro o nginx?-pergunta t\xe9cnica simples] PASSED [ 65%]
+tests/test_router.py::test_deliberate[me explica o que \xe9 RAG-pergunta educacional] PASSED [ 65%]
+tests/test_router.py::test_deliberate[corrige esse bug no meu c\xf3digo-debug request] PASSED [ 65%]
+tests/test_router.py::test_deliberate[qual a diferen\xe7a entre MongoDB e PostgreSQL?-compara\xe7\xe3o simples] PASSED [ 65%]
+tests/test_router.py::test_deliberate[como funciona o asyncio?-pergunta de como funciona] PASSED [ 65%]
+tests/test_router.py::test_deliberate[explique JWT pra mim-explica\xe7\xe3o t\xe9cnica] PASSED [ 65%]
+tests/test_router.py::test_deep[ative o godmode-god mode expl\xedcito] PASSED [ 66%]
+tests/test_router.py::test_deep[god mode-god mode em ingl\xeas] PASSED   [ 66%]
+tests/test_router.py::test_deep[pot\xeancia m\xe1xima-god mode alternativo] PASSED [ 66%]
+tests/test_router.py::test_deep[vale a pena migrar de MongoDB pra PostgreSQL?-decis\xe3o com trade-off] PASSED [ 66%]
+tests/test_router.py::test_deep[analisa com tudo se devo usar K8s-trigger de an\xe1lise completa] PASSED [ 66%]
+tests/test_router.py::test_deep[qual o risco de depender do free tier do Groq?-an\xe1lise de risco] PASSED [ 66%]
+tests/test_router.py::test_deep[compara DeepSeek V3.2 vs GPT-5 pra uso ag\xeantico considerando custo, lat\xeancia e tool use. Quero trade-offs reais.-compara\xe7\xe3o estrat\xe9gica] PASSED [ 66%]
+tests/test_router.py::test_deep[red team: quais os pontos fracos da nossa arquitetura?-red team] PASSED [ 67%]
+tests/test_router.py::test_deep[quais s\xe3o as consequ\xeancias de mudar pra arquitetura event-driven?-an\xe1lise de consequ\xeancias] PASSED [ 67%]
+tests/test_router.py::test_deep[como funciona realmente o MCP da Anthropic?-investiga\xe7\xe3o profunda] PASSED [ 67%]
+tests/test_router.py::test_deep[seeker investiga o Evidence Arbitrage-seeker trigger] PASSED [ 67%]
+tests/test_router.py::test_god_mode_ativa_deep_e_flag[ative o godmode] PASSED [ 67%]
+tests/test_router.py::test_god_mode_ativa_deep_e_flag[god mode ativado] PASSED [ 67%]
+tests/test_router.py::test_god_mode_ativa_deep_e_flag[pot\xeancia m\xe1xima] PASSED [ 68%]
+tests/test_router.py::test_god_mode_ativa_deep_e_flag[an\xe1lise completa disso] PASSED [ 68%]
+tests/test_router.py::test_web_detection[ok-False-reflex n\xe3o precisa de web] PASSED [ 68%]
+tests/test_router.py::test_web_detection[como funciona recurs\xe3o?-False-conceito atemporal] PASSED [ 68%]
+tests/test_router.py::test_web_detection[quem \xe9 o CEO da OpenAI atualmente?-True-cargo atual] PASSED [ 68%]
+tests/test_router.py::test_web_detection[qual o pre\xe7o do Bitcoin hoje?-True-cota\xe7\xe3o atual] PASSED [ 68%]
+tests/test_router.py::test_web_detection[qual a \xfaltima vers\xe3o do LangGraph?-True-vers\xe3o/release] PASSED [ 68%]
+tests/test_router.py::test_web_detection[o DeepSeek V3.2 j\xe1 saiu?-True-exist\xeancia de produto] PASSED [ 69%]
+tests/test_router.py::test_web_detection[quem ganhou as elei\xe7\xf5es?-True-evento recente] PASSED [ 69%]
+tests/test_router.py::test_web_detection[not\xedcias sobre IA hoje-True-not\xedcias] PASSED [ 69%]
+tests/test_router.py::test_web_detection[explica o que \xe9 attention mechanism-False-conceito estabelecido] PASSED [ 69%]
+tests/test_router.py::test_web_detection[o Manus ainda existe em 2026?-True-exist\xeancia + ano] PASSED [ 69%]
+tests/test_router.py::test_modulo_email PASSED                           [ 69%]
+tests/test_router.py::test_modulo_vision PASSED                          [ 69%]
+tests/test_router.py::test_decisao_sempre_tem_reason PASSED              [ 70%]
+tests/test_router.py::test_router_conservador_na_duvida PASSED           [ 70%]
+tests/test_router.py::test_inputs_muito_curtos_sao_reflex PASSED         [ 70%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_default_tiers_initialized PASSED [ 70%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_read_actions_permit_l2 PASSED [ 70%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_write_actions_require_l1 PASSED [ 70%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_delete_actions_require_l0_or_trusted PASSED [ 70%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_blacklist_blocks_action PASSED [ 71%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_unblock_action PASSED [ 71%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_custom_tier_override PASSED [ 71%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_trusted_goal_whitelist PASSED [ 71%]
+tests/test_safety_layer_enhanced.py::TestSafetyPolicy::test_get_policy_report PASSED [ 71%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_check_action_allowed PASSED [ 71%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_check_action_denied PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_audit_log_creation PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_audit_log_includes_details PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_get_audit_log_limit PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_concurrent_audit_entries PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestSafetyLayer::test_export_policy PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestIntegrationSafetyTierAndPolicy::test_end_to_end_workflow PASSED [ 72%]
+tests/test_safety_layer_enhanced.py::TestIntegrationSafetyTierAndPolicy::test_tier_escalation_workflow PASSED [ 73%]
+tests/test_safety_layer_enhanced.py::TestIntegrationSafetyTierAndPolicy::test_prevent_privilege_escalation PASSED [ 73%]
+tests/test_scheduler.py::test_scheduler_register_goal PASSED             [ 73%]
+tests/test_scheduler.py::test_scheduler_multiple_goals PASSED            [ 73%]
+tests/test_scheduler.py::test_scheduler_budget_tracking PASSED           [ 73%]
+tests/test_scheduler.py::test_scheduler_global_budget PASSED             [ 73%]
+tests/test_scheduler.py::test_scheduler_cycle_history_structure PASSED   [ 73%]
+tests/test_scheduler.py::test_scheduler_status_report_content PASSED     [ 74%]
+tests/test_scheduler.py::test_scheduler_failure_counting PASSED          [ 74%]
+tests/test_scheduler.py::test_scheduler_budget_reset_on_new_day PASSED   [ 74%]
+tests/test_scheduler.py::test_scheduler_friction_metrics PASSED          [ 74%]
+tests/test_scheduler.py::test_scheduler_background_task_tracking PASSED  [ 74%]
+tests/test_scheduler.py::test_scheduler_create_tracked_task PASSED       [ 74%]
+tests/test_scheduler_calculator.py::test_daily_next_run FAILED           [ 75%]
+tests/test_scheduler_calculator.py::test_weekly_next_run FAILED          [ 75%]
+tests/test_scheduler_calculator.py::test_monthly_next_run FAILED         [ 75%]
+tests/test_scheduler_calculator.py::test_annual_next_run FAILED          [ 75%]
+tests/test_scheduler_calculator.py::test_timezone_handling PASSED        [ 75%]
+tests/test_scheduler_calculator.py::test_edge_case_february_29 PASSED    [ 75%]
+tests/test_scheduler_integration_e2e.py::test_full_wizard_to_execution_flow FAILED [ 75%]
+tests/test_scheduler_integration_e2e.py::test_idempotency_prevents_duplicate_execution FAILED [ 76%]
+tests/test_scheduler_integration_e2e.py::test_scheduler_with_approval_integration FAILED [ 76%]
+tests/test_scheduler_integration_e2e.py::test_multiple_overdue_tasks_dispatch FAILED [ 76%]
+tests/test_scheduler_integration_e2e.py::test_pagination_and_cleanup FAILED [ 76%]
+tests/test_scheduler_integration_e2e.py::test_telegram_interface_commands FAILED [ 76%]
+tests/test_scheduler_wizard.py::test_wizard_start PASSED                 [ 76%]
+tests/test_scheduler_wizard.py::test_wizard_collect_title FAILED         [ 76%]
+tests/test_scheduler_wizard.py::test_wizard_collect_schedule_type FAILED [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_collect_schedule_weekly FAILED [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_collect_hour FAILED          [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_collect_instruction FAILED   [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_confirmation FAILED          [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_back_step FAILED             [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_cancel FAILED                [ 77%]
+tests/test_scheduler_wizard.py::test_wizard_expiration FAILED            [ 78%]
+tests/test_scout_hunter_advanced.py::test_discovery_matrix_evaluate PASSED [ 78%]
+tests/test_scout_hunter_advanced.py::test_account_research_single PASSED [ 78%]
+tests/test_scout_hunter_advanced.py::test_account_research_batch PASSED  [ 78%]
+tests/test_scout_hunter_e2e.py::TestScoutHunter2_0_E2E::test_scout_hunter_full_pipeline_e2e PASSED [ 78%]
+tests/test_scout_hunter_e2e.py::TestScoutHunter2_0_E2E::test_scout_hunter_discovery_matrix_filtering PASSED [ 78%]
+tests/test_scout_hunter_e2e.py::TestScoutHunter2_0_E2E::test_scout_hunter_account_research_cache PASSED [ 79%]
+tests/test_scout_hunter_e2e.py::TestScoutHunter2_0_E2E::test_scout_hunter_metrics_computation PASSED [ 79%]
+tests/test_scout_hunter_e2e.py::TestScoutHunter_Telegram_Notification::test_notification_format_with_metrics PASSED [ 79%]
+tests/test_semantic_search_tfidf.py::TestTFIDFInitialization::test_tfidf_initialized PASSED [ 79%]
+tests/test_semantic_search_tfidf.py::TestTFIDFInitialization::test_tfidf_loaded_with_facts PASSED [ 79%]
+tests/test_semantic_search_tfidf.py::TestTFIDFSyncronization::test_add_document_syncs_tfidf PASSED [ 79%]
+tests/test_semantic_search_tfidf.py::TestTFIDFSyncronization::test_remove_document_syncs_tfidf PASSED [ 79%]
+tests/test_semantic_search_tfidf.py::TestTFIDFFallback::test_tfidf_fallback_when_gemini_fails PASSED [ 80%]
+tests/test_semantic_search_tfidf.py::TestTFIDFFallback::test_tfidf_returns_correct_fact_ids PASSED [ 80%]
+tests/test_semantic_search_tfidf.py::TestTFIDFFallback::test_tfidf_similarity_scores PASSED [ 80%]
+tests/test_semantic_search_tfidf.py::TestTFIDFFallback::test_tfidf_respects_top_k PASSED [ 80%]
+tests/test_semantic_search_tfidf.py::TestGeminiPreferred::test_prefers_gemini_when_available PASSED [ 80%]
+tests/test_semantic_search_tfidf.py::TestFindSimilarFacts::test_find_similar_facts_with_tfidf PASSED [ 80%]
+tests/test_semantic_search_tfidf.py::TestEmptyQuery::test_empty_query_returns_empty PASSED [ 80%]
+tests/test_sprint11_performance.py::TestLatencyPerformance::test_latency_p50_under_150ms_baseline PASSED [ 81%]
+tests/test_sprint11_performance.py::TestLatencyPerformance::test_latency_p95_improvement PASSED [ 81%]
+tests/test_sprint11_performance.py::TestLatencyPerformance::test_latency_improvement_40_percent PASSED [ 81%]
+tests/test_sprint11_performance.py::TestCachePerformance::test_cache_hit_rate_65_to_75_percent PASSED [ 81%]
+tests/test_sprint11_performance.py::TestCachePerformance::test_cache_reduces_api_calls_by_60_percent PASSED [ 81%]
+tests/test_sprint11_performance.py::TestCachePerformance::test_cache_lru_eviction_efficiency PASSED [ 81%]
+tests/test_sprint11_performance.py::TestBatchPerformance::test_batch_consolidation_7_to_1 PASSED [ 81%]
+tests/test_sprint11_performance.py::TestBatchPerformance::test_batch_latency_under_200ms PASSED [ 82%]
+tests/test_sprint11_performance.py::TestBatchPerformance::test_batch_error_handling PASSED [ 82%]
+tests/test_sprint11_performance.py::TestBatchPerformance::test_batch_commits_avoided_tracking PASSED [ 82%]
+tests/test_sprint11_performance.py::TestCascadePerformance::test_cascade_tier1_success_over_95_percent PASSED [ 82%]
+tests/test_sprint11_performance.py::TestCascadePerformance::test_cascade_fallback_frequency_under_10_percent PASSED [ 82%]
+tests/test_sprint11_performance.py::TestCascadePerformance::test_cascade_cost_optimization PASSED [ 82%]
+tests/test_sprint11_performance.py::TestIntegrationPerformance::test_combined_latency_improvement PASSED [ 83%]
+tests/test_sprint11_performance.py::TestIntegrationPerformance::test_throughput_improvement PASSED [ 83%]
+tests/test_sprint11_performance.py::TestMetricsAccuracy::test_tracker_all_metrics_recorded PASSED [ 83%]
+tests/test_sprint11_performance.py::TestMetricsAccuracy::test_sprint11_tracker_percentile_stability PASSED [ 83%]
+tests/test_sprint11_performance.py::TestPerformanceTargets::test_target_latency_40_percent_improvement PASSED [ 83%]
+tests/test_sprint11_performance.py::TestPerformanceTargets::test_target_cache_60_percent_reduction PASSED [ 83%]
+tests/test_sprint11_performance.py::TestPerformanceTargets::test_target_batch_7_to_1_consolidation PASSED [ 83%]
+tests/test_sprint11_performance.py::TestPerformanceTargets::test_target_cascade_95_percent_tier1_success PASSED [ 84%]
+tests/test_sprint11_tracker.py::TestLatencyMetrics::test_initialization PASSED [ 84%]
+tests/test_sprint11_tracker.py::TestLatencyMetrics::test_record_single_measurement PASSED [ 84%]
+tests/test_sprint11_tracker.py::TestLatencyMetrics::test_percentile_calculations PASSED [ 84%]
+tests/test_sprint11_tracker.py::TestLatencyMetrics::test_min_max PASSED  [ 84%]
+tests/test_sprint11_tracker.py::TestLatencyMetrics::test_get_stats PASSED [ 84%]
+tests/test_sprint11_tracker.py::TestCacheMetrics::test_initialization PASSED [ 84%]
+tests/test_sprint11_tracker.py::TestCacheMetrics::test_hit_rate_calculation PASSED [ 85%]
+tests/test_sprint11_tracker.py::TestCacheMetrics::test_zero_lookups PASSED [ 85%]
+tests/test_sprint11_tracker.py::TestCacheMetrics::test_get_stats PASSED  [ 85%]
+tests/test_sprint11_tracker.py::TestCascadeMetrics::test_initialization PASSED [ 85%]
+tests/test_sprint11_tracker.py::TestCascadeMetrics::test_tier1_success_rate PASSED [ 85%]
+tests/test_sprint11_tracker.py::TestCascadeMetrics::test_fallback_frequency PASSED [ 85%]
+tests/test_sprint11_tracker.py::TestCascadeMetrics::test_get_stats PASSED [ 86%]
+tests/test_sprint11_tracker.py::TestBatchMetrics::test_initialization PASSED [ 86%]
+tests/test_sprint11_tracker.py::TestBatchMetrics::test_success_rate PASSED [ 86%]
+tests/test_sprint11_tracker.py::TestBatchMetrics::test_consolidation_savings PASSED [ 86%]
+tests/test_sprint11_tracker.py::TestBatchMetrics::test_avg_latency PASSED [ 86%]
+tests/test_sprint11_tracker.py::TestBatchMetrics::test_get_stats PASSED  [ 86%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_initialization PASSED [ 86%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_record_latency PASSED [ 87%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_record_cache_operations PASSED [ 87%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_record_cascade_calls PASSED [ 87%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_record_batch_operations PASSED [ 87%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_record_batch_consolidation PASSED [ 87%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_get_full_report PASSED [ 87%]
+tests/test_sprint11_tracker.py::TestSprint11Tracker::test_format_for_telegram PASSED [ 87%]
+tests/test_sprint8_e2e.py::TestE2ETFIDFIntegration::test_tfidf_fallback_when_gemini_fails PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2ETFIDFIntegration::test_find_similar_facts_with_tfidf_fallback PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2EIntentCardIntegration::test_intent_classification_blocks_delete PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2EIntentCardIntegration::test_intent_classification_allows_information PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2EIntentCardIntegration::test_intent_includes_permissions PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2EOODALoopIntegration::test_ooda_loop_tracks_iterations PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2EOODALoopIntegration::test_ooda_loop_tracks_blocked_actions PASSED [ 88%]
+tests/test_sprint8_e2e.py::TestE2EIntegrationFlow::test_full_safety_flow PASSED [ 89%]
+tests/test_sprint8_e2e.py::TestE2EIntegrationFlow::test_safe_information_flow PASSED [ 89%]
+tests/test_sprint8_e2e.py::TestE2EInteroperability::test_no_conflicts_between_components PASSED [ 89%]
+tests/test_status_command.py::TestOODALoopStats::test_ooda_loop_get_stats PASSED [ 89%]
+tests/test_status_command.py::TestOODALoopStats::test_ooda_loop_empty_stats PASSED [ 89%]
+tests/test_status_command.py::TestOODALoopStats::test_ooda_loop_stats_format PASSED [ 89%]
+tests/test_status_command.py::TestStatusCommandIntegration::test_status_includes_ooda_stats PASSED [ 90%]
+tests/test_status_command.py::TestStatusCommandIntegration::test_ooda_stats_empty_no_output PASSED [ 90%]
+tests/test_status_command.py::TestOODABlockedTracking::test_blocked_count_increments PASSED [ 90%]
+tests/test_status_command.py::TestOODABlockedTracking::test_success_rate_with_blocks PASSED [ 90%]
+tests/test_status_command.py::TestLatencyTracking::test_avg_latency_calculation PASSED [ 90%]
+tests/test_status_command.py::TestLatencyTracking::test_latency_unit_milliseconds PASSED [ 90%]
+tests/test_status_command.py::TestHistoryLimits::test_history_grow_correctly PASSED [ 90%]
+tests/test_status_command.py::TestHistoryLimits::test_get_history_limit PASSED [ 91%]
+tests/test_status_command.py::TestHistoryLimits::test_get_history_more_than_available PASSED [ 91%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_initialization_selfhost PASSED [ 91%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_initialization_maas_no_key PASSED [ 91%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_initialization_maas_with_key PASSED [ 91%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_default_mode_selfhost PASSED [ 91%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_ollama_url_from_env PASSED [ 91%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_fallback_vlm_assignment PASSED [ 92%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientExtraction::test_extract_text_from_image PASSED [ 92%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientExtraction::test_extract_text_missing_image PASSED [ 92%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientExtraction::test_fallback_methods_delegate PASSED [ 92%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientFallback::test_locate_element_fallback PASSED [ 92%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientFallback::test_locate_element_no_fallback PASSED [ 92%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientFallback::test_describe_page_fallback PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientHealthCheck::test_health_check_disabled PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientHealthCheck::test_health_check_timeout PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientModes::test_selfhost_endpoint PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientModes::test_maas_endpoint PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientModes::test_invalid_mode_handling PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInterface::test_methods_exist PASSED [ 93%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInterface::test_method_signatures PASSED [ 94%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientEdgeCases::test_extraction_with_corrupted_image PASSED [ 94%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientEdgeCases::test_large_image_handling PASSED [ 94%]
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientEdgeCases::test_memory_cleanup PASSED [ 94%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_classifier_initialization PASSED [ 94%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_document_classification PASSED [ 94%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_ui_classification PASSED [ 94%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_photo_classification PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_statistics_tracking PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_statistics_percentages PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_missing_image_handling PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_aspect_ratio_calculation PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_text_density_estimation PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_color_entropy_estimation PASSED [ 95%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_multiple_classifications PASSED [ 96%]
+tests/vision/test_task_classifier.py::TestTaskClassifier::test_invalid_image_format PASSED [ 96%]
+tests/vision/test_task_classifier.py::TestTaskClassifierEdgeCases::test_empty_directory_path PASSED [ 96%]
+tests/vision/test_task_classifier.py::TestTaskClassifierEdgeCases::test_none_path PASSED [ 96%]
+tests/vision/test_task_classifier.py::TestTaskClassifierEdgeCases::test_very_small_image PASSED [ 96%]
+tests/vision/test_task_classifier.py::TestTaskClassifierEdgeCases::test_very_large_image PASSED [ 96%]
+tests/vision/test_vlm_router.py::TestVLMRouterInitialization::test_initialization_with_primary_vlm PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterInitialization::test_glmocr_enabled_by_default PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterInitialization::test_glmocr_disabled_on_request PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterInitialization::test_router_metrics_initialization PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterRouting::test_routing_increments_counter PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterRouting::test_analyze_screenshot_uses_primary PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterRouting::test_locate_element_uses_primary PASSED [ 97%]
+tests/vision/test_vlm_router.py::TestVLMRouterRouting::test_describe_page_uses_primary PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterMetrics::test_metrics_tracking_total PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterMetrics::test_metrics_routing_counts PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterMetrics::test_metrics_get_metrics PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterMetrics::test_metrics_latency_tracking PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterMetrics::test_metrics_percentages PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterResponseMetadata::test_response_includes_router_metadata PASSED [ 98%]
+tests/vision/test_vlm_router.py::TestVLMRouterResponseMetadata::test_metadata_task_type PASSED [ 99%]
+tests/vision/test_vlm_router.py::TestVLMRouterResponseMetadata::test_metadata_routed_to PASSED [ 99%]
+tests/vision/test_vlm_router.py::TestVLMRouterHealthCheck::test_health_check_delegates_to_primary PASSED [ 99%]
+tests/vision/test_vlm_router.py::TestVLMRouterHealthCheck::test_health_check_failure_handling PASSED [ 99%]
+tests/vision/test_vlm_router.py::TestVLMRouterPrintMetrics::test_print_metrics_no_error PASSED [ 99%]
+tests/vision/test_vlm_router.py::TestVLMRouterErrorHandling::test_primary_vlm_error_handling PASSED [ 99%]
+tests/vision/test_vlm_router.py::TestVLMRouterErrorHandling::test_missing_image_handling PASSED [100%]
+
+=================================== ERRORS ====================================
+_ ERROR at setup of TestCascadeAdapter.test_cascade_successful_on_first_tier __
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+____ ERROR at setup of TestCascadeAdapter.test_cascade_fallback_on_failure ____
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+____ ERROR at setup of TestCascadeAdapter.test_cascade_multiple_fallbacks _____
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+__ ERROR at setup of TestCascadeAdapter.test_cascade_degraded_mode_fallback ___
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_____ ERROR at setup of TestCascadeAdapter.test_cascade_metrics_tracking ______
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_______ ERROR at setup of TestCascadeAdapter.test_cascade_health_status _______
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_______ ERROR at setup of TestCascadeAdapter.test_cascade_cost_analysis _______
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_ ERROR at setup of TestCascadeAdapter.test_cascade_role_determines_start_tier _
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_______ ERROR at setup of TestCascadeAdapter.test_cascade_call_history ________
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_____ ERROR at setup of TestCascadeAdapter.test_cascade_timeout_per_tier ______
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+____ ERROR at setup of TestCascadeAdapter.test_cascade_latency_measurement ____
+tests\test_cascade_adapter.py:62: in cascade
+    return CascadeAdapter(
+E   TypeError: CascadeAdapter.__init__() got an unexpected keyword argument 'providers_dict'
+_ ERROR at setup of TestIntentCardClassification.test_classify_information_intent _
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestIntentCardClassification.test_classify_action_intent __
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestIntentCardClassification.test_classify_maintenance_intent _
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+______ ERROR at setup of TestHighRiskBlocking.test_blocks_delete_action _______
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+___ ERROR at setup of TestHighRiskBlocking.test_blocks_irreversible_actions ___
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+______ ERROR at setup of TestLowRiskActions.test_low_risk_classification ______
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_________ ERROR at setup of TestLowRiskActions.test_analysis_low_risk _________
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestIntentCardLogging.test_intent_card_generates_log_entry _
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+__ ERROR at setup of TestIntentCardLogging.test_blocked_action_has_reasoning __
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+____ ERROR at setup of TestIntentPermissions.test_information_permissions _____
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_______ ERROR at setup of TestIntentPermissions.test_action_permissions _______
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+__ ERROR at setup of TestIntentPermissions.test_high_risk_requires_approval ___
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestPipelineIntegration.test_pipeline_has_intent_classifier _
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestPipelineIntegration.test_blocked_action_early_return __
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestConfidenceAndReasoning.test_maintenance_high_confidence _
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+__ ERROR at setup of TestConfidenceAndReasoning.test_unknown_low_confidence ___
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+_ ERROR at setup of TestConfidenceAndReasoning.test_reasoning_explains_classification _
+tests\test_pipeline_intent.py:25: in pipeline
+    pipeline = SeekerPipeline(MOCK_API_KEYS, db_path=db_path)
+src\core\pipeline.py:134: in __init__
+    self.prometheus_exporter = PrometheusExporter(namespace="seeker")
+src\core\profiling\exporter.py:17: in __init__
+    self.llm_calls_total = Counter(
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\metrics.py:136: in __init__
+    registry.register(self)
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\prometheus_client\registry.py:40: in register
+    raise ValueError(
+E   ValueError: Duplicated timeseries in CollectorRegistry: {'seeker_llm_calls', 'seeker_llm_calls_total', 'seeker_llm_calls_created'}
+----------------------------- Captured log setup ------------------------------
+WARNING  seeker.search:web.py:218 [search] \u26a0\ufe0f Nenhum backend de busca configurado!
+================================== FAILURES ===================================
+___________________ TestBashHandler.test_bash_with_timeout ____________________
+tests\test_executor_handlers.py:70: in test_bash_with_timeout
+    assert result.status in [ActionStatus.TIMEOUT, ActionStatus.FAILED]
+E   AssertionError: assert 'failed' in [<ActionStatus.TIMEOUT: 'timeout'>, <ActionStatus.FAILED: 'failed'>]
+E    +  where 'failed' = ActionResult(step_id='test_timeout', status='failed', output='', error_message='Comando bloqueado por whitelist: sleep 100', duration_ms=0, cost_usd=0.0, rollback_executed=False, rollback_successful=None, executed_by_goal='remote_executor', executed_at=datetime.datetime(2026, 4, 20, 4, 7, 21, 697810)).status
+______________________ TestFileOpsHandler.test_file_read ______________________
+tests\test_executor_handlers.py:116: in test_file_read
+    assert result.status == "success"
+E   AssertionError: assert 'failed' == 'success'
+E     
+E     - success
+E     + failed
+_____________________ TestFileOpsHandler.test_file_write ______________________
+tests\test_executor_handlers.py:138: in test_file_write
+    assert result.status == "success"
+E   AssertionError: assert 'failed' == 'success'
+E     
+E     - success
+E     + failed
+____________________ TestFileOpsHandler.test_file_snapshot ____________________
+tests\test_executor_handlers.py:161: in test_file_snapshot
+    assert result.status == "success"
+E   AssertionError: assert 'failed' == 'success'
+E     
+E     - success
+E     + failed
+_____________________ TestAPIHandler.test_api_get_request _____________________
+tests\test_executor_handlers.py:216: in test_api_get_request
+    assert result.status in [ActionStatus.SUCCESS, ActionStatus.NETWORK_ERROR, ActionStatus.TIMEOUT]
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\enum.py:437: in __getattr__
+    raise AttributeError(name) from None
+E   AttributeError: NETWORK_ERROR
+__________ TestRemoteTriggerHandler.test_remote_trigger_health_check __________
+tests\test_executor_handlers.py:246: in test_remote_trigger_health_check
+    is_healthy = await remote_handler.health_check()
+E   AttributeError: 'RemoteTriggerHandler' object has no attribute 'health_check'. Did you mean: '_health_check'?
+_____________ TestRemoteTriggerHandler.test_remote_trigger_click ______________
+tests\test_executor_handlers.py:286: in test_remote_trigger_click
+    assert result.status in [ActionStatus.SUCCESS, ActionStatus.UNAVAILABLE]
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\enum.py:437: in __getattr__
+    raise AttributeError(name) from None
+E   AttributeError: UNAVAILABLE
+------------------------------ Captured log call ------------------------------
+WARNING  executor.handlers.remote_trigger:remote_trigger.py:69 [remote_trigger] Claude Code client não configurado
+___________ TestHandlerErrorHandling.test_handler_graceful_timeout ____________
+tests\test_executor_handlers.py:309: in test_handler_graceful_timeout
+    assert result.status in [ActionStatus.TIMEOUT, ActionStatus.FAILED]
+E   AssertionError: assert 'failed' in [<ActionStatus.TIMEOUT: 'timeout'>, <ActionStatus.FAILED: 'failed'>]
+E    +  where 'failed' = ActionResult(step_id='test_timeout', status='failed', output='', error_message='Comando bloqueado por whitelist: sleep 1000', duration_ms=0, cost_usd=0.0, rollback_executed=False, rollback_successful=None, executed_by_goal='remote_executor', executed_at=datetime.datetime(2026, 4, 20, 4, 7, 21, 896740)).status
+___________ TestHandlerErrorHandling.test_handler_invalid_step_type ___________
+tests\test_executor_handlers.py:328: in test_handler_invalid_step_type
+    assert result.status == "failed"
+E   AssertionError: assert 'success' == 'failed'
+E     
+E     - failed
+E     + success
+______________________ test_orchestrator_basic_planning _______________________
+tests\test_executor_orchestrator.py:77: in test_orchestrator_basic_planning
+    plan = await orchestrator.plan_actions(intent)
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+_____________________ test_orchestrator_step_dependencies _____________________
+tests\test_executor_orchestrator.py:93: in test_orchestrator_step_dependencies
+    plan = await orchestrator.plan_actions("test")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+______________________ test_orchestrator_cost_estimation ______________________
+tests\test_executor_orchestrator.py:108: in test_orchestrator_cost_estimation
+    plan = await orchestrator.plan_actions("expensive operation")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+____________________ test_orchestrator_timeout_calculation ____________________
+tests\test_executor_orchestrator.py:120: in test_orchestrator_timeout_calculation
+    plan = await orchestrator.plan_actions("test")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+______________________ test_orchestrator_multi_step_plan ______________________
+tests\test_executor_orchestrator.py:170: in test_orchestrator_multi_step_plan
+    plan = await orchestrator.plan_actions("create backup")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+______________________ test_orchestrator_approval_tiers _______________________
+tests\test_executor_orchestrator.py:183: in test_orchestrator_approval_tiers
+    plan = await orchestrator.plan_actions("test")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+_______________________ test_orchestrator_safety_notes ________________________
+tests\test_executor_orchestrator.py:195: in test_orchestrator_safety_notes
+    plan = await orchestrator.plan_actions("test")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+______________________ test_orchestrator_max_steps_limit ______________________
+tests\test_executor_orchestrator.py:209: in test_orchestrator_max_steps_limit
+    plan = await orchestrator.plan_actions("test")
+src\core\executor\orchestrator.py:28: in plan_actions
+    response = await self.cascade.call(
+E   AttributeError: 'MockCascadeAdapter' object has no attribute 'call'
+------------------------------ Captured log call ------------------------------
+ERROR    executor.orchestrator:orchestrator.py:40 [orchestrator] Planning error: 'MockCascadeAdapter' object has no attribute 'call'
+_______________ TestBashWhitelist.test_bash_unknown_command_l1 ________________
+tests\test_executor_safety.py:106: in test_bash_unknown_command_l1
+    assert decision.approved is True or decision.approval_tier == ApprovalTier.L1_LOGGED
+E   AssertionError: assert (False is True or <ApprovalTier.L0_MANUAL: 'l0_manual'> == <ApprovalTier.L1_LOGGED: 'l1_logged'>)
+E    +  where False = SafetyGateDecision(action_id='test_unknown', approved=False, approval_tier=<ApprovalTier.L0_MANUAL: 'l0_manual'>, reason='Comando bash bloqueado por whitelist: custom_script.sh --flag', evaluated_at=datetime.datetime(2026, 4, 20, 4, 7, 22, 15131), policy_version='1.0').approved
+E    +  and   <ApprovalTier.L0_MANUAL: 'l0_manual'> = SafetyGateDecision(action_id='test_unknown', approved=False, approval_tier=<ApprovalTier.L0_MANUAL: 'l0_manual'>, reason='Comando bash bloqueado por whitelist: custom_script.sh --flag', evaluated_at=datetime.datetime(2026, 4, 20, 4, 7, 22, 15131), policy_version='1.0').approval_tier
+E    +  and   <ApprovalTier.L1_LOGGED: 'l1_logged'> = ApprovalTier.L1_LOGGED
+_____________ TestBudgetEnforcement.test_per_action_budget_limit ______________
+tests\test_executor_safety.py:128: in test_per_action_budget_limit
+    assert "budget" in decision.reason.lower() or "cost" in decision.reason.lower()
+E   AssertionError: assert ('budget' in 'custo 0.30 excede máximo 0.2' or 'cost' in 'custo 0.30 excede máximo 0.2')
+E    +  where 'custo 0.30 excede máximo 0.2' = <built-in method lower of str object at 0x00000233471C9530>()
+E    +    where <built-in method lower of str object at 0x00000233471C9530> = 'Custo 0.30 excede máximo 0.2'.lower
+E    +      where 'Custo 0.30 excede máximo 0.2' = SafetyGateDecision(action_id='expensive_action', approved=False, approval_tier=<ApprovalTier.L0_MANUAL: 'l0_manual'>, reason='Custo 0.30 excede máximo 0.2', evaluated_at=datetime.datetime(2026, 4, 20, 4, 7, 22, 24170), policy_version='1.0').reason
+E    +  and   'custo 0.30 excede máximo 0.2' = <built-in method lower of str object at 0x00000233471C9530>()
+E    +    where <built-in method lower of str object at 0x00000233471C9530> = 'Custo 0.30 excede máximo 0.2'.lower
+E    +      where 'Custo 0.30 excede máximo 0.2' = SafetyGateDecision(action_id='expensive_action', approved=False, approval_tier=<ApprovalTier.L0_MANUAL: 'l0_manual'>, reason='Custo 0.30 excede máximo 0.2', evaluated_at=datetime.datetime(2026, 4, 20, 4, 7, 22, 24170), policy_version='1.0').reason
+____________ TestAFKWindowEnforcement.test_l1_logged_afk_window_6h ____________
+tests\test_executor_safety.py:179: in test_l1_logged_afk_window_6h
+    assert allowed is False  # Excedeu 6h
+E   assert True is False
+____________ TestAFKWindowEnforcement.test_l0_manual_afk_window_5m ____________
+tests\test_executor_safety.py:191: in test_l0_manual_afk_window_5m
+    assert allowed is True
+E   assert False is True
+_______________ TestPolicyViolations.test_sensitive_file_access _______________
+tests\test_executor_safety.py:235: in test_sensitive_file_access
+    assert decision.approval_tier == ApprovalTier.L0_MANUAL or decision.approved is False
+E   AssertionError: assert (<ApprovalTier.L2_SILENT: 'l2_silent'> == <ApprovalTier.L0_MANUAL: 'l0_manual'> or True is False)
+E    +  where <ApprovalTier.L2_SILENT: 'l2_silent'> = SafetyGateDecision(action_id='sensitive_access', approved=True, approval_tier=<ApprovalTier.L2_SILENT: 'l2_silent'>, reason='Aprovado por policy (l2_silent)', evaluated_at=datetime.datetime(2026, 4, 20, 4, 7, 22, 54945), policy_version='1.0').approval_tier
+E    +  and   <ApprovalTier.L0_MANUAL: 'l0_manual'> = ApprovalTier.L0_MANUAL
+E    +  and   True = SafetyGateDecision(action_id='sensitive_access', approved=True, approval_tier=<ApprovalTier.L2_SILENT: 'l2_silent'>, reason='Aprovado por policy (l2_silent)', evaluated_at=datetime.datetime(2026, 4, 20, 4, 7, 22, 54945), policy_version='1.0').approved
+_____________________________ test_daily_next_run _____________________________
+tests\test_scheduler_calculator.py:72: in test_daily_next_run
+    assert next_run.hour == 14
+E   assert 17 == 14
+E    +  where 17 = datetime.datetime(2026, 4, 16, 17, 0).hour
+____________________________ test_weekly_next_run _____________________________
+tests\test_scheduler_calculator.py:91: in test_weekly_next_run
+    assert next_run.hour == 10
+E   assert 13 == 10
+E    +  where 13 = datetime.datetime(2026, 4, 14, 13, 0).hour
+____________________________ test_monthly_next_run ____________________________
+tests\test_scheduler_calculator.py:111: in test_monthly_next_run
+    assert next_run.hour == 9
+E   assert 12 == 9
+E    +  where 12 = datetime.datetime(2026, 4, 15, 12, 0).hour
+____________________________ test_annual_next_run _____________________________
+tests\test_scheduler_calculator.py:131: in test_annual_next_run
+    assert next_run.hour == 0
+E   assert 3 == 0
+E    +  where 3 = datetime.datetime(2026, 12, 25, 3, 0).hour
+_____________________ test_full_wizard_to_execution_flow ______________________
+tests\test_scheduler_integration_e2e.py:65: in test_full_wizard_to_execution_flow
+    msg1 = await telegram_ui.cmd_agendar(chat_id, user_id)
+src\skills\scheduler_conversacional\telegram_interface.py:31: in cmd_agendar
+    prompt = self.wizard._prompt_for_state(session)
+src\skills\scheduler_conversacional\wizard.py:352: in _prompt_for_state
+    title = session.get_collected_value("title", "")
+E   TypeError: WizardSession.get_collected_value() takes 2 positional arguments but 3 were given
+________________ test_idempotency_prevents_duplicate_execution ________________
+tests\test_scheduler_integration_e2e.py:113: in test_idempotency_prevents_duplicate_execution
+    result1 = await dispatcher._execute_task(task)
+src\skills\scheduler_conversacional\dispatcher.py:82: in _execute_task
+    if await self.store.check_idempotency(idempotency_key):
+src\skills\scheduler_conversacional\store.py:251: in check_idempotency
+    async with self.db.execute(sql, (idempotency_key,)) as cur:
+E   AttributeError: __aenter__
+__________________ test_scheduler_with_approval_integration ___________________
+tests\test_scheduler_integration_e2e.py:149: in test_scheduler_with_approval_integration
+    retrieved = await store.get_task(task.id)
+src\skills\scheduler_conversacional\store.py:146: in get_task
+    async with self.db.execute(sql, (task_id,)) as cur:
+E   AttributeError: __aenter__
+____________________ test_multiple_overdue_tasks_dispatch _____________________
+tests\test_scheduler_integration_e2e.py:177: in test_multiple_overdue_tasks_dispatch
+    stats = await dispatcher.dispatch_overdue_tasks()
+src\skills\scheduler_conversacional\dispatcher.py:42: in dispatch_overdue_tasks
+    overdue_tasks = await self.store.find_overdue_tasks()
+src\skills\scheduler_conversacional\store.py:167: in find_overdue_tasks
+    async with self.db.execute(sql, (now,)) as cur:
+E   AttributeError: __aenter__
+_________________________ test_pagination_and_cleanup _________________________
+tests\test_scheduler_integration_e2e.py:200: in test_pagination_and_cleanup
+    count = await store.cleanup_expired_sessions()
+src\skills\scheduler_conversacional\store.py:341: in cleanup_expired_sessions
+    async with self.db.execute(sql, (now,)) as cur:
+E   AttributeError: __aenter__
+______________________ test_telegram_interface_commands _______________________
+tests\test_scheduler_integration_e2e.py:247: in test_telegram_interface_commands
+    msg = await interface.cmd_listar(123)
+src\skills\scheduler_conversacional\telegram_interface.py:36: in cmd_listar
+    tasks = await self.store.list_tasks(chat_id)
+src\skills\scheduler_conversacional\store.py:153: in list_tasks
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+__________________________ test_wizard_collect_title __________________________
+tests\test_scheduler_wizard.py:62: in test_wizard_collect_title
+    success, msg, updated = await wizard.collect_input(123, "Backup diário")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+______________________ test_wizard_collect_schedule_type ______________________
+tests\test_scheduler_wizard.py:80: in test_wizard_collect_schedule_type
+    await wizard.collect_input(123, "Minha tarefa")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+_____________________ test_wizard_collect_schedule_weekly _____________________
+tests\test_scheduler_wizard.py:95: in test_wizard_collect_schedule_weekly
+    await wizard.collect_input(123, "Semanal")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+__________________________ test_wizard_collect_hour ___________________________
+tests\test_scheduler_wizard.py:115: in test_wizard_collect_hour
+    await wizard.collect_input(123, "Tarefa")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+_______________________ test_wizard_collect_instruction _______________________
+tests\test_scheduler_wizard.py:140: in test_wizard_collect_instruction
+    await wizard.collect_input(123, "Tarefa")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+__________________________ test_wizard_confirmation ___________________________
+tests\test_scheduler_wizard.py:157: in test_wizard_confirmation
+    await wizard.collect_input(123, "Backup")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+____________________________ test_wizard_back_step ____________________________
+tests\test_scheduler_wizard.py:188: in test_wizard_back_step
+    await wizard.collect_input(123, "Tarefa")
+src\skills\scheduler_conversacional\wizard.py:69: in collect_input
+    session = await self.get_session(chat_id)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+_____________________________ test_wizard_cancel ______________________________
+tests\test_scheduler_wizard.py:207: in test_wizard_cancel
+    session = await wizard.get_session(123)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+___________________________ test_wizard_expiration ____________________________
+tests\test_scheduler_wizard.py:221: in test_wizard_expiration
+    retrieved = await wizard.get_session(123)
+src\skills\scheduler_conversacional\wizard.py:49: in get_session
+    session = await self.store.get_wizard_session(chat_id)
+src\skills\scheduler_conversacional\store.py:307: in get_wizard_session
+    async with self.db.execute(sql, (chat_id,)) as cur:
+E   AttributeError: __aenter__
+============================== warnings summary ===============================
+C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\google\api_core\_python_version_support.py:275
+  C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\google\api_core\_python_version_support.py:275: FutureWarning: You are using a Python version (3.10.11) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+    warnings.warn(message, FutureWarning)
+
+src\skills\vision\vlm_cloud_fallback.py:8
+  E:\Seeker.Bot\src\skills\vision\vlm_cloud_fallback.py:8: FutureWarning: 
+  
+  All support for the `google.generativeai` package has ended. It will no longer be receiving 
+  updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+  See README for more details:
+  
+  https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+  
+    import google.generativeai as genai
+
+tests/test_scheduler_integration_e2e.py::test_idempotency_prevents_duplicate_execution
+  E:\Seeker.Bot\src\skills\scheduler_conversacional\store.py:251: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with self.db.execute(sql, (idempotency_key,)) as cur:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_scheduler_integration_e2e.py::test_scheduler_with_approval_integration
+  E:\Seeker.Bot\src\skills\scheduler_conversacional\store.py:146: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with self.db.execute(sql, (task_id,)) as cur:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_scheduler_integration_e2e.py::test_multiple_overdue_tasks_dispatch
+  E:\Seeker.Bot\src\skills\scheduler_conversacional\store.py:167: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with self.db.execute(sql, (now,)) as cur:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_scheduler_integration_e2e.py::test_pagination_and_cleanup
+  E:\Seeker.Bot\src\skills\scheduler_conversacional\store.py:341: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with self.db.execute(sql, (now,)) as cur:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_scheduler_integration_e2e.py::test_telegram_interface_commands
+  E:\Seeker.Bot\src\skills\scheduler_conversacional\store.py:153: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with self.db.execute(sql, (chat_id,)) as cur:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/test_scheduler_wizard.py::test_wizard_collect_title
+tests/test_scheduler_wizard.py::test_wizard_collect_schedule_type
+tests/test_scheduler_wizard.py::test_wizard_collect_schedule_weekly
+tests/test_scheduler_wizard.py::test_wizard_collect_hour
+tests/test_scheduler_wizard.py::test_wizard_collect_instruction
+tests/test_scheduler_wizard.py::test_wizard_confirmation
+tests/test_scheduler_wizard.py::test_wizard_back_step
+tests/test_scheduler_wizard.py::test_wizard_cancel
+tests/test_scheduler_wizard.py::test_wizard_expiration
+  E:\Seeker.Bot\src\skills\scheduler_conversacional\store.py:307: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    async with self.db.execute(sql, (chat_id,)) as cur:
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_fallback_vlm_assignment
+  C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\httpx\_client.py:1412: RuntimeWarning: coroutine 'TestScoutHunter2_0_E2E.test_scout_hunter_full_pipeline_e2e.<locals>.mock_execute_research' was never awaited
+    self._mounts: dict[URLPattern, AsyncBaseTransport | None] = {
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/vision/test_glm_ocr_client.py::TestGlmOcrClientInitialization::test_fallback_vlm_assignment
+  C:\Users\Victor\AppData\Local\Programs\Python\Python310\lib\site-packages\httpx\_client.py:1412: RuntimeWarning: coroutine 'TestScoutHunter2_0_E2E.test_scout_hunter_full_pipeline_e2e.<locals>.mock_execute_enrich' was never awaited
+    self._mounts: dict[URLPattern, AsyncBaseTransport | None] = {
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_executor_handlers.py::TestBashHandler::test_bash_with_timeout
+FAILED tests/test_executor_handlers.py::TestFileOpsHandler::test_file_read - ...
+FAILED tests/test_executor_handlers.py::TestFileOpsHandler::test_file_write
+FAILED tests/test_executor_handlers.py::TestFileOpsHandler::test_file_snapshot
+FAILED tests/test_executor_handlers.py::TestAPIHandler::test_api_get_request
+FAILED tests/test_executor_handlers.py::TestRemoteTriggerHandler::test_remote_trigger_health_check
+FAILED tests/test_executor_handlers.py::TestRemoteTriggerHandler::test_remote_trigger_click
+FAILED tests/test_executor_handlers.py::TestHandlerErrorHandling::test_handler_graceful_timeout
+FAILED tests/test_executor_handlers.py::TestHandlerErrorHandling::test_handler_invalid_step_type
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_basic_planning
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_step_dependencies
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_cost_estimation
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_timeout_calculation
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_multi_step_plan
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_approval_tiers
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_safety_notes - ...
+FAILED tests/test_executor_orchestrator.py::test_orchestrator_max_steps_limit
+FAILED tests/test_executor_safety.py::TestBashWhitelist::test_bash_unknown_command_l1
+FAILED tests/test_executor_safety.py::TestBudgetEnforcement::test_per_action_budget_limit
+FAILED tests/test_executor_safety.py::TestAFKWindowEnforcement::test_l1_logged_afk_window_6h
+FAILED tests/test_executor_safety.py::TestAFKWindowEnforcement::test_l0_manual_afk_window_5m
+FAILED tests/test_executor_safety.py::TestPolicyViolations::test_sensitive_file_access
+FAILED tests/test_scheduler_calculator.py::test_daily_next_run - assert 17 == 14
+FAILED tests/test_scheduler_calculator.py::test_weekly_next_run - assert 13 =...
+FAILED tests/test_scheduler_calculator.py::test_monthly_next_run - assert 12 ...
+FAILED tests/test_scheduler_calculator.py::test_annual_next_run - assert 3 == 0
+FAILED tests/test_scheduler_integration_e2e.py::test_full_wizard_to_execution_flow
+FAILED tests/test_scheduler_integration_e2e.py::test_idempotency_prevents_duplicate_execution
+FAILED tests/test_scheduler_integration_e2e.py::test_scheduler_with_approval_integration
+FAILED tests/test_scheduler_integration_e2e.py::test_multiple_overdue_tasks_dispatch
+FAILED tests/test_scheduler_integration_e2e.py::test_pagination_and_cleanup
+FAILED tests/test_scheduler_integration_e2e.py::test_telegram_interface_commands
+FAILED tests/test_scheduler_wizard.py::test_wizard_collect_title - AttributeE...
+FAILED tests/test_scheduler_wizard.py::test_wizard_collect_schedule_type - At...
+FAILED tests/test_scheduler_wizard.py::test_wizard_collect_schedule_weekly - ...
+FAILED tests/test_scheduler_wizard.py::test_wizard_collect_hour - AttributeEr...
+FAILED tests/test_scheduler_wizard.py::test_wizard_collect_instruction - Attr...
+FAILED tests/test_scheduler_wizard.py::test_wizard_confirmation - AttributeEr...
+FAILED tests/test_scheduler_wizard.py::test_wizard_back_step - AttributeError...
+FAILED tests/test_scheduler_wizard.py::test_wizard_cancel - AttributeError: _...
+FAILED tests/test_scheduler_wizard.py::test_wizard_expiration - AttributeErro...
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_successful_on_first_tier
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_fallback_on_failure
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_multiple_fallbacks
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_degraded_mode_fallback
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_metrics_tracking
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_health_status
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_cost_analysis
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_role_determines_start_tier
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_call_history
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_timeout_per_tier
+ERROR tests/test_cascade_adapter.py::TestCascadeAdapter::test_cascade_latency_measurement
+ERROR tests/test_pipeline_intent.py::TestIntentCardClassification::test_classify_information_intent
+ERROR tests/test_pipeline_intent.py::TestIntentCardClassification::test_classify_action_intent
+ERROR tests/test_pipeline_intent.py::TestIntentCardClassification::test_classify_maintenance_intent
+ERROR tests/test_pipeline_intent.py::TestHighRiskBlocking::test_blocks_delete_action
+ERROR tests/test_pipeline_intent.py::TestHighRiskBlocking::test_blocks_irreversible_actions
+ERROR tests/test_pipeline_intent.py::TestLowRiskActions::test_low_risk_classification
+ERROR tests/test_pipeline_intent.py::TestLowRiskActions::test_analysis_low_risk
+ERROR tests/test_pipeline_intent.py::TestIntentCardLogging::test_intent_card_generates_log_entry
+ERROR tests/test_pipeline_intent.py::TestIntentCardLogging::test_blocked_action_has_reasoning
+ERROR tests/test_pipeline_intent.py::TestIntentPermissions::test_information_permissions
+ERROR tests/test_pipeline_intent.py::TestIntentPermissions::test_action_permissions
+ERROR tests/test_pipeline_intent.py::TestIntentPermissions::test_high_risk_requires_approval
+ERROR tests/test_pipeline_intent.py::TestPipelineIntegration::test_pipeline_has_intent_classifier
+ERROR tests/test_pipeline_intent.py::TestPipelineIntegration::test_blocked_action_early_return
+ERROR tests/test_pipeline_intent.py::TestConfidenceAndReasoning::test_maintenance_high_confidence
+ERROR tests/test_pipeline_intent.py::TestConfidenceAndReasoning::test_unknown_low_confidence
+ERROR tests/test_pipeline_intent.py::TestConfidenceAndReasoning::test_reasoning_explains_classification
+===== 41 failed, 594 passed, 9 skipped, 18 warnings, 28 errors in 16.39s ======

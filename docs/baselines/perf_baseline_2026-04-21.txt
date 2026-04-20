@@ -1,0 +1,10 @@
+Total samples: 687
+Min: 272ms | Max: 27510ms
+Mean: 4916ms
+P50: 1033ms
+P95: 15989ms
+P99: 26064ms
+
+Tier distribution:
+  tier2_groq: 686 (99.9%)
+  tier1_nvidia: 1 (0.1%)
