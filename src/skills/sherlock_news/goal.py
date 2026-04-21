@@ -125,10 +125,12 @@ class SherlockNewsGoal:
             ])
 
             # 3. Análise com LLM usando cascade
+            from src.providers.cascade import CascadeRole
             analysis_prompt = SYSTEM_PROMPT.format(targets=targets_str)
             user_message = f"{search_query}\n\nResultados:\n{search_snippet}"
 
             result = await self.pipeline.cascade_adapter.call(
+                role=CascadeRole.FAST,
                 messages=[
                     {"role": "system", "content": analysis_prompt},
                     {"role": "user", "content": user_message}

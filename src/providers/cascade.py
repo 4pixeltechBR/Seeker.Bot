@@ -93,7 +93,7 @@ class CascadeAdapter:
         self._failures = {}
         self._last_failure_time = {}
         self._failure_threshold = 3
-        self._recovery_time = 60.0  # segundos
+        self._recovery_time = 300.0  # 5 min de penalidade antes de tentar novamente
 
     def start_health_checks(self) -> None:
         """

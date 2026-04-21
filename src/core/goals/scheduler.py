@@ -665,6 +665,11 @@ class GoalNotifier:
             cleanr = re.compile('<.*?>')
             return re.sub(cleanr, '', raw_html)
 
+        def sanitize_telegram_html(text: str) -> str:
+            """Remove <email@domain> patterns que o Telegram interpreta como tags invalidas."""
+            # Substitui <qualquer-coisa-com-@> por versao escapada
+            return re.sub(r'<([^>]*@[^>]*)>', r'&lt;\1&gt;', text)
+
         for uid in self.admin_chats:
             try:
                 # Se tiver PDF, doc longo ou bytes de foto
@@ -674,6 +679,9 @@ class GoalNotifier:
                 pdf_path = (data or {}).get("pdf_path", "")
                 photo_bytes = (data or {}).get("photo_bytes", None)
                 reply_markup = (data or {}).get("reply_markup", None)  # Inline keyboard (se houver)
+
+                # Sanitiza o conteudo HTML antes de qualquer envio
+                content = sanitize_telegram_html(content)
 
                 # Constrói reply_markup se data contém buttons (ex: de approval notifications)
                 if not reply_markup and (data or {}).get("buttons"):

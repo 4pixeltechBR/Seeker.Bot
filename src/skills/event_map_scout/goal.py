@@ -6,118 +6,117 @@ Coordena a varredura contínua de cidades.
 """
 
 import logging
-from typing import Optional, Dict, Any, List
 
-from src.core.goals.protocol import AutonomousGoal, GoalBudget, GoalStatus, NotificationChannel
+from src.core.goals.protocol import AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel
 from src.core.pipeline import SeekerPipeline
 from src.skills.event_map_scout.scout import EventMapEngine
 
 log = logging.getLogger("seeker.event_map.goal")
 
-class EventMapGoal(AutonomousGoal):
+class EventMapGoal:
     """
     Goal que varre uma cidade da fila por dia e envia o mapa gerado para o usuário.
+    Segue o protocolo AutonomousGoal: run_cycle() sem argumentos.
     """
-    def __init__(self):
+    def __init__(self, pipeline: SeekerPipeline):
+        self.pipeline = pipeline
         self._status = GoalStatus.IDLE
         self._budget = GoalBudget(max_per_cycle_usd=0.50, max_daily_usd=1.00)
-
-    @property
-    def id(self) -> str:
-        return "event_map_scout"
 
     @property
     def name(self) -> str:
         return "Event Map Scout"
 
     @property
-    def description(self) -> str:
-        return "Mapeamento cirúrgico preditivo de eventos B2B por município."
-
-    @property
     def interval_seconds(self) -> int:
         return 86400  # 1 vez por dia
-
-    @property
-    def execution_window(self) -> tuple[int, int]:
-        return (7, 10)  # Roda entre 7h e 10h da manhã
 
     @property
     def budget(self) -> GoalBudget:
         return self._budget
 
     @property
-    def channels(self) -> list[NotificationChannel]:
+    def channels(self) -> list:
         return [NotificationChannel.TELEGRAM]
 
     def get_status(self) -> GoalStatus:
         return self._status
 
-    async def execute(self, pipeline: SeekerPipeline) -> Optional[Dict[str, Any]]:
-        engine = EventMapEngine(pipeline)
-        
-        # Puxa a proxima cidade da fila
-        async with pipeline.memory._db.execute(
-            "SELECT cidade, estado FROM city_scan_queue WHERE status = 'pending' LIMIT 1"
-        ) as cur:
-            row = await cur.fetchone()
-            
-        if not row:
-            log.info("[event_map_goal] Nenhuma cidade pendente na fila.")
-            return {"status": "skipped", "reason": "empty_queue"}
-            
-        cidade, estado = row
-        log.info(f"[event_map_goal] Iniciando cidade da fila: {cidade} - {estado}")
-        
-        # Marca como processando
-        await pipeline.memory._db.execute(
-            "UPDATE city_scan_queue SET status='scanning' WHERE cidade=? AND estado=?",
-            (cidade, estado)
-        )
-        await pipeline.memory._db.commit()
-        
-        # Executa o Mapeamento
-        result = await engine.scan_city(cidade, estado)
-        
-        # Marca como concluido
-        await pipeline.memory._db.execute(
-            "UPDATE city_scan_queue SET status='done', last_scanned=CURRENT_TIMESTAMP WHERE cidade=? AND estado=?",
-            (cidade, estado)
-        )
-        await pipeline.memory._db.commit()
-        
-        total_unique = result.get('total_unique', 0)
-        pdf_path = result.get('pdf_path', '')
-        
-        mensagem = (
-            f"🎯 <b>Event Map Scout Finalizado!</b>\n\n"
-            f"🗺️ <b>Cidade:</b> {cidade} - {estado}\n"
-            f"🔍 <b>Eventos Preditivos Salvos:</b> {total_unique}\n\n"
-            f"O Dossiê PDF foi gerado."
-        )
-        
-        # Notifica no Telegram
-        telegram_bot = getattr(pipeline, 'telegram', None)
-        if telegram_bot:
-            try:
-                chat_id = telegram_bot.admin_chat_id
-                if pdf_path:
-                    await pipeline.telegram.send_document(
-                        chat_id=chat_id,
-                        document_path=pdf_path,
-                        caption=mensagem,
-                        parse_mode="HTML"
-                    )
-                else:
-                    await pipeline.telegram.send_message(
-                        chat_id=chat_id,
-                        text=mensagem,
-                        parse_mode="HTML"
-                    )
-            except Exception as e:
-                log.error(f"Erro ao enviar PDF pro Telegram: {e}")
-                
-        return result
+    def serialize_state(self) -> dict:
+        return {}
 
-def create_goal(pipeline: SeekerPipeline = None) -> AutonomousGoal:
-    return EventMapGoal()
+    def load_state(self, state: dict) -> None:
+        pass
+
+    async def run_cycle(self) -> GoalResult:
+        """Ciclo principal: pega a próxima cidade da fila e gera o mapa."""
+        engine = EventMapEngine(self.pipeline)
+        self._status = GoalStatus.RUNNING
+
+        try:
+            # Puxa a proxima cidade da fila
+            async with self.pipeline.memory._db.execute(
+                "SELECT cidade, estado FROM city_scan_queue WHERE status = 'pending' LIMIT 1"
+            ) as cur:
+                row = await cur.fetchone()
+
+            if not row:
+                log.info("[event_map_goal] Nenhuma cidade pendente na fila.")
+                self._status = GoalStatus.IDLE
+                return GoalResult(
+                    success=True,
+                    summary="Nenhuma cidade pendente na fila do Event Map Scout.",
+                    cost_usd=0.0,
+                )
+
+            cidade, estado = row
+            log.info(f"[event_map_goal] Iniciando cidade da fila: {cidade} - {estado}")
+
+            # Marca como processando
+            await self.pipeline.memory._db.execute(
+                "UPDATE city_scan_queue SET status='scanning' WHERE cidade=? AND estado=?",
+                (cidade, estado)
+            )
+            await self.pipeline.memory._db.commit()
+
+            # Executa o Mapeamento
+            scan = await engine.scan_city(cidade, estado)
+
+            # Marca como concluido
+            await self.pipeline.memory._db.execute(
+                "UPDATE city_scan_queue SET status='done', last_scanned=CURRENT_TIMESTAMP WHERE cidade=? AND estado=?",
+                (cidade, estado)
+            )
+            await self.pipeline.memory._db.commit()
+
+            total_unique = scan.get('total_unique', 0)
+            pdf_path = scan.get('pdf_path', '')
+
+            notification = (
+                f"<b>Event Map Scout Finalizado!</b>\n\n"
+                f"<b>Cidade:</b> {cidade} - {estado}\n"
+                f"<b>Eventos Preditivos Salvos:</b> {total_unique}\n\n"
+                f"O Dossie PDF foi gerado."
+            )
+
+            self._status = GoalStatus.IDLE
+            return GoalResult(
+                success=True,
+                summary=f"Mapeamento de {cidade}-{estado} concluido: {total_unique} eventos.",
+                notification=notification,
+                data={"pdf_path": pdf_path, "cidade": cidade, "estado": estado},
+                cost_usd=0.0,
+            )
+
+        except Exception as e:
+            log.error(f"[event_map_goal] Falha critica: {e}", exc_info=True)
+            self._status = GoalStatus.ERROR
+            return GoalResult(
+                success=False,
+                summary=f"Falha no Event Map Scout: {e}",
+                cost_usd=0.0,
+            )
+
+
+def create_goal(pipeline: SeekerPipeline = None) -> "EventMapGoal":
+    return EventMapGoal(pipeline)
