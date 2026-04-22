@@ -704,8 +704,32 @@ class GoalNotifier:
                     await self.bot.send_photo(uid, photo, caption=safe_caption, reply_markup=reply_markup)
                 else:
                     if len(content) > 4000:
-                        content_safe = clean_html(content)[:4000] + "\n\n(Aviso: Mensagem longa truncada)"
-                        await self.bot.send_message(uid, content_safe, reply_markup=reply_markup)
+                        parts = []
+                        remaining = content
+                        while remaining:
+                            if len(remaining) <= 4000:
+                                parts.append(remaining)
+                                break
+                            # Try to split at double newline, or single newline
+                            cut = remaining.rfind("\n\n", 0, 4000)
+                            if cut == -1 or cut < 2000:
+                                cut = remaining.rfind("\n", 0, 4000)
+                            if cut == -1 or cut < 2000:
+                                cut = 4000
+                                
+                            parts.append(remaining[:cut].rstrip())
+                            remaining = remaining[cut:].lstrip()
+                            
+                        for i, part in enumerate(parts):
+                            markup = reply_markup if i == len(parts) - 1 else None
+                            try:
+                                await self.bot.send_message(uid, part, parse_mode=ParseMode.HTML, reply_markup=markup)
+                            except Exception as e:
+                                if "can't parse entities" in str(e).lower() or "html" in str(e).lower():
+                                    log.warning(f"Fallback to plain text for chunk {i} due to HTML parse error: {e}")
+                                    await self.bot.send_message(uid, clean_html(part), reply_markup=markup)
+                                else:
+                                    raise e
                     else:
                         await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
             except Exception as e:

@@ -775,8 +775,8 @@ class ScoutEngine:
                 if bant_score >= 70:
                     results["qualified"] += 1
 
-                    # Step 3: Copy contextual
-                    copy_text = await self._generate_copy_advanced(lead)
+                    # Step 3: Copy contextual (DESATIVADO por solicitação do usuário)
+                    copy_text = None # await self._generate_copy_advanced(lead)
 
                     # Update DB com BANT score + copy
                     sql = """
@@ -796,13 +796,13 @@ class ScoutEngine:
                         bant_reasoning,
                         "high_priority" if bant_score >= 85 else "medium",
                         "aprovado",
-                        copy_text[:2000] if copy_text else None,
+                        None, # copy_text[:2000] if copy_text else None,
                         lead.get("name", "Unknown"),
                         datetime.now().isoformat(),
                         lead_id
                     ))
 
-                    results["written"] += 1
+                    # results["written"] += 1 # Não incrementamos mais written se não geramos copy
 
                 else:
                     results["rejected"] += 1
@@ -1144,8 +1144,8 @@ class ScoutEngine:
                 await self.memory._db.execute(
                     """
                     INSERT INTO scout_leads
-                    (campaign_id, name, company, role, industry, location, source_url, bio_summary, phone)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (campaign_id, name, company, role, industry, location, source_url, bio_summary, phone, instagram, buying_signal)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         campaign_id,
@@ -1157,6 +1157,8 @@ class ScoutEngine:
                         lead.get("source_url", ""),
                         lead.get("bio_summary", ""),
                         lead.get("phone", ""),
+                        lead.get("instagram"),
+                        lead.get("buying_signal"),
                     )
                 )
                 saved += 1

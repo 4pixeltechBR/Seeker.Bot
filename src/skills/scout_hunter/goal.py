@@ -141,7 +141,7 @@ class ScoutHunter(AutonomousGoal):
                 dashboard = await self.scout.get_campaign_dashboard(campaign_id)
 
                 # Build notification
-                if results["written"] > 0:
+                if results["qualified"] > 0:
                     notification = self._build_notification(
                         campaign_id, region, niche, results, dashboard
                     )
@@ -149,7 +149,7 @@ class ScoutHunter(AutonomousGoal):
                     self._status = GoalStatus.IDLE
                     return GoalResult(
                         success=True,
-                        summary=f"{results['written']} qualified leads with copy ready",
+                        summary=f"{results['qualified']} qualified leads identified",
                         notification=notification,
                         cost_usd=cycle_cost,
                         data=cycle_data,
@@ -200,30 +200,25 @@ class ScoutHunter(AutonomousGoal):
 
         metrics = ScoutHunterMetricsComputer.compute_from_db(campaign_data)
 
-        header = f"<b>🎯 SCOUT HUNTER 2.0 — {niche.upper()} em {region.upper()}</b>\n\n"
+        header = f"<b>🎯 SCOUT HUNTER 2.0</b>\n"
+        header += f"📍 <b>{region.upper()}</b> | 🏷️ <b>{niche.upper()}</b>\n\n"
 
         # Phase-by-phase breakdown
-        phases = (
-            f"<b>📊 PIPELINE (5 FASES):</b>\n"
-            f"1️⃣ Scrape: {metrics.leads_scraped} leads\n"
-            f"2️⃣ Enrich: {metrics.leads_enriched} ({metrics.enrichment_rate:.0%})\n"
-            f"2.5️⃣ Fit Score: {metrics.leads_evaluated_discovery_matrix} avaliados (avg {metrics.avg_fit_score:.0f}/100)\n"
-            f"2.75️⃣ Account Research: {metrics.accounts_researched} empresas, {metrics.decision_makers_found_total} decisores\n"
-            f"3️⃣ BANT Qualified: {metrics.leads_qualified_bant} leads (avg {metrics.avg_bant_score:.0f}/100)\n\n"
-        )
+        phases = f"<b>📊 FUNIL DE VENDAS:</b>\n"
+        phases += f"🔹 <b>Fase 1 (Scrape):</b> {metrics.leads_scraped} leads encontrados\n"
+        phases += f"🔹 <b>Fase 2 (Enrich):</b> {metrics.leads_enriched} enriquecidos ({metrics.enrichment_rate:.0%})\n"
+        phases += f"🔹 <b>Fase 3 (Fit):</b> {metrics.leads_evaluated_discovery_matrix} avaliados (Média: {metrics.avg_fit_score:.0f}/100)\n"
+        phases += f"🔹 <b>Fase 4 (Research):</b> {metrics.accounts_researched} empresas analisadas\n"
+        phases += f"🔹 <b>Fase 5 (BANT):</b> {metrics.leads_qualified_bant} qualificados\n\n"
 
-        quality = (
-            f"<b>⭐ QUALIDADE:</b>\n"
-            f"✅ High Priority: {metrics.high_priority_leads} leads\n"
-            f"📝 Copy Gerado: {metrics.copy_generated}\n"
-            f"📈 Taxa Qualificação: {metrics.qualification_rate:.1%}\n"
-        )
+        quality = f"<b>⭐ QUALIDADE & LEADS:</b>\n"
+        quality += f"✅ <b>High Priority:</b> {metrics.high_priority_leads} leads\n"
+        quality += f"📈 <b>Taxa Conversão:</b> {metrics.qualification_rate:.1%}\n"
+        quality += f"👤 <b>Decisores:</b> {metrics.decision_makers_found_total} encontrados\n"
 
-        footer = (
-            f"\n<b>💰 Custo:</b> ${metrics.total_cost_usd:.3f} USD\n"
-            f"<b>🔗 Campanha:</b> <code>{campaign_id[:12]}</code>\n"
-            f"Use <code>/scout-leads {campaign_id}</code> para detalhes."
-        )
+        footer = f"\n<b>💰 INVESTIMENTO:</b> ${metrics.total_cost_usd:.3f} USD\n"
+        footer += f"<b>🆔 ID:</b> <code>{campaign_id[:12]}</code>\n\n"
+        footer += f"👉 <i>Use /scout-leads {campaign_id} para ver a lista.</i>"
 
         return header + phases + quality + footer
 

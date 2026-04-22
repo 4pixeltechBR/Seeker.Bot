@@ -43,13 +43,14 @@ from src.providers.cascade import CascadeAdapter
 from src.core.rl import RewardCollector, StateEncoder, SeekerState, CascadeBandit, BanditMode
 from src.core.batch_operations import BatchOperationsManager
 from src.core.metrics import Sprint11Tracker
-from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context
+from src.core.memory.hierarchy import score_fact, format_4layer_context
 from src.core.profiling.profiler import SystemProfiler
 from src.core.profiling.exporter import PrometheusExporter
 from src.core.error_recovery import ErrorRecoveryManager
 from src.core.budget import RastreadorCustos
 from src.core.data import ArmazemDados, Indexador, GerenciadorRetencao
 from src.core.analytics import DashboardFinanceiro, Forecaster, Reporter
+from src.core.memory.obsidian import ObsidianExporter
 
 log = logging.getLogger("seeker.pipeline")
 
@@ -142,6 +143,10 @@ class SeekerPipeline:
             limite_diario_usd=10.0,
             limite_mensal_usd=200.0,
         )
+
+        # Obsidian Exporter
+        vault_path = os.getenv("OBSIDIAN_VAULT_PATH")
+        self.obsidian_exporter = ObsidianExporter(self.memory, vault_path) if vault_path else None
 
         # Data Manager — armazenamento eficiente de fatos semânticos
         data_db_path = os.path.join(
@@ -735,57 +740,54 @@ class SeekerPipeline:
     # ─────────────────────────────────────────────────────────
 
     async def _build_memory_context(self, user_input: str) -> tuple[str, int]:
-        """Constrói contexto de memória com prioridade hierárquica.
+        """Constrói contexto de memória usando o 4-Layer Stack.
 
-        Retorna (memory_prompt, facts_used) onde facts_used é a contagem
-        de fatos semânticos injetados no contexto desta resposta.
+        L0: Identity (constante)
+        L1: Essential (top N fatos por score)
+        L2: On-Demand (busca semântica híbrida BM25+Vector)
+        L3: Search (fallback textual se semântica falhar)
+
+        Retorna (memory_prompt, facts_used).
         """
-        # Busca fatos
-        facts = await self.memory.get_facts(min_confidence=0.3, limit=20)
+        # L1: Essential — todos os fatos, priorizados por score
+        facts = await self.memory.get_facts(min_confidence=0.3, limit=50)
+        scored = [(score_fact(f), f) for f in facts]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        essential = [f for _, f in scored[:10]]
+        facts_used = len(essential)
 
-        # Busca semântica
-        semantic_matches = None
-        if self.semantic_search:
-            semantic_matches = await self.semantic_search.find_similar_facts(
+        # L2: On-Demand — busca semântica híbrida (BM25 + Vector)
+        search_results = []
+        if self.semantic_search and user_input:
+            search_results = await self.semantic_search.find_similar_facts(
                 user_input, top_k=5, min_similarity=0.35
             )
+            # Deduplica contra L1
+            seen = {f.get('fact', '') for f in essential}
+            search_results = [sr for sr in search_results if sr.get('fact', '') not in seen]
+            facts_used += len(search_results)
 
-        # Mescla fatos + matches semânticos antes de priorizar
-        all_facts = list(facts) if facts else []
-        if semantic_matches:
-            seen = {f.get('fact', '') for f in all_facts}
-            for sm in semantic_matches:
-                if sm.get('fact', '') not in seen:
-                    all_facts.append(sm)
-
-        # Prioriza por camada hierárquica
-        prioritized = prioritize_facts(all_facts, limit=15)
-        facts_used = len(prioritized)
-
-        # Formata com prioridade
-        memory_prompt = format_hierarchical_context(prioritized, limit=15)
-
-        # Adiciona episódios recentes (não afetados pela hierarquia)
-        episodes = await self.memory.get_recent_episodes(limit=5)
-        if episodes:
-            ep_lines = ["\n=== INTERAÇÕES RECENTES ==="]
-            for ep in episodes:
-                icon = {"reflex": "⚡", "deliberate": "🧠", "deep": "🔬"}.get(ep["depth"], "")
-                ep_lines.append(f"{icon} {ep['user_input'][:100]}")
-                if ep["response_summary"]:
-                    ep_lines.append(f"   → {ep['response_summary'][:100]}")
-            memory_prompt += "\n".join(ep_lines)
-
-        # Fatos relevantes por busca textual (fallback se semântica falhar)
-        if not semantic_matches and user_input:
+        # L3: Fallback textual se semântica não encontrou nada
+        if not search_results and user_input:
             relevant = await self.memory.search_facts(user_input, limit=5)
-            seen_ids = {f.get("fact_id") for f in prioritized}
-            new_facts = [f for f in relevant if f.get("id", -1) not in seen_ids]
-            if new_facts:
-                memory_prompt += "\n=== FATOS RELEVANTES (busca textual) ==="
-                for f in new_facts:
-                    memory_prompt += f"\n[{f['confidence']:.0%}] {f['fact']}"
-                facts_used += len(new_facts)
+            seen_ids = {f.get('id') for f in essential}
+            search_results = [f for f in relevant if f.get('id', -1) not in seen_ids]
+            facts_used += len(search_results)
+
+        # Auditoria Temporal (Verificação de fatos obsoletos)
+        audit_context = await self.memory.get_verification_context()
+
+        # Episódios recentes (continuidade conversacional)
+        episodes = await self.memory.get_recent_episodes(limit=5)
+
+        memory_prompt = format_4layer_context(
+            essential_facts=essential,
+            on_demand_facts=search_results if search_results else None,
+            episodes=episodes if episodes else None,
+        )
+        
+        if audit_context:
+            memory_prompt += f"\n\n{audit_context}"
 
         return memory_prompt, facts_used
 
@@ -807,8 +809,37 @@ class SeekerPipeline:
                 session_id, "assistant", result.response[:2000]
             )
 
-            # Extrai fatos
-            facts, summary = await self.extractor.extract(user_input, result.response)
+            # Extrai fatos e relacionamentos estruturados (Knowledge Graph)
+            extraction = await self.extractor.extract(user_input, result.response)
+            facts = extraction.get("facts", [])
+            entities = extraction.get("entities", [])
+            triples = extraction.get("triples", [])
+            summary = extraction.get("summary", "")
+
+            # Salva Entidades
+            for ent in entities:
+                try:
+                    await self.memory.add_entity(
+                        name=ent["name"],
+                        entity_type=ent.get("type", "unknown"),
+                        properties=ent.get("props")
+                    )
+                except Exception:
+                    pass
+
+            # Salva Triplas
+            for t in triples:
+                try:
+                    await self.memory.add_triple(
+                        subject=t["subject"],
+                        predicate=t["predicate"],
+                        object_=t["object"],
+                        valid_from=t.get("valid_from"),
+                        confidence=t.get("confidence", 1.0),
+                        adapter_name=result.routing_reason[:50]
+                    )
+                except Exception:
+                    pass
 
             # Salva fatos + embeddings (sem commit individual)
             for f in facts:
@@ -819,7 +850,7 @@ class SeekerPipeline:
                     source="extracted",
                     _batch=True,
                 )
-                # Indexa embedding do novo fato (persistido no SQLite)
+                # Indexa embedding do novo fato
                 if self.semantic_search and fact_id > 0:
                     try:
                         await self.semantic_search.add(fact_id, f["fact"])
@@ -842,8 +873,12 @@ class SeekerPipeline:
                 _batch=True,
             )
 
-            # Commit único para todo o _post_process (Sprint 11.3 — Batch Consolidation)
+            # Commit único para todo o _post_process
             await self.memory.commit()
+
+            # Sincroniza Knowledge Graph com Obsidian (Fase 3)
+            if self.obsidian_exporter:
+                asyncio.create_task(self.obsidian_exporter.sync_all())
 
             # Registra latência e consolidação no Sprint 11 Tracker (Fase 4)
             self.sprint11_tracker.record_latency(result.total_latency_ms)

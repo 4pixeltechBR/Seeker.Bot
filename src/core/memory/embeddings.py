@@ -312,13 +312,10 @@ class SemanticSearch:
         min_similarity: float = 0.3,
     ) -> list[dict]:
         """
-        Encontra fatos semanticamente similares à query.
-        Retorna lista de dicts com fact data + similarity score.
-        
-        Método de compatibilidade — o pipeline usa este.
-        Internamente delega pra find_similar() + hydration dos fatos.
+        Encontra fatos semanticamente similares à query usando busca HÍBRIDA.
+        Combina Vector Search (Gemini) + BM25 Re-ranker.
         """
-        similar_ids = await self.find_similar(query, top_k, min_similarity)
+        similar_ids = await self.find_similar(query, top_k * 2, min_similarity) # Over-fetch
         if not similar_ids:
             # Fallback pra LIKE
             log.debug("[semantic] Nenhum match semântico, usando LIKE")
@@ -328,11 +325,16 @@ class SemanticSearch:
         all_facts = await self.memory.get_facts(min_confidence=0.0, limit=9999)
         fact_map = {f["id"]: f for f in all_facts}
 
-        results = []
+        candidates = []
         for fact_id, similarity in similar_ids:
             if fact_id in fact_map:
                 fact = dict(fact_map[fact_id])
                 fact["similarity"] = round(similarity, 3)
-                results.append(fact)
+                candidates.append(fact)
 
-        return results
+        # Re-ranking Híbrido (BM25 + Vector)
+        from src.core.memory.bm25 import hybrid_rank
+        ranked = hybrid_rank(candidates, query, vector_weight=0.6, bm25_weight=0.4)
+        
+        log.debug(f"[semantic] Hybrid search: {len(ranked)} resultados (top hybrid_score: {ranked[0]['hybrid_score'] if ranked else 0})")
+        return ranked[:top_k]
