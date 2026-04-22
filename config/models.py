@@ -133,6 +133,17 @@ NVIDIA_DEEPSEEK_V32 = ModelConfig(
     rpm_limit=40,
 )
 
+NVIDIA_GEMMA_4_31B = ModelConfig(
+    provider="nvidia",
+    model_id="google/gemma-4-31b-it",
+    display_name="Gemma 4 31B (NIM)",
+    max_tokens=4096,
+    context_window=32_000,  # NIM suporta a janela estendida do Gemma
+    supports_tool_use=True,
+    training_data_cutoff="2026-02",
+    rpm_limit=40,
+)
+
 
 # ─────────────────────────────────────────────────────────────────────
 # GEMINI — FREE TIER
@@ -252,6 +263,18 @@ OLLAMA_QWEN = ModelConfig(
     rpm_limit=0,  # Sem limite — é local
 )
 
+OLLAMA_GEMMA_4 = ModelConfig(
+    provider="ollama",
+    model_id="gemma4:9b",  # Ajuste conforme a tag que você importou no Ollama
+    display_name="Gemma 4 (local)",
+    max_tokens=4096,
+    context_window=32_000,
+    supports_streaming=False,
+    supports_tool_use=True,
+    training_data_cutoff="2026-02",
+    rpm_limit=0,
+)
+
 
 # ─────────────────────────────────────────────────────────────────────
 # ROTEAMENTO PADRÃO
@@ -259,67 +282,70 @@ OLLAMA_QWEN = ModelConfig(
 
 def build_default_router() -> ModelRouter:
     """
-    NVIDIA NIM é o novo workhorse (40 RPM, sem limite diário).
+    Roteamento reavaliado pós-teste de carga (15 goals paralelos).
+    Nvidia NIM (Nemotron) sofreu timeouts crônicos (>25s) no cold start.
+    Groq sofreu 429 imediato pela alta concorrência.
+    Gemini 3.1 Flash Lite foi o único que segurou o tranco (com retries 503).
 
-    FAST (alta frequência):
-      → Nemotron Super 49B (40 RPM, grátis, qualidade alta)
-      → Groq Llama 4 (30 RPM, ultravelocidade)
-      → Gemini 3.1 Flash Lite (15 RPM, 500 RPD)
+    FAST (alta frequência / extração):
+      → Gemini 3.1 Flash Lite (Suportou carga paralela incrivelmente bem)
+      → Groq Llama 4 (Para requisições espaçadas/isoladas)
+      → DeepSeek V3.2 via NIM (NIM DeepSeek costuma ser mais rápido que o Nemotron)
 
     DEEP (qualidade + contexto longo):
-      → Gemini 3 Flash (1M contexto)
-      → Nemotron Ultra 253B (modelo mais pesado grátis)
-      → DeepSeek Chat (backup pago)
+      → DeepSeek V3.2 via NIM (40 RPM, excelente lógica)
+      → Gemini 3 Flash (Free tier limitado, 5 RPM)
+      → Nemotron Ultra 253B (Pesado, timeouts frequentes, bom como último recurso free)
+      → DeepSeek Chat (Pago, infalível)
 
     ADVERSARIAL (reasoning, red team):
-      → Nemotron Ultra 253B (253B params, grátis!)
-      → DeepSeek Reasoner (thinking-in-tool-use, pago)
+      → NVIDIA QwQ 32B (Raciocínio nativo, rápido no NIM)
+      → DeepSeek Reasoner (Pago, melhor do mercado)
       → Gemini 3 Flash
 
     SYNTHESIS (relatório final):
-      → Nemotron Super 49B (equilíbrio qualidade/velocidade)
-      → Gemini 3.1 Flash Lite (volume)
-      → DeepSeek Chat (backup)
+      → Gemini 3.1 Flash Lite
+      → NVIDIA DeepSeek V3.2
+      → DeepSeek Chat
 
-    JUDGE (verificação independente — modelo DIFERENTE do executor):
-      → Gemini 3 Flash (dataset Google)
-      → Mistral (dataset europeu)
-      → Groq Llama 4 (dataset Meta)
-
-    EMBEDDING:
-      → Gemini Embedding 2 (100 RPM, 1K/dia grátis)
+    JUDGE (verificação independente):
+      → Gemini 3 Flash
+      → Groq Llama 4
+      → Mistral
     """
     return ModelRouter(routes={
         CognitiveRole.FAST: [
-            GROQ_LLAMA,
-            NVIDIA_NEMOTRON_SUPER,
             GEMINI_31_FLASH_LITE,
+            GROQ_LLAMA,
+            NVIDIA_DEEPSEEK_V32,
         ],
         CognitiveRole.LOCAL: [
+            OLLAMA_GEMMA_4,
             OLLAMA_QWEN,
-            NVIDIA_NEMOTRON_SUPER,  # Fallback cloud se Ollama estiver down
+            GEMINI_31_FLASH_LITE,
         ],
         CognitiveRole.DEEP: [
-            NVIDIA_NEMOTRON_ULTRA,      # 1º: gratuito, 253B params, 40 RPM
-            NVIDIA_QWQ_32B,              # 2º: gratuito, raciocínio profundo, 40 RPM
-            NVIDIA_DEEPSEEK_V32,         # 3º: gratuito via NIM, excelente em código, 40 RPM
-            DEEPSEEK_CHAT,               # 4º: pago ($0.28/$0.42), último recurso
-            GEMINI_3_FLASH,              # 5º: free tier limitado (5 RPM/20 RPD)
+            NVIDIA_DEEPSEEK_V32,
+            GEMINI_3_FLASH,
+            NVIDIA_NEMOTRON_ULTRA,
+            DEEPSEEK_CHAT,
         ],
         CognitiveRole.ADVERSARIAL: [
-            NVIDIA_NEMOTRON_ULTRA,
+            NVIDIA_GEMMA_4_31B,  # Perspectiva "Google" sem gastar cota do Gemini API
+            NVIDIA_QWQ_32B,
             DEEPSEEK_REASONER,
             GEMINI_3_FLASH,
         ],
         CognitiveRole.SYNTHESIS: [
-            NVIDIA_NEMOTRON_SUPER,
             GEMINI_31_FLASH_LITE,
+            NVIDIA_DEEPSEEK_V32,
             DEEPSEEK_CHAT,
         ],
         CognitiveRole.JUDGE: [
+            NVIDIA_GEMMA_4_31B,  # O melhor árbitro divergente e denso
             GEMINI_3_FLASH,
-            MISTRAL_FREE,
             GROQ_LLAMA,
+            MISTRAL_FREE,
         ],
         CognitiveRole.EMBEDDING: [
             GEMINI_EMBEDDING_2,
