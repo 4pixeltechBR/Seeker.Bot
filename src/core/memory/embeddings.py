@@ -187,7 +187,7 @@ class SemanticSearch:
             await self.load()
 
         facts = await self.memory.get_facts(min_confidence=0.0, limit=9999)
-        to_embed = [f for f in facts if f["id"] not in self._vectors]
+        to_embed = [f for f in facts if f["id"] not in self._vector_ids]
 
         if not to_embed:
             return

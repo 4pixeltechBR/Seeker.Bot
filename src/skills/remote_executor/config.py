@@ -11,7 +11,7 @@ class RemoteExecutorConfig:
     """Configuração centralizada do Remote Executor."""
 
     # Scheduling
-    INTERVAL_SECONDS = 60  # Polling interval para checks de approval queue, etc
+    INTERVAL_SECONDS = 180  # Polling interval para checks de approval queue, etc
     APPROVAL_TIMEOUT_SECONDS = 300  # 5 min para user responder aprovação
     APPROVAL_MAX_RETRIES = 3  # Quantas vezes re-enviar notificação antes de timeout
 

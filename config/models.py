@@ -291,8 +291,8 @@ def build_default_router() -> ModelRouter:
     """
     return ModelRouter(routes={
         CognitiveRole.FAST: [
-            NVIDIA_NEMOTRON_SUPER,
             GROQ_LLAMA,
+            NVIDIA_NEMOTRON_SUPER,
             GEMINI_31_FLASH_LITE,
         ],
         CognitiveRole.LOCAL: [

@@ -95,16 +95,16 @@ class CascadeAdapter:
         self._failure_threshold = 3
         self._recovery_time = 300.0  # 5 min de penalidade antes de tentar novamente
 
-    def start_health_checks(self) -> None:
+    async def start_health_checks(self, **kwargs) -> None:
         """
         No-op compatibility stub.
 
         The advanced CascadeAdapter (cascade_advanced.py) runs background
         health checks. The simple adapter doesn't — just a compatibility shim.
         """
-        return None
+        pass
 
-    def stop_health_checks(self) -> None:
+    def stop_health_checks(self, **kwargs) -> None:
         """
         No-op compatibility stub.
 
@@ -113,7 +113,8 @@ class CascadeAdapter:
         adapter has no such task, but bot.py shutdown unconditionally calls
         this method, so we expose it as a no-op to preserve a unified API.
         """
-        return None
+        pass
+
 
     def _is_circuit_open(self, provider: str) -> bool:
         """Verifica se provider está em circuit breaker."""
