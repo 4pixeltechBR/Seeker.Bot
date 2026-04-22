@@ -27,6 +27,8 @@ from src.providers.cascade import CascadeRole
 from src.skills.scout_hunter.discovery_matrix import DiscoveryMatrix
 from src.skills.scout_hunter.account_research import AccountResearcher
 from src.core.evidence import EvidenceEntry, get_evidence_store
+from src.core.search.web import WebSearcher
+from src.core.search.headless import HeadlessScraper
 
 log = logging.getLogger("seeker.scout")
 
@@ -110,6 +112,12 @@ class ScoutEngine:
         self.cascade = cascade_adapter
         self.model_router = model_router
         self.api_keys = api_keys
+
+        self.web_searcher = WebSearcher(
+            tavily_key=api_keys.get("TAVILY_API_KEY", ""),
+            brave_key=api_keys.get("BRAVE_API_KEY", "")
+        )
+        self.headless = HeadlessScraper()
 
         self._campaign_cache = {}
 
@@ -204,7 +212,7 @@ class ScoutEngine:
 
         # 1. Google Maps
         try:
-            maps_leads = self._scrape_google_maps(region, niche)
+            maps_leads = await self._scrape_google_maps(region, niche)
             all_leads.extend(maps_leads)
             source_stats["google_maps"] = len(maps_leads)
             log.info(f"[scout] Google Maps: {len(maps_leads)} leads")
@@ -214,7 +222,7 @@ class ScoutEngine:
 
         # 2. Sympla
         try:
-            sympla_leads = self._scrape_sympla(region, niche)
+            sympla_leads = await self._scrape_sympla(region, niche)
             all_leads.extend(sympla_leads)
             source_stats["sympla"] = len(sympla_leads)
             log.info(f"[scout] Sympla: {len(sympla_leads)} leads")
@@ -224,7 +232,7 @@ class ScoutEngine:
 
         # 3. Instagram (via Google)
         try:
-            insta_leads = self._scrape_instagram_public(region, niche)
+            insta_leads = await self._scrape_instagram_public(region, niche)
             all_leads.extend(insta_leads)
             source_stats["instagram"] = len(insta_leads)
             log.info(f"[scout] Instagram: {len(insta_leads)} leads")
@@ -235,7 +243,7 @@ class ScoutEngine:
         # 4. Casamentos.com.br (wedding niche)
         if niche in ("eventos", "casamento", "wedding"):
             try:
-                casamentos_leads = self._scrape_casamentos(region)
+                casamentos_leads = await self._scrape_casamentos(region)
                 all_leads.extend(casamentos_leads)
                 source_stats["casamentos_com_br"] = len(casamentos_leads)
                 log.info(f"[scout] Casamentos: {len(casamentos_leads)} leads")
@@ -245,7 +253,7 @@ class ScoutEngine:
 
         # 5. Google OSINT (decision makers)
         try:
-            osint_leads = self._scrape_google_osint(region, niche)
+            osint_leads = await self._scrape_google_osint(region, niche)
             all_leads.extend(osint_leads)
             source_stats["google_osint"] = len(osint_leads)
             log.info(f"[scout] OSINT: {len(osint_leads)} leads")
@@ -255,7 +263,7 @@ class ScoutEngine:
 
         # 6. Event Calendar (future events radar)
         try:
-            calendar_leads = self._scrape_event_calendar(region, niche)
+            calendar_leads = await self._scrape_event_calendar(region, niche)
             all_leads.extend(calendar_leads)
             source_stats["calendario"] = len(calendar_leads)
             log.info(f"[scout] Calendar: {len(calendar_leads)} leads")
@@ -290,106 +298,114 @@ class ScoutEngine:
             "elapsed_seconds": round(elapsed, 1),
         }
 
-    def _scrape_google_maps(self, region: str, niche: str) -> List[Dict]:
-        """Mock implementation for Google Maps scraping."""
-        # In production, would use browser automation (Playwright/Selenium)
-        log.debug(f"[scout] Google Maps: Searching for '{niche}' in '{region}'")
-        return [
-            {
-                "name": f"Lead Maps {region} #{i}",
-                "company": f"Empresa {i}",
+    async def _scrape_google_maps(self, region: str, niche: str) -> List[Dict]:
+        """Real implementation for Google Maps via Web Search."""
+        query = f'"{niche}" "{region}" google maps'
+        res = await self.web_searcher.search(query, max_results=10)
+        leads = []
+        for r in res.results:
+            leads.append({
+                "name": r.title,
+                "company": r.title,
                 "location": region,
                 "role": "Estabelecimento",
                 "industry": niche,
-                "source_url": "https://maps.google.com",
-                "bio_summary": f"Negócio de {niche} em {region}",
-            }
-            for i in range(3)
-        ]
+                "source_url": r.url,
+                "bio_summary": r.snippet,
+            })
+        return leads
 
-    def _scrape_sympla(self, region: str, niche: str) -> List[Dict]:
-        """Mock implementation for Sympla (event organizers)."""
-        log.debug(f"[scout] Sympla: Searching for '{niche}' events in '{region}'")
-        return [
-            {
-                "name": f"Organizador Sympla {region} #{i}",
-                "company": f"Evento {niche} {i}",
+    async def _scrape_sympla(self, region: str, niche: str) -> List[Dict]:
+        """Real implementation for Sympla via Web Search."""
+        query = f'site:sympla.com.br "{niche}" "{region}"'
+        res = await self.web_searcher.search(query, max_results=10)
+        leads = []
+        for r in res.results:
+            leads.append({
+                "name": r.title,
+                "company": r.title,
                 "location": region,
                 "role": "Organizador de Eventos",
                 "industry": niche,
-                "source_url": "https://sympla.com.br",
-                "bio_summary": f"Produtor de eventos de {niche}",
-            }
-            for i in range(2)
-        ]
+                "source_url": r.url,
+                "bio_summary": r.snippet,
+            })
+        return leads
 
-    def _scrape_instagram_public(self, region: str, niche: str) -> List[Dict]:
-        """Mock implementation for Instagram (public profiles via Google)."""
-        log.debug(f"[scout] Instagram: Searching for public profiles in '{region}'")
-        return [
-            {
-                "name": f"@insta_{region.lower()}_{i}",
-                "company": f"Criador {niche} {region}",
+    async def _scrape_instagram_public(self, region: str, niche: str) -> List[Dict]:
+        """Real implementation for Instagram via Web Search."""
+        query = f'site:instagram.com "{niche}" "{region}"'
+        res = await self.web_searcher.search(query, max_results=10)
+        leads = []
+        for r in res.results:
+            # Extract handle if possible
+            handle = None
+            if "instagram.com/" in r.url:
+                handle = r.url.split("instagram.com/")[1].split("/")[0].split("?")[0]
+            
+            leads.append({
+                "name": r.title,
+                "company": r.title,
                 "location": region,
                 "role": "Perfil Instagram",
                 "industry": niche,
-                "instagram": f"@insta_{region.lower()}_{i}",
-                "source_url": f"https://instagram.com/insta_{region.lower()}_{i}",
-                "bio_summary": f"Especializado em {niche}",
-            }
-            for i in range(2)
-        ]
+                "instagram": f"@{handle}" if handle else None,
+                "source_url": r.url,
+                "bio_summary": r.snippet,
+            })
+        return leads
 
-    def _scrape_casamentos(self, region: str) -> List[Dict]:
-        """Mock implementation for Casamentos.com.br (wedding professionals)."""
-        log.debug(f"[scout] Casamentos: Searching wedding professionals in '{region}'")
-        return [
-            {
-                "name": f"Cerimonialista {region} #{i}",
-                "company": f"Assessoria de Casamento {i}",
+    async def _scrape_casamentos(self, region: str) -> List[Dict]:
+        """Real implementation for Casamentos.com.br via Web Search."""
+        query = f'site:casamentos.com.br "cerimonialista" "{region}"'
+        res = await self.web_searcher.search(query, max_results=10)
+        leads = []
+        for r in res.results:
+            leads.append({
+                "name": r.title,
+                "company": r.title,
                 "location": region,
                 "role": "Cerimonialista",
                 "industry": "casamento",
-                "source_url": "https://casamentos.com.br",
-                "bio_summary": f"Assessoria de casamentos em {region}",
-                "phone": f"(62) 999{1000 + i}-{1000 + i}",
-            }
-            for i in range(2)
-        ]
+                "source_url": r.url,
+                "bio_summary": r.snippet,
+            })
+        return leads
 
-    def _scrape_google_osint(self, region: str, niche: str) -> List[Dict]:
-        """Mock implementation for Google OSINT (decision makers by role)."""
-        log.debug(f"[scout] OSINT: Searching decision makers for '{niche}' in '{region}'")
-        roles = ["RH", "Diretor", "Produtor", "Gerente de Eventos", "Coordenador"]
-        return [
-            {
-                "name": f"{role} {region} #{i}",
-                "company": f"Empresa {niche} {i}",
+    async def _scrape_google_osint(self, region: str, niche: str) -> List[Dict]:
+        """Real implementation for Google OSINT via Web Search."""
+        query = f'"{niche}" "{region}" ("RH" OR "Diretor" OR "Sócio" OR "Marketing")'
+        res = await self.web_searcher.search(query, max_results=10)
+        leads = []
+        for r in res.results:
+            leads.append({
+                "name": r.title,
+                "company": r.title,
                 "location": region,
-                "role": role,
+                "role": "Decisor (OSINT)",
                 "industry": niche,
-                "source_url": "https://google.com/search",
-                "bio_summary": f"{role} responsável por {niche}",
-            }
-            for i, role in enumerate(roles[:3])
-        ]
+                "source_url": r.url,
+                "bio_summary": r.snippet,
+            })
+        return leads
 
-    def _scrape_event_calendar(self, region: str, niche: str, days_ahead: int = 180) -> List[Dict]:
-        """Mock implementation for future events calendar."""
-        log.debug(f"[scout] Calendar: Searching future {niche} events in '{region}' (next {days_ahead} days)")
-        return [
-            {
-                "name": f"Evento Futuro {niche} #{i}",
-                "company": f"Organizador {niche} {i}",
+    async def _scrape_event_calendar(self, region: str, niche: str, days_ahead: int = 180) -> List[Dict]:
+        """Real implementation for future events calendar via Web Search."""
+        query = f'"{niche}" "{region}" "eventos 2026" "programação" "shows"'
+        res = await self.web_searcher.search(query, max_results=10)
+        leads = []
+        for r in res.results:
+            leads.append({
+                "name": r.title,
+                "company": r.title,
                 "location": region,
                 "role": "Organizador (evento futuro)",
                 "industry": niche,
-                "source_url": "https://google.com/search",
-                "bio_summary": f"Planejando evento de {niche}",
-                "buying_signal": f"Evento agendado para os próximos {days_ahead} dias",
-            }
-            for i in range(2)
-        ]
+                "source_url": r.url,
+                "bio_summary": r.snippet,
+                "buying_signal": f"Identificado em busca de eventos 2026",
+            })
+        return leads
 
     # ──────────────────────────────────────────────────────────
     # PHASE 2: ENRICHMENT
@@ -445,12 +461,12 @@ class ScoutEngine:
 
         # 1. Website extraction
         if lead.get("source_url") and "instagram" not in lead.get("source_url", "").lower():
-            website_data = self._extract_from_website(lead)
+            website_data = await self._extract_from_website(lead)
             enriched.update(website_data)
 
         # 2. Instagram extraction
         if lead.get("instagram"):
-            insta_data = self._extract_from_instagram(lead)
+            insta_data = await self._extract_from_instagram(lead)
             for k, v in insta_data.items():
                 if k not in enriched or not enriched[k]:
                     enriched[k] = v
@@ -466,22 +482,34 @@ class ScoutEngine:
             "data": enriched,
         }
 
-    def _extract_from_website(self, lead: Dict) -> Dict[str, Any]:
-        """Extract contact info from website."""
-        # Mock implementation
-        enriched = {}
-        if lead.get("source_url") and "maps.google.com" not in lead.get("source_url"):
-            enriched["website"] = lead.get("source_url")
-            enriched["email_address"] = f"contato@{lead.get('company', 'empresa').lower().replace(' ', '')}.com"
-        return enriched
+    async def _extract_from_website(self, lead: Dict) -> Dict[str, Any]:
+        """Extract contact info from website using Headless Scraper."""
+        url = lead.get("source_url")
+        if not url or "maps.google.com" in url:
+            return {}
+            
+        res = await self.headless.extract_contacts_from_url(url)
+        return {
+            "website": url,
+            "email_address": res.get("email"),
+            "whatsapp": res.get("whatsapp"),
+            "bio_summary": res.get("bio_raw"),
+        }
 
-    def _extract_from_instagram(self, lead: Dict) -> Dict[str, Any]:
-        """Extract bio and links from Instagram profile."""
-        enriched = {}
-        if lead.get("instagram"):
-            enriched["instagram"] = lead.get("instagram")
-            enriched["bio_summary"] = lead.get("bio_summary", "")
-        return enriched
+    async def _extract_from_instagram(self, lead: Dict) -> Dict[str, Any]:
+        """Extract bio and links from Instagram profile using Headless Scraper."""
+        handle = lead.get("instagram")
+        if not handle:
+            return {}
+            
+        res = await self.headless.extract_contacts_from_instagram(handle)
+        return {
+            "instagram": handle,
+            "whatsapp": res.get("whatsapp"),
+            "email_address": res.get("email"),
+            "website": res.get("site"),
+            "bio_summary": res.get("bio_raw"),
+        }
 
     def _lookup_cnpj(self, lead: Dict) -> Dict[str, Any]:
         """Lookup Brazilian business registry."""

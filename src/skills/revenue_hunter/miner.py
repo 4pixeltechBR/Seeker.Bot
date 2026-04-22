@@ -94,7 +94,7 @@ class RevenueMiner:
         from datetime import date
         current_year = date.today().year
 
-        query = f'"{regiao}" "{evento}" "{trigger}" {current_year}'
+        query = f'{evento} {regiao} {trigger} {current_year}'
         log.info(f"[hunter] Minerando: {query}")
 
         # ── FASE 1: Discovery ──────────────────────────────
