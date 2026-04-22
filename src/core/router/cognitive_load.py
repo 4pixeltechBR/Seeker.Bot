@@ -32,14 +32,21 @@ class CognitiveDepth(str, Enum):
     DEEP       = "deep"        # 3+ LLM calls — pipeline completo
 
 
+class ExecutionMode(str, Enum):
+    INTERACTIVE = "interactive"  # Foco em latência (Telegram)
+    HEADLESS    = "headless"     # Foco em qualidade (Curadoria, Background)
+
+
 @dataclass(frozen=True)
 class RoutingDecision:
     """Resultado do roteamento cognitivo."""
     depth: CognitiveDepth
     reason: str
+    execution_mode: ExecutionMode = ExecutionMode.INTERACTIVE
     god_mode: bool = False
     forced_module: str | None = None
     needs_web: bool = False            # Independente da profundidade
+    needs_vault: bool = False          # Indica se deve buscar no Obsidian
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -101,9 +108,16 @@ WEB_TRIGGERS = re.compile(
     r"existe\b|ainda\s+existe|já\s+saiu|"
     r"morreu|faleceu|eleito|nomeado|demitido|"
     r"placar|resultado\s+do\s+jogo|score|"
-    r"cotação|dólar|bitcoin|bolsa|"
-    r"notícia|news|breaking",
+    r"clima|tempo\s*lá\s*fora|cotação|preço|valor\s*da\s*ação|"
+    r"notícia|aconteceu|google\s|pesquisa|busca\s",
     re.IGNORECASE,
+)
+
+# Vault triggers — perguntas que envolvem o cofre do Obsidian
+VAULT_TRIGGERS = re.compile(
+    r"no cofre|no obsidian|nas notas|minhas anotações|meu segundo cérebro|"
+    r"o que eu anotei|pesquisa nas notas|busca no obsidian",
+    re.IGNORECASE
 )
 
 # Módulos detectáveis por keyword (ajuda o Kernel a pular detecção)
@@ -170,20 +184,23 @@ class CognitiveLoadRouter:
         # RoutingDecision(depth=DEEP, reason="deep trigger: migrar", god_mode=False)
     """
 
-    def route(self, text: str) -> RoutingDecision:
+    def route(self, text: str, mode: ExecutionMode = ExecutionMode.INTERACTIVE) -> RoutingDecision:
         """Classifica profundidade E necessidade de web, independentemente."""
 
         text_stripped = text.strip()
 
         # Detecta necessidade de web ANTES da profundidade
         needs_web = bool(WEB_TRIGGERS.search(text_stripped))
+        needs_vault = bool(VAULT_TRIGGERS.search(text_stripped))
 
         # ── Perguntas de sistema: tempo, data ─────────────
         if SYSTEM_ANSWERABLE.search(text_stripped):
             return RoutingDecision(
                 depth=CognitiveDepth.REFLEX,
                 reason="pergunta de sistema (data/hora)",
+                execution_mode=mode,
                 needs_web=False,
+                needs_vault=needs_vault,
                 forced_module="system_time",
             )
 
@@ -193,8 +210,10 @@ class CognitiveLoadRouter:
             return RoutingDecision(
                 depth=CognitiveDepth.DEEP,
                 reason=f"god mode trigger: '{trigger}'",
+                execution_mode=mode,
                 god_mode=True,
                 needs_web=True,  # God Mode sempre busca
+                needs_vault=True, # God Mode também olha o cofre
             )
 
         # ── Reflex: input curto e padrão reconhecido ──────────
@@ -202,7 +221,9 @@ class CognitiveLoadRouter:
             return RoutingDecision(
                 depth=CognitiveDepth.REFLEX,
                 reason="padrão reflex reconhecido",
+                execution_mode=mode,
                 needs_web=False,  # Reflex nunca busca
+                needs_vault=needs_vault,
             )
 
         # ── Input muito curto sem trigger → REFLEX ────────────
@@ -212,7 +233,9 @@ class CognitiveLoadRouter:
             return RoutingDecision(
                 depth=CognitiveDepth.REFLEX,
                 reason=f"input curto ({words} palavras), sem deep triggers",
+                execution_mode=mode,
                 needs_web=False,
+                needs_vault=needs_vault,
             )
 
         # ── Deep: triggers explícitos ─────────────────────────
@@ -222,8 +245,10 @@ class CognitiveLoadRouter:
             return RoutingDecision(
                 depth=CognitiveDepth.DEEP,
                 reason=f"deep trigger: '{deep_match.group()}'",
+                execution_mode=mode,
                 forced_module=module,
                 needs_web=True,  # Deep sempre busca
+                needs_vault=needs_vault,
             )
 
         # ── Heurísticas de complexidade ───────────────────────
@@ -263,21 +288,32 @@ class CognitiveLoadRouter:
             return RoutingDecision(
                 depth=CognitiveDepth.DEEP,
                 reason=f"alta complexidade ({', '.join(complexity_reasons)})",
+                execution_mode=mode,
                 forced_module=module,
                 needs_web=True,
+                needs_vault=needs_vault,
             )
         elif complexity_score >= 1 or words > 10:
+            # Em modo HEADLESS, complexidade moderada pode ser tratada como DEEP
+            # para forçar o loop de refinamento
+            target_depth = CognitiveDepth.DELIBERATE
+            if mode == ExecutionMode.HEADLESS and complexity_score >= 2:
+                target_depth = CognitiveDepth.DEEP
+                
             return RoutingDecision(
-                depth=CognitiveDepth.DELIBERATE,
+                depth=target_depth,
                 reason=f"complexidade moderada ({', '.join(complexity_reasons or ['input médio'])})",
+                execution_mode=mode,
                 forced_module=module,
-                needs_web=needs_web,  # Web se detectou trigger factual
+                needs_web=needs_web,
+                needs_vault=needs_vault,
             )
 
-        # ── Default conservador: DELIBERATE ───────────────────
+        # ── Default conservador ───────────────────
         return RoutingDecision(
             depth=CognitiveDepth.DELIBERATE,
             reason="default conservador",
+            execution_mode=mode,
             forced_module=module,
             needs_web=needs_web,
         )

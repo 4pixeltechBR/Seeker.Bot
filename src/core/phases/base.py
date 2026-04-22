@@ -23,7 +23,9 @@ class PhaseContext:
     memory_prompt: str
     session_context: str = ""
     afk_protocol: any = None
+    execution_mode: str = "interactive"
     intent_card: "IntentCard | None" = None  # Para segurança + auditoria
+    vault_context: str = ""
 
 
 @dataclass

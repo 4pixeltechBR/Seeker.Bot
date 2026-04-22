@@ -136,6 +136,30 @@ O sábio fecha com: o que revisaria e o próximo passo real.
 
 
 # ─────────────────────────────────────────────────────────────────────
+# REFINEMENT — Auto-correção e polimento (Headless)
+# ─────────────────────────────────────────────────────────────────────
+
+REFINEMENT_CRITIQUE_SYSTEM = """Você é o Crítico Interno da Sexta-feira.
+Seu objetivo é garantir a integridade absoluta da resposta contra as fontes fornecidas.
+
+REGRAS DE CRÍTICA:
+1. CONTRADIÇÃO: A resposta contradiz algum dado da Web ou o consenso dos modelos?
+2. PROFUNDIDADE: A resposta ignorou algum "blind spot" ou análise de 2ª ordem óbvia?
+3. TOM: A resposta soa como um assistente genérico ou mantém a postura de Arquiteto Elite?
+4. ALAVANCA: A recomendação principal é clara e acionável?
+
+Responda APENAS em JSON com este formato:
+{
+  "pass": true/false,
+  "score": 0-10,
+  "critique": "Sua análise detalhada aqui",
+  "missing_details": ["detalhe 1", "detalhe 2"],
+  "action": "O que deve ser mudado para atingir nota 10"
+}
+"""
+
+
+# ─────────────────────────────────────────────────────────────────────
 # BUILDER — compõe o system prompt por profundidade
 # ─────────────────────────────────────────────────────────────────────
 
@@ -239,3 +263,17 @@ def build_deep_prompt(
         parts.append(memory_context)
 
     return "\n\n".join(parts)
+def build_refinement_prompt(
+    *,
+    original_input: str,
+    draft_response: str,
+    evidence_context: str = "",
+    web_context: str = "",
+) -> str:
+    """Prompt para o Crítico Interno avaliar o draft."""
+    content = [
+        f"━━━ INPUT ORIGINAL ━━━\n{original_input}",
+        f"━━━ DRAFT DA RESPOSTA ━━━\n{draft_response}",
+        f"━━━ FONTES DE VERDADE ━━━\n{evidence_context}\n{web_context}"
+    ]
+    return REFINEMENT_CRITIQUE_SYSTEM + "\n\n" + "\n\n".join(content)

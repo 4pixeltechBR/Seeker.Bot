@@ -19,7 +19,7 @@ import logging
 
 from config.models import ModelRouter, CognitiveRole
 from src.core.phases.base import PhaseContext, PhaseResult
-from src.core.cognition.prompts import build_deep_prompt
+from src.core.cognition.prompts import build_deep_prompt, build_refinement_prompt
 from src.core.evidence.arbitrage import EvidenceArbitrage, ArbitrageResult
 from src.core.search.web import WebSearcher
 from src.core.utils import parse_llm_json
@@ -106,43 +106,99 @@ class DeepPhase:
         if ctx.decision.forced_module:
             module_ctx = f"\nMódulo: {ctx.decision.forced_module}"
 
-        system = build_deep_prompt(
-            evidence_context=evidence,
-            web_context=web_context,
-            module_context=module_ctx,
-            memory_context=ctx.memory_prompt,
-            session_context=ctx.session_context,
-            god_mode=ctx.decision.god_mode,
-        )
+        refinement_loops = 0
+        max_refinement = 2 if ctx.execution_mode == "headless" else 0
+        current_response_text = ""
+        critique_context = ""
 
-        try:
-            response = await asyncio.wait_for(
-                invoke_with_fallback(
-                    role=CognitiveRole.ADVERSARIAL if ctx.decision.god_mode else CognitiveRole.SYNTHESIS,
+        while refinement_loops <= max_refinement:
+            system = build_deep_prompt(
+                evidence_context=evidence,
+                web_context=web_context,
+                module_context=module_ctx + critique_context,
+                memory_context=ctx.memory_prompt,
+                session_context=ctx.session_context,
+                god_mode=ctx.decision.god_mode,
+            )
+
+            try:
+                response = await asyncio.wait_for(
+                    invoke_with_fallback(
+                        role=CognitiveRole.ADVERSARIAL if ctx.decision.god_mode else CognitiveRole.SYNTHESIS,
+                        request=LLMRequest(
+                            messages=[{"role": "user", "content": ctx.user_input}],
+                            system=system,
+                            max_tokens=6000,
+                            temperature=0.2 if refinement_loops == 0 else 0.4, # Aumenta temp no refinement
+                        ),
+                        router=self.router,
+                        api_keys=self.api_keys,
+                    ),
+                    timeout=60.0
+                )
+                total_cost += response.cost_usd
+                llm_calls += 1
+                current_response_text = response.text
+
+                # Se não for headless ou já atingiu o limite, para aqui
+                if ctx.execution_mode != "headless" or refinement_loops >= max_refinement:
+                    break
+
+                # ── Loop de Refinamento (Headless Only) ──────
+                log.info(f"[deep] Auto-Refinamento: Loop {refinement_loops + 1}/{max_refinement}...")
+                critique_prompt = build_refinement_prompt(
+                    original_input=ctx.user_input,
+                    draft_response=current_response_text,
+                    evidence_context=evidence,
+                    web_context=web_context
+                )
+
+                critique_resp = await invoke_with_fallback(
+                    role=CognitiveRole.JUDGE,
                     request=LLMRequest(
-                        messages=[{"role": "user", "content": ctx.user_input}],
-                        system=system,
-                        max_tokens=6000,
-                        temperature=0.2,
+                        messages=[{"role": "user", "content": critique_prompt}],
+                        max_tokens=1000,
+                        temperature=0.0
                     ),
                     router=self.router,
-                    api_keys=self.api_keys,
-                ),
-                timeout=60.0
-            )
-            total_cost += response.cost_usd
-            llm_calls += 1
-        except asyncio.TimeoutError:
-            log.error("[deep] Síntese principal sofreu timeout (60s)", exc_info=True)
-            return PhaseResult(
-                response="[Seeker] Pipeline abortado por timeout na fase de síntese.",
-                cost_usd=total_cost,
-                llm_calls=llm_calls,
-                arbitrage=arb,
-            )
-        except Exception as e:
-            log.error(f"[deep] Síntese principal falhou fatalmente: {e}", exc_info=True)
-            raise
+                    api_keys=self.api_keys
+                )
+                total_cost += critique_resp.cost_usd
+                llm_calls += 1
+
+                try:
+                    critique_json = parse_llm_json(critique_resp.text)
+                    if critique_json.get("pass") is True and critique_json.get("score", 0) >= 9:
+                        log.info(f"[deep] Refinamento aprovado com nota {critique_json.get('score')}. Saindo do loop.")
+                        break
+                    
+                    log.info(f"[deep] Refinamento necessário (Nota {critique_json.get('score')}: {critique_json.get('action')})")
+                    critique_context = (
+                        f"\n\n━━━ CRÍTICA INTERNA (Refinamento {refinement_loops + 1}) ━━━\n"
+                        f"Problemas encontrados: {critique_json.get('critique')}\n"
+                        f"Ação corretiva: {critique_json.get('action')}\n"
+                        f"Favor integrar as melhorias acima na versão final."
+                    )
+                    refinement_loops += 1
+                except Exception as e:
+                    log.warning(f"[deep] Falha ao parsear crítica: {e}. Abortando refinamento.")
+                    break
+
+            except asyncio.TimeoutError:
+                log.error("[deep] Síntese/Refinamento sofreu timeout (60s)", exc_info=True)
+                if not current_response_text:
+                    return PhaseResult(
+                        response="[Seeker] Pipeline abortado por timeout na fase de síntese.",
+                        cost_usd=total_cost,
+                        llm_calls=llm_calls,
+                        arbitrage=arb,
+                    )
+                break
+            except Exception as e:
+                log.error(f"[deep] Síntese principal falhou fatalmente: {e}", exc_info=True)
+                raise
+
+        response_to_verify = current_response_text
 
         # ── Fase 4: Verification Gate ────────────────────────
         log.info("[deep] Fase 4: Verification Gate...")
@@ -155,7 +211,7 @@ class DeepPhase:
             verdict = await asyncio.wait_for(
                 self.gate.verify(
                     user_input=ctx.user_input,
-                    response_text=response.text,
+                    response_text=response_to_verify,
                     evidence_context=all_evidence,
                 ),
                 timeout=20.0
@@ -165,7 +221,7 @@ class DeepPhase:
             if self.gate.should_warn(verdict):
                 warning = verdict.to_warning()
                 if warning:
-                    response.text = response.text + "\n\n---\n" + warning
+                    response_to_verify = response_to_verify + "\n\n---\n" + warning
 
         except asyncio.TimeoutError:
             log.warning("[deep] Verification Gate falhou por timeout (20s)")
@@ -173,7 +229,7 @@ class DeepPhase:
             log.warning(f"[deep] Verification Gate falhou: {e}")
 
         return PhaseResult(
-            response=response.text,
+            response=response_to_verify,
             cost_usd=total_cost,
             llm_calls=llm_calls,
             arbitrage=arb,

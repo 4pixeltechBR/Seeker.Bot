@@ -20,8 +20,9 @@ from dataclasses import dataclass, field
 
 from config.models import ModelRouter, CognitiveRole, build_default_router
 from src.core.router.cognitive_load import (
-    CognitiveLoadRouter, CognitiveDepth, RoutingDecision,
+    CognitiveLoadRouter, CognitiveDepth, RoutingDecision, ExecutionMode
 )
+from src.skills.knowledge_vault import VaultSearcher
 from src.core.evidence.arbitrage import EvidenceArbitrage, ArbitrageResult
 from src.core.evidence.decay import DecayEngine
 from src.core.search.web import WebSearcher
@@ -195,6 +196,7 @@ class SeekerPipeline:
             log.info("[pipeline] Semantic search com Gemini Embedding 2 ativo")
 
         # Decay engine
+        self._vault_searcher = None  # Lazy load
         self.decay_engine = DecayEngine(self.memory)
         try:
             stats = await self.decay_engine.run()
@@ -226,6 +228,7 @@ class SeekerPipeline:
         self,
         user_input: str,
         session_id: str = "telegram",
+        execution_mode: str = "interactive",
         afk_protocol=None,
     ) -> PipelineResult:
         """
@@ -247,7 +250,8 @@ class SeekerPipeline:
             memory_prompt = session_context + "\n\n" + memory_prompt
 
         # ── 2. Router (0 LLM) ────────────────────────────────
-        decision = self.cognitive_router.route(user_input)
+        mode_enum = ExecutionMode(execution_mode.lower())
+        decision = self.cognitive_router.route(user_input, mode=mode_enum)
         log.info(
             f"[pipeline] {decision.depth.value} | "
             f"reason='{decision.reason}' | god={decision.god_mode} | "
@@ -320,6 +324,17 @@ class SeekerPipeline:
                 total_latency_ms=int((time.perf_counter() - start) * 1000),
             )
 
+        # ── 2.7. Vault Retrieval (Obsidian) ───────────────────
+        vault_context = ""
+        if decision.needs_vault:
+            if not self._vault_searcher:
+                self._vault_searcher = VaultSearcher()
+            
+            vault_context = self._vault_searcher.get_context_for_llm(user_input)
+            if vault_context:
+                log.info(f"[pipeline] Contexto do cofre injetado ({len(vault_context)} chars)")
+                memory_prompt += f"\n\n{vault_context}"
+
         # ── 3. Dispatch pra fase ──────────────────────────────
         ctx = PhaseContext(
             user_input=user_input,
@@ -327,7 +342,9 @@ class SeekerPipeline:
             memory_prompt=memory_prompt,
             session_context=session_context,
             afk_protocol=afk_protocol or self.afk_protocol,
+            execution_mode=execution_mode.lower(),
             intent_card=intent_card,  # Disponível para fases se precisarem
+            vault_context=vault_context,
         )
 
         if decision.depth == CognitiveDepth.REFLEX:

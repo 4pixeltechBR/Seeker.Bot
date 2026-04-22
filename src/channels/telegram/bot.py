@@ -33,6 +33,9 @@ from src.channels.email.client import EmailClient
 from src.skills.sense_news.prompts import NICHES
 from src.skills.sherlock_news.targets_manager import add_target, list_targets # SherlockNews
 
+# Knowledge Vault (Obsidian)
+from src.skills.knowledge_vault import KnowledgeVault, ObsidianWriter, VaultSearcher, extract_from_audio
+
 # Setup secure logging (masks secrets automatically)
 setup_secure_logging()
 log = logging.getLogger("seeker.telegram")
@@ -125,12 +128,20 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/bug", description="🐛 Analisa bug com contexto e sugestões"),
         BotCommand(command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"),
         BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug"),
-        BotCommand(command="/sherlock", description="🕵️ SherlockNews: Adiciona modelo para monitorar (/sherlock <nome>)")
+        BotCommand(command="/sherlock", description="🕵️ SherlockNews: Adiciona modelo para monitorar (/sherlock <nome>)"),
+        BotCommand(command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"),
+        BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian")
     ]
     await bot.set_my_commands(commands)
 
 
 def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[int]):
+    
+    # Initialize Knowledge Vault
+    from src.skills.vision.vlm_client import VLMClient
+    vlm = VLMClient()
+    vault = KnowledgeVault(pipeline.cascade_adapter, vlm_client=vlm)
+    dp["vault_debouncer"] = {} # Para agrupamento de mídias
 
     @dp.message(F.text == "/start")
     async def cmd_start(message: Message):
@@ -2086,6 +2097,105 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             log.error(f"[bug_analyzer] Erro em /bug_approve: {e}", exc_info=True)
             await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
 
+    @dp.message(F.text.startswith("/obsidian"))
+    async def cmd_obsidian(message: Message):
+        """Handler para links ou texto direto via /obsidian"""
+        if not _is_allowed(message, allowed_users):
+            return
+            
+        args = message.text.replace("/obsidian", "").strip()
+        if not args:
+            await message.reply("📝 **Uso do /obsidian**\n\n- `/obsidian <url>` (YouTube ou Site)\n- Envie um **print** com `/obsidian` na legenda\n- Envie um **áudio** com `/obsidian` na legenda")
+            return
+            
+        # Verifica se é URL
+        url_match = re.search(r"https?://[^\s]+", args)
+        if url_match:
+            url = url_match.group(0)
+            status_msg = await message.answer(f"⏳ Processando link: {url}...")
+            
+            if "youtube.com" in url or "youtu.be" in url:
+                resp = await vault.process_youtube(url, user_hint=args.replace(url, "").strip())
+            else:
+                resp = await vault.process_site(url, user_hint=args.replace(url, "").strip())
+                
+            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+        else:
+            # Texto direto (opcional, mas vamos focar em links e mídia primeiro)
+            await message.reply("Por favor, forneça um link do YouTube ou de um site.")
+
+    @dp.message(F.text.startswith("/cofre"))
+    async def cmd_cofre_search(message: Message):
+        """Pesquisa direta no cofre"""
+        if not _is_allowed(message, allowed_users):
+            return
+            
+        query = message.text.replace("/cofre", "").strip()
+        if not query:
+            await message.reply("Digite o que deseja buscar no cofre. Ex: `/cofre fine-tuning`")
+            return
+            
+        searcher = VaultSearcher()
+        results = searcher.search(query, max_results=5)
+        
+        if not results:
+            await message.reply(f"🔍 Nenhuma nota encontrada para: *{query}*", parse_mode=ParseMode.MARKDOWN)
+            return
+            
+        text = [f"🔍 **Resultados no Cofre para: {query}**\n"]
+        for note in results:
+            text.append(f"📄 **{note.title}**")
+            text.append(f"🏷️ {', '.join([f'#{t}' for t in note.tags])}")
+            text.append(f"🔗 {note.path.name}\n")
+            
+        await message.answer("\n".join(text), parse_mode=ParseMode.MARKDOWN)
+
+    @dp.message(F.photo)
+    async def handle_vault_photo(message: Message):
+        """Handler de fotos com debouncer para media groups"""
+        if not _is_allowed(message, allowed_users):
+            return
+            
+        caption = message.caption or ""
+        # Verifica se é para o obsidian
+        is_obsidian = "/obsidian" in caption.lower()
+        if not is_obsidian and message.reply_to_message:
+            is_obsidian = message.reply_to_message.text and "/obsidian" in message.reply_to_message.text.lower()
+            
+        if not is_obsidian:
+            return # Ignora fotos normais
+            
+        # Lógica de Debouncer para Media Groups
+        mg_id = message.media_group_id
+        if mg_id:
+            if mg_id not in dp["vault_debouncer"]:
+                dp["vault_debouncer"][mg_id] = []
+                # Agenda o processamento do grupo
+                asyncio.create_task(process_photo_group(mg_id, message, caption))
+            
+            # Adiciona a foto ao grupo
+            file_info = await message.bot.get_file(message.photo[-1].file_id)
+            photo_file = await message.bot.download_file(file_info.file_path)
+            dp["vault_debouncer"][mg_id].append(photo_file.read())
+        else:
+            # Foto única
+            status_msg = await message.answer("⏳ Lendo print e salvando no Obsidian...")
+            file_info = await message.bot.get_file(message.photo[-1].file_id)
+            photo_file = await message.bot.download_file(file_info.file_path)
+            resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", ""))
+            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+
+    async def process_photo_group(mg_id: str, message: Message, caption: str):
+        """Aguarde 1.5s para agrupar todas as fotos do media group"""
+        await asyncio.sleep(1.5)
+        photos = dp["vault_debouncer"].pop(mg_id, [])
+        if not photos:
+            return
+            
+        status_msg = await message.answer(f"⏳ Processando {len(photos)} prints no Obsidian...")
+        resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", ""))
+        await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+
     @dp.message(F.voice | F.audio)
     async def handle_audio(message: Message):
         if not _is_allowed(message, allowed_users):
@@ -2108,6 +2218,13 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             await message.reply("❌ Falha ao transcrever o áudio. (Verifique a GROQ_API_KEY).")
             return
             
+        caption = (message.caption or "").lower()
+        if "/obsidian" in caption:
+            status_msg = await message.reply("⏳ Analisando áudio e enviando ao Obsidian...")
+            resp = await vault.process_audio(audio_bytes, user_hint=caption.replace("/obsidian", ""))
+            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+            return
+
         await message.reply(f"🎤 <i>Transcrição recebida:</i>\n\n\"{user_input}\"", parse_mode=ParseMode.HTML)
         await _process_and_reply(message, user_input, pipeline, dp)
 

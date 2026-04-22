@@ -191,6 +191,76 @@ class CascadeAdapter:
         else:
             return ErrorType.UNKNOWN
 
+    def _get_tier_order_for_role(self, role: str) -> List[CascadeTier]:
+        """
+        Roteamento por Especialidade (MoE Latente).
+        Define a ordem ideal de tiers para cada função específica.
+        """
+        role = role.upper()
+        
+        # Ordem para tarefas rápidas/classificação
+        if role == "FAST":
+            return [
+                CascadeTier.TIER2_GROQ,
+                CascadeTier.TIER3_GEMINI,
+                CascadeTier.TIER1_NIM,
+                CascadeTier.TIER4_DEEPSEEK,
+                CascadeTier.TIER5_OLLAMA,
+                CascadeTier.TIER6_DEGRADED,
+            ]
+        
+        # Ordem para raciocínio profundo
+        elif role in ["DEEP", "REASONING"]:
+            return [
+                CascadeTier.TIER4_DEEPSEEK,
+                CascadeTier.TIER1_NIM,
+                CascadeTier.TIER3_GEMINI,
+                CascadeTier.TIER2_GROQ,
+                CascadeTier.TIER5_OLLAMA,
+                CascadeTier.TIER6_DEGRADED,
+            ]
+        
+        # Ordem para visão/OCR
+        elif role == "VISION":
+            # Proteção de VRAM: Se o sistema estiver ocupado, Gemini sobe para TIER 1
+            if self._is_system_busy():
+                log.info("[cascade] Sistema ocupado (VRAM guardrail). Promovendo Gemini para Vision.")
+                return [
+                    CascadeTier.TIER3_GEMINI,
+                    CascadeTier.TIER1_NIM,
+                    CascadeTier.TIER5_OLLAMA, # Ollama cai para última opção
+                    CascadeTier.TIER6_DEGRADED,
+                ]
+            return [
+                CascadeTier.TIER5_OLLAMA,
+                CascadeTier.TIER3_GEMINI,
+                CascadeTier.TIER1_NIM,
+                CascadeTier.TIER6_DEGRADED,
+            ]
+        
+        # Padrão: BALANCED
+        return [
+            CascadeTier.TIER3_GEMINI,
+            CascadeTier.TIER1_NIM,
+            CascadeTier.TIER4_DEEPSEEK,
+            CascadeTier.TIER2_GROQ,
+            CascadeTier.TIER5_OLLAMA,
+            CascadeTier.TIER6_DEGRADED,
+        ]
+
+    def _is_system_busy(self) -> bool:
+        """
+        Verifica se o sistema está sob carga (ViralClip ativo).
+        Como não temos pynvml, checamos a fila de produção como proxy.
+        """
+        import os
+        # Caminho relativo ao root do projeto Seeker/ViralClip
+        # Ajustar se necessário para o caminho absoluto correto
+        fila_path = os.path.join(os.getcwd(), "fila_producao.json")
+        if os.path.exists(fila_path) and os.path.getsize(fila_path) > 10:
+            return True
+        return False
+
     async def call_with_cascade(
         self,
         prompt: str,
@@ -214,10 +284,10 @@ class CascadeAdapter:
         fallbacks_count = 0
         start_time = time.perf_counter()
 
-        # Determinar tier inicial baseado em role
-        tier_index = self._get_start_tier_index(role)
+        # Determinar ordem dos tiers baseada em especialidade (MoE latente)
+        tiers_to_try = self._get_tier_order_for_role(role)
 
-        for attempt, tier in enumerate(self.tier_order[tier_index:]):
+        for attempt, tier in enumerate(tiers_to_try):
             # Pular tiers unhealthy (roteamento inteligente)
             if not self.metrics[tier].is_healthy and tier != CascadeTier.TIER6_DEGRADED:
                 log.debug(f"[cascade] Pulando {tier.value} (unhealthy, success_rate={self.metrics[tier].success_rate:.0f}%)")
@@ -372,20 +442,6 @@ class CascadeAdapter:
                 "cost": 0.0,
             }
 
-    def _get_start_tier_index(self, role: str) -> int:
-        """
-        Determina tier inicial baseado em role
-
-        FAST: Tier 2 (Groq, mais rápido)
-        BALANCED: Tier 3 (Gemini, melhor custo/qualidade)
-        DEEP: Tier 1 (NIM, máxima qualidade)
-        """
-        if role == "FAST":
-            return 1  # Começa em Groq
-        elif role == "DEEP":
-            return 0  # Começa em NIM
-        else:  # BALANCED
-            return 2  # Começa em Gemini
 
     def _get_degraded_response(self, prompt: str) -> str:
         """Gera resposta em modo degradado (sem LLM)"""

@@ -42,5 +42,14 @@ async def transcribe_audio_groq(audio_bytes: bytes, filename: str = "audio.ogg")
             return text
             
     except Exception as e:
-        log.error(f"[stt] Falha na transcrição: {e}", exc_info=True)
+        log.warning(f"[stt] Groq falhou: {e}. Tentando fallback local...")
+        try:
+            from src.skills.stt_local import transcribe_audio_local
+            local_text = await transcribe_audio_local(audio_bytes)
+            if local_text:
+                log.info("[stt] Transcrição via fallback local concluída.")
+                return local_text
+        except Exception as local_err:
+            log.error(f"[stt] Fallback local também falhou: {local_err}")
+            
         return ""
