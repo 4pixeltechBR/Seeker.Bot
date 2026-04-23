@@ -12,8 +12,8 @@ log = logging.getLogger("seeker.knowledge_vault.digest")
 
 class KnowledgeDigestGoal:
     """
-    Digest semanal do cofre Obsidian.
-    Toda segunda-feira às 08:00.
+    Digest diário do cofre Obsidian.
+    Toda manhã às 07:45.
     """
     def __init__(self, pipeline):
         self.pipeline = pipeline
@@ -22,8 +22,8 @@ class KnowledgeDigestGoal:
         self._status = GoalStatus.IDLE
         self._budget = GoalBudget(max_per_cycle_usd=0.01, max_daily_usd=0.02)
         
-        self.target_weekday = 0 # Segunda
-        self.target_hour = 8
+        self.target_hour = 7
+        self.target_minute = 45
         self._last_run_date = ""
 
     @property
@@ -55,18 +55,18 @@ class KnowledgeDigestGoal:
         now = datetime.now()
         today_str = now.strftime("%Y-%m-%d")
         
-        # Verifica se é segunda e se já rodou
-        if now.weekday() != self.target_weekday or self._last_run_date == today_str:
-            return GoalResult(success=True, summary="Fora do horário/dia de digest")
+        # Verifica se já rodou hoje
+        if self._last_run_date == today_str:
+            return GoalResult(success=True, summary="Digest já foi gerado hoje")
 
-        if now.hour < self.target_hour:
-            return GoalResult(success=True, summary="Aguardando 08:00")
+        if now.hour < self.target_hour or (now.hour == self.target_hour and now.minute < self.target_minute):
+            return GoalResult(success=True, summary="Aguardando 07:45")
 
         self._status = GoalStatus.RUNNING
         
         try:
-            # 1. Coleta notas da semana
-            recent_notes = self.searcher.list_recent(days=7)
+            # 1. Coleta notas do último dia (ou últimas 24h)
+            recent_notes = self.searcher.list_recent(days=1)
             if not recent_notes:
                 self._last_run_date = today_str
                 self._status = GoalStatus.IDLE
@@ -88,7 +88,7 @@ class KnowledgeDigestGoal:
             
             # 3. Salva digest como nota no cofre
             self.writer.write_note(
-                title=f"Digest Semanal - {today_str}",
+                title=f"Digest Diário - {today_str}",
                 body=digest_text,
                 tags=["digest", "produtividade"],
                 source_type="digest"
@@ -98,8 +98,8 @@ class KnowledgeDigestGoal:
             self._status = GoalStatus.IDLE
             
             notification = (
-                f"📚 **Digest Semanal do Cofre**\n\n"
-                f"Foram capturadas **{len(recent_notes)}** novas notas esta semana.\n\n"
+                f"📚 **Digest Diário do Cofre**\n\n"
+                f"Foram capturadas **{len(recent_notes)}** novas notas hoje.\n\n"
                 f"{digest_text[:1000]}..." # Preview
             )
             

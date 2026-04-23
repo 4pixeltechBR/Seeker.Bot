@@ -35,7 +35,7 @@ class SelfImprovementGoal:
 
     @property
     def interval_seconds(self) -> int:
-        return 43200  # A cada 12 horas ou pós-crash
+        return 21600  # A cada 6 horas ou pós-crash
 
     @property
     def budget(self) -> GoalBudget:

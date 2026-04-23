@@ -120,10 +120,10 @@ Direto, técnico sem pedantismo, resumido, didático e sem repetição.
 **Estado do ecossistema hoje:** [1 frase sobre a vibe do ecossistema hoje]
 
 ## 2) NOTÍCIAS DO ECOSSISTEMA
-[Agrupe em: Modelos, Infra, Vídeo/Áudio, Agentes, e Mercado/Segurança. Para cada:]
-**[Título Curto]**
-*Resumo:* [1 a 3 linhas]
-*Por que importa:* [1 linha]
+[Agrupe em: Modelos, Infra, Vídeo/Áudio, Agentes, e Mercado/Segurança. Para cada item:]
+**[Título Curto e Impactante]**
+*Contexto & Relevância:* [Descreva com detalhes técnicos o que aconteceu e por que isso importa. Use de 3 a 6 linhas. Evite resumos telegráficos; desenvolva o raciocínio e a implicação tecnológica.]
+*Mecânica / Under the hood:* [Explique brevemente como a tecnologia funciona ou o que mudou na arquitetura/paradigmas.]
 *Tags:* [Ex: [LLM] [VLM] [APLICÁVEL AGORA]]
 *Fontes:* [URLs]
 
