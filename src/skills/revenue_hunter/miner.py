@@ -587,9 +587,13 @@ def _build_pdf(lead: dict, dossier_text: str, target_key: str) -> str | None:
         def field_row(label: str, value: str):
             try:
                 pdf.set_font("Helvetica", "B", 10)
+                start_y = pdf.get_y()
+                pdf.set_xy(pdf.l_margin, start_y)
                 pdf.cell(45, 6, clean(f"{label}:"))
                 pdf.set_font("Helvetica", "", 10)
+                pdf.set_xy(pdf.l_margin + 45, start_y)
                 pdf.multi_cell(0, 6, clean(value or "N/A"))
+                pdf.set_xy(pdf.l_margin, pdf.get_y())
             except Exception as e:
                 log.warning(f"[hunter] PDF skip row {label}: {e}")
 

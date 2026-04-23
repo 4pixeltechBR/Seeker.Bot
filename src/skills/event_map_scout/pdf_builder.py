@@ -156,7 +156,10 @@ class EventMapPDF(FPDF):
         # (se não couber na página, o auto_page_break cuida)
         card_x = self.l_margin
         card_w = 182
-        card_h_min = 30
+        card_h_min = 35
+        
+        if self.get_y() + card_h_min > self.page_break_trigger:
+            self.add_page()
 
         y_start = self.get_y()
 

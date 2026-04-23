@@ -49,10 +49,15 @@ def generate_crm_report_pdf(title: str, leads: list[dict]) -> str:
         
         for label, val in fields:
             pdf.set_font("Arial", "B", 10)
+            start_y = pdf.get_y()
+            pdf.set_xy(pdf.l_margin, start_y)
             pdf.cell(40, 6, label + ":", border=0)
             pdf.set_font("Arial", "", 10)
-            pdf.multi_cell(0, 6, val)
+            pdf.set_xy(pdf.l_margin + 40, start_y)
+            val_str = clean(str(val) if val else "N/A")
+            pdf.multi_cell(0, 6, val_str)
             
+        pdf.set_xy(pdf.l_margin, pdf.get_y())
         pdf.ln(5)
         
     out_dir = os.path.join(os.getcwd(), "data", "reports")
