@@ -163,13 +163,13 @@ REGRAS DE CRÍTICA:
 4. ALAVANCA: A recomendação principal é clara e acionável?
 
 Responda APENAS em JSON com este formato:
-{
+{{
   "pass": true/false,
   "score": 0-10,
   "critique": "Sua análise detalhada aqui",
   "missing_details": ["detalhe 1", "detalhe 2"],
   "action": "O que deve ser mudado para atingir nota 10"
-}
+}}
 """
 
 
