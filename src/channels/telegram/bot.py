@@ -360,12 +360,29 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         args = message.text.split(maxsplit=2)
+        filtro = None
+        valor = None
         
-        # Se usou parâmetros (ex: /crm cidade goiania)
+        # Parse smart arguments
         if len(args) >= 3:
             filtro = args[1].lower()
             valor = args[2]
-            
+        elif len(args) == 2:
+            arg = args[1].lower()
+            if arg.isdigit():
+                filtro = "ultimos"
+                valor = int(arg)
+            elif arg in ["janeiro", "fevereiro", "marco", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]:
+                filtro = "mes"
+                valor = arg
+            elif arg in ["agro", "fest", "junino", "relig", "corp", "cerim", "show", "gov", "particular", "outro"]:
+                filtro = "tipo"
+                valor = arg
+            else:
+                filtro = "cidade"
+                valor = arg
+                
+        if filtro:
             from src.skills.revenue_hunter.crm_store import CRMStore
             from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
             from aiogram.types import FSInputFile
@@ -375,15 +392,19 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             leads = []
             title = ""
             
-            if filtro == "cidade":
-                leads = await crm.search_by_city(valor)
+            if filtro == "ultimos":
+                limit = valor if isinstance(valor, int) else 15
+                leads = await crm.get_recent(limit)
+                title = f"Últimos {limit} Leads"
+            elif filtro == "cidade":
+                leads = await crm.search_by_city(str(valor))
                 title = f"Eventos na Cidade: {valor}"
             elif filtro == "mes" or filtro == "mês":
-                leads = await crm.search_by_month(valor)
+                leads = await crm.search_by_month(str(valor))
                 title = f"Eventos no Mês: {valor}"
             elif filtro == "tipo":
-                leads = await crm.search_by_type(valor.upper())
-                title = f"Categoria: {valor.upper()}"
+                leads = await crm.search_by_type(str(valor).upper())
+                title = f"Categoria: {str(valor).upper()}"
             
             if not leads:
                 await message.answer(f"📭 Nenhum lead encontrado para {filtro}: '{valor}'.")
