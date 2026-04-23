@@ -20,6 +20,7 @@ from src.skills.revenue_hunter.prompts import (
     DOSSIER_PROMPT,
 )
 from config.models import CognitiveRole
+from src.skills.revenue_hunter.crm_store import CRMStore
 
 log = logging.getLogger("seeker.hunter")
 
@@ -61,6 +62,10 @@ class RevenueMiner:
         # Performance tracking
         self._combo_stats: dict[str, dict] = {}
         self._status = GoalStatus.IDLE
+        self.crm_store = CRMStore(self.pipeline.memory._db)
+        
+        # Async initialization will be handled in step() if needed, but safe to just run a task
+        asyncio.create_task(self.crm_store.init_tables())
 
     @property
     def name(self) -> str:
@@ -285,6 +290,15 @@ class RevenueMiner:
                 if pdf_path:
                     cycle_data.setdefault("pdfs", []).append(pdf_path)
                     cycle_data["pdf_path"] = pdf_path
+                    
+                # Save to CRM Database
+                await self.crm_store.save_lead(
+                    lead=lead,
+                    target_key=target_key,
+                    pdf_path=pdf_path or "",
+                    dossier_html=dossier_text,
+                    discovered_at=time.time()
+                )
 
             except Exception as e:
                 log.error(f"[hunter] Erro gerando dossiê de {nome}: {e}", exc_info=True)
@@ -458,6 +472,40 @@ class RevenueMiner:
             f"[hunter] Estado carregado: {len(self._notified_leads)} leads, "
             f"{len(self._combo_stats)} combos, {len(self._last_combos)} em cooldown."
         )
+
+    def get_crm_leads(self, limit: int = 10) -> list[dict]:
+        """
+        Retorna os últimos leads qualificados lendo os PDFs gerados em data/leads/.
+        Não depende de nenhum DB — usa o filesystem como fonte de verdade.
+        """
+        leads_dir = os.path.join(os.getcwd(), "data", "leads")
+        if not os.path.isdir(leads_dir):
+            return []
+
+        entries = []
+        for fname in os.listdir(leads_dir):
+            if not fname.endswith(".pdf"):
+                continue
+            fpath = os.path.join(leads_dir, fname)
+            try:
+                mtime = os.path.getmtime(fpath)
+                fsize = os.path.getsize(fpath)
+                # Nome do arquivo: Dossier_<slug>_<timestamp>.pdf
+                slug = fname.replace("Dossier_", "").rsplit("_", 1)[0]
+                name = slug.replace("_", " ").title()
+                entries.append({
+                    "name": name,
+                    "pdf_path": fpath,
+                    "timestamp": mtime,
+                    "size_bytes": fsize,
+                    "filename": fname,
+                })
+            except Exception:
+                continue
+
+        # Ordena pelos mais recentes
+        entries.sort(key=lambda x: x["timestamp"], reverse=True)
+        return entries[:limit]
 
 
 # ── Helpers ───────────────────────────────────────────────

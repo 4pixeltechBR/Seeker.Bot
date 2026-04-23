@@ -359,41 +359,117 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         if not _is_allowed(message, allowed_users):
             return
 
-        args = message.text.split()
-        limit = 5  # Default: 5 últimos leads
-        if len(args) > 1 and args[1].isdigit():
-            limit = int(args[1])
-            
-        leads = await pipeline.memory.get_leads(limit=limit)
+        args = message.text.split(maxsplit=2)
         
-        if not leads:
-            await message.answer("📭 Nenhum lead qualificado no CRM ainda.")
+        # Se usou parâmetros (ex: /crm cidade goiania)
+        if len(args) >= 3:
+            filtro = args[1].lower()
+            valor = args[2]
+            
+            from src.skills.revenue_hunter.crm_store import CRMStore
+            from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+            from aiogram.types import FSInputFile
+            import os
+            
+            crm = CRMStore(pipeline.memory._db)
+            leads = []
+            title = ""
+            
+            if filtro == "cidade":
+                leads = await crm.search_by_city(valor)
+                title = f"Eventos na Cidade: {valor}"
+            elif filtro == "mes" or filtro == "mês":
+                leads = await crm.search_by_month(valor)
+                title = f"Eventos no Mês: {valor}"
+            elif filtro == "tipo":
+                leads = await crm.search_by_type(valor.upper())
+                title = f"Categoria: {valor.upper()}"
+            
+            if not leads:
+                await message.answer(f"📭 Nenhum lead encontrado para {filtro}: '{valor}'.")
+                return
+                
+            await message.answer(f"🔎 Encontrados {len(leads)} leads. Gerando relatório PDF...")
+            try:
+                pdf_path = generate_crm_report_pdf(title, leads)
+                doc = FSInputFile(pdf_path)
+                await message.answer_document(doc, caption=f"📊 Relatório: {title}")
+            except Exception as e:
+                log.error(f"[crm] Erro ao gerar PDF: {e}")
+                await message.answer("❌ Erro ao gerar o relatório PDF.")
+            return
+
+        # Menu Principal (sem parâmetros)
+        from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+        
+        buttons = [
+            [InlineKeyboardButton(text="📊 Gerar Relatório: Últimos 15 Leads", callback_data="crm_ultimos")],
+            [InlineKeyboardButton(text="📅 Buscar por Mês", callback_data="crm_help_mes"),
+             InlineKeyboardButton(text="🏙️ Buscar por Cidade", callback_data="crm_help_cidade")],
+            [InlineKeyboardButton(text="🎪 Buscar por Tipo (AGRO, FEST, SHOW...)", callback_data="crm_help_tipo")],
+            [InlineKeyboardButton(text="📈 Dashboard Estratégico", callback_data="crm_dashboard")]
+        ]
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+        
+        await message.answer(
+            "💼 <b>CRM Interativo — Revenue Hunter</b>\n\n"
+            "Selecione uma opção abaixo ou use os comandos rápidos:\n"
+            "• <code>/crm cidade [nome]</code>\n"
+            "• <code>/crm mes [nome do mes]</code>\n"
+            "• <code>/crm tipo [AGRO|FEST|JUNINO|CERIM|CORP|SHOW]</code>",
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+
+    @dp.callback_query(lambda c: c.data and c.data.startswith('crm_'))
+    async def process_crm_callback(callback_query):
+        # A simple check for user allowlist just in case
+        if not _is_allowed(callback_query.message, allowed_users):
             return
             
-        header = f"🎯 <b>CRM SEEKER — ÚLTIMOS {len(leads)} LEADS</b>\n\n"
-        out = [header]
+        action = callback_query.data
+        await callback_query.answer()
         
-        for i, lead in enumerate(leads, 1):
-            name = lead.get("name", "Desconhecido")
-            score = lead.get("score", 0)
-            city = lead.get("city", "GO")
-            contacts = json.loads(lead.get("contact_info", "{}"))
+        if action == "crm_help_mes":
+            await callback_query.message.answer("📅 Para buscar por mês, digite:\n<code>/crm mes agosto</code>", parse_mode=ParseMode.HTML)
+            return
+        elif action == "crm_help_cidade":
+            await callback_query.message.answer("🏙️ Para buscar por cidade, digite:\n<code>/crm cidade goiania</code>", parse_mode=ParseMode.HTML)
+            return
+        elif action == "crm_help_tipo":
+            await callback_query.message.answer("🎪 Para buscar por tipo, digite:\n<code>/crm tipo AGRO</code>\n\nTipos válidos: AGRO, FEST, JUNINO, RELIG, CORP, CERIM, SHOW, GOV, PARTICULAR, OUTRO", parse_mode=ParseMode.HTML)
+            return
             
-            # Formata contatos
-            c_links = []
-            if contacts.get("whatsapp"): c_links.append("WA")
-            if contacts.get("instagram"): c_links.append("IG")
-            if contacts.get("website"): c_links.append("WEB")
-            c_str = " | ".join(c_links) if c_links else "S/ Contato"
+        from src.skills.revenue_hunter.crm_store import CRMStore
+        from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+        from aiogram.types import FSInputFile
+        
+        crm = CRMStore(pipeline.memory._db)
+        
+        if action == "crm_ultimos":
+            leads = await crm.get_recent(15)
+            if not leads:
+                await callback_query.message.answer("📭 CRM vazio.")
+                return
+            await callback_query.message.answer("⏳ Gerando relatório dos últimos 15 leads...")
+            pdf_path = generate_crm_report_pdf("Últimos 15 Leads Minerados", leads)
+            doc = FSInputFile(pdf_path)
+            await callback_query.message.answer_document(doc, caption="📊 Relatório dos últimos leads")
             
-            out.append(
-                f"<b>{i}. {name}</b> ({city})\n"
-                f"Score: <code>{score}</code> | {c_str}\n"
-                f"Sinais: <i>{lead.get('hiring_signs', 'N/A')[:100]}...</i>\n"
+        elif action == "crm_dashboard":
+            stats = await crm.get_stats()
+            
+            top_cities = "\n".join([f"  • {c[0]}: {c[1]} leads" for c in stats.get('top_cities', [])])
+            types = "\n".join([f"  • {c[0]}: {c[1]}" for c in stats.get('types', [])])
+            
+            dash = (
+                "📈 <b>Dashboard Estratégico CRM</b>\n\n"
+                f"💰 <b>Pipeline de Receita (Estimada):</b> {stats.get('pipeline_value', 'N/A')}\n\n"
+                f"🔥 <b>Leads Esfriando (>14 dias):</b> {stats.get('decaying_count', 0)} leads\n\n"
+                f"🏙️ <b>Top 5 Cidades (Densidade):</b>\n{top_cities}\n\n"
+                f"🎪 <b>Distribuição por Tipo:</b>\n{types}\n"
             )
-            
-        final_text = "\n".join(out)
-        await message.answer(final_text, parse_mode=ParseMode.HTML)
+            await callback_query.message.answer(dash, parse_mode=ParseMode.HTML)
 
     @dp.message(F.text == "/test_email")
     async def cmd_test_email(message: Message):

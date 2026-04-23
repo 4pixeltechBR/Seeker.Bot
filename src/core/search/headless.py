@@ -73,94 +73,63 @@ class HeadlessScraper:
         log.info(f"[headless] Scraping Instagram: @{handle}")
 
         try:
-            async with async_playwright() as pw:
-                browser = await pw.chromium.launch(headless=True)
-                ctx = await browser.new_context(
-                    user_agent=self.USER_AGENT,
-                    locale="pt-BR",
-                    viewport={"width": 1280, "height": 800},
-                )
-                page = await ctx.new_page()
+            import os
+            from src.core.search.web import WebSearcher
+            
+            tavily_key = os.getenv("TAVILY_API_KEY", "")
+            brave_key = os.getenv("BRAVE_API_KEY", "")
+            searcher = WebSearcher(tavily_key=tavily_key, brave_key=brave_key)
+            
+            query = f'site:instagram.com "@{handle}"'
+            resp = await searcher.search(query, max_results=3)
+            
+            bio_raw = ""
+            for item in resp.results:
+                # O Instagram usa o título como "Name (@handle) • Instagram photos and videos"
+                # E o snippet como a bio. Vamos concatenar os snippets relevantes.
+                if handle.lower() in item.url.lower():
+                    bio_raw += item.snippet + " "
+                    
+            result["bio_raw"] = bio_raw.strip()
+            
+            # --- Fallback regex sobre bio_raw (snippet OSINT) ---
+            bio = result["bio_raw"]
+            
+            # Tenta achar linktree na bio_raw do snippet
+            linktree_match = re.search(r'(linktr\.ee/[a-zA-Z0-9_\-]+)', bio)
+            if linktree_match:
+                result["linktree_url"] = f"https://{linktree_match.group(1)}"
+            
+            if not result["email"] and bio:
+                found = re.findall(r"[\w.+\-]+@[\w\-]+\.[a-z]{2,}", bio)
+                if found:
+                    result["email"] = found[0]
 
-                try:
-                    await page.goto(
-                        url,
-                        timeout=self.INSTAGRAM_TIMEOUT,
-                        wait_until="domcontentloaded",
-                    )
-                    # Aguarda JS render (Instagram é React SPA)
-                    await page.wait_for_timeout(self.JS_RENDER_WAIT)
-
-                    # --- Bio via meta tags Open Graph e description ---
-                    # Tenta og:description primeiro (mais completo no Instagram)
-                    og_meta = await page.query_selector('meta[property="og:description"]')
-                    bio_raw = await og_meta.get_attribute("content") if og_meta else ""
-                    if not bio_raw:
-                        # Fallback para meta description
-                        meta = await page.query_selector('meta[name="description"]')
-                        bio_raw = await meta.get_attribute("content") if meta else ""
-                    result["bio_raw"] = bio_raw or ""
-
-                    # --- Varre todos os links da página ---
-                    links = await page.query_selector_all("a[href]")
-                    for link in links:
-                        href = (await link.get_attribute("href") or "").strip()
-                        if not href:
-                            continue
-
-                        if "wa.me" in href or "whatsapp.com/send" in href:
-                            result["whatsapp"] = href
-                        elif "linktr.ee" in href or "linktree.com" in href:
-                            result["linktree_url"] = href
-                        elif href.startswith("mailto:"):
-                            result["email"] = href.replace("mailto:", "").split("?")[0]
-                        elif (
-                            not result["site"]
-                            and href.startswith("http")
-                            and "instagram.com" not in href
-                        ):
-                            result["site"] = href
-
-                    # --- Se encontrou Linktree: navega e extrai botões ---
-                    if result["linktree_url"]:
-                        linktree_data = await self._scrape_linktree(
-                            page, result["linktree_url"]
-                        )
-                        # Só sobrescreve se encontrou dados melhores
-                        for key, val in linktree_data.items():
-                            if val and not result.get(key):
-                                result[key] = val
-
-                    # --- Fallback regex sobre bio_raw ---
-                    bio = result["bio_raw"]
-                    if not result["email"] and bio:
-                        found = re.findall(r"[\w.+\-]+@[\w\-]+\.[a-z]{2,}", bio)
-                        if found:
-                            result["email"] = found[0]
-
-                    if not result["whatsapp"] and bio:
-                        # Padrão: wa.me/5511... ou (11) 9xxxx-xxxx ou +55 11 9xxxx
-                        found = re.findall(r"(?:wa\.me/|whatsapp\.com/)(\d+)", bio)
-                        if found:
-                            result["whatsapp"] = f"https://wa.me/{found[0]}"
-                        else:
-                            # Número BR direto na bio (ex: 64 9 9999-0000)
-                            nums = re.findall(r"\+?55\s*\d{2}\s*9\s*\d{4}[\s\-]?\d{4}", bio)
-                            if nums:
-                                clean = re.sub(r"\D", "", nums[0])
-                                if not clean.startswith("55"):
-                                    clean = "55" + clean
-                                result["whatsapp"] = f"https://wa.me/{clean}"
-
-                except Exception as e:
-                    log.warning(f"[headless] Erro ao processar @{handle}: {e}")
-                    result["_erro"] = str(e)
-                finally:
-                    await browser.close()
+            if not result["whatsapp"] and bio:
+                # Padrão: wa.me/5511... ou (11) 9xxxx-xxxx ou +55 11 9xxxx
+                found = re.findall(r"(?:wa\.me/|whatsapp\.com/send\?phone=)(\d+)", bio)
+                if found:
+                    result["whatsapp"] = f"https://wa.me/{found[0]}"
+                else:
+                    # Número BR direto na bio (ex: 64 9 9999-0000)
+                    nums = re.findall(r"\+?55\s*\d{2}\s*9\s*\d{4}[\s\-]?\d{4}", bio)
+                    if nums:
+                        clean = re.sub(r"\D", "", nums[0])
+                        if not clean.startswith("55"):
+                            clean = "55" + clean
+                        result["whatsapp"] = f"https://wa.me/{clean}"
+                        
+            # Se encontrou linktree, o extract_contacts_from_url fará o Playwright
+            if result["linktree_url"]:
+                log.info(f"[headless] @{handle} -> Linktree encontrado ({result['linktree_url']}). Extraindo botões...")
+                linktree_data = await self.extract_contacts_from_url(result["linktree_url"])
+                for key, val in linktree_data.items():
+                    if val and not result.get(key):
+                        result[key] = val
 
         except Exception as e:
-            log.error(f"[headless] Falha crítica no Playwright: {e}")
-            result["_erro"] = f"playwright_error: {e}"
+            log.error(f"[headless] Falha OSINT para @{handle}: {e}")
+            result["_erro"] = f"osint_error: {e}"
 
         log.info(
             f"[headless] @{handle} → whatsapp={bool(result['whatsapp'])} "
