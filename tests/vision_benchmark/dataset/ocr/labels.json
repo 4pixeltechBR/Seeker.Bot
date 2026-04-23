@@ -1,0 +1,15 @@
+{
+  "_placeholder_ocr_1.png": {
+    "text": "Sample OCR text for testing",
+    "_metadata": {
+      "source": "placeholder",
+      "language": "en"
+    }
+  },
+  "_placeholder_ocr_2.png": {
+    "text": "Another test image",
+    "_metadata": {
+      "source": "placeholder"
+    }
+  }
+}
