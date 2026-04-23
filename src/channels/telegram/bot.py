@@ -2257,9 +2257,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
         caption = message.caption or ""
         # Verifica se é para o obsidian direto
-        is_obsidian = "/obsidian" in caption.lower()
+        is_obsidian = "/obsidian" in caption.lower() or "/cofre" in caption.lower()
         if not is_obsidian and message.reply_to_message:
-            is_obsidian = message.reply_to_message.text and "/obsidian" in message.reply_to_message.text.lower()
+            is_obsidian = message.reply_to_message.text and ("/obsidian" in message.reply_to_message.text.lower() or "/cofre" in message.reply_to_message.text.lower())
             
         # Lógica de Debouncer para Media Groups
         mg_id = message.media_group_id
@@ -2280,7 +2280,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
             if is_obsidian:
                 status_msg = await message.answer("⏳ Lendo print e salvando no Obsidian...")
-                resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", ""))
+                resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
                 await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
             else:
                 await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -2301,7 +2301,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
         if is_obsidian:
             status_msg = await message.answer(f"⏳ Processando {len(photos)} prints no Obsidian...")
-            resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", ""))
+            resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
             await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
         else:
             await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -2336,9 +2336,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
             
         caption = (message.caption or "").lower()
-        if "/obsidian" in caption:
+        if "/obsidian" in caption or "/cofre" in caption:
             status_msg = await message.reply("⏳ Analisando áudio e enviando ao Obsidian...")
-            resp = await vault.process_audio(audio_bytes, user_hint=caption.replace("/obsidian", ""))
+            resp = await vault.process_audio(audio_bytes, user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
             await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
             return
 
