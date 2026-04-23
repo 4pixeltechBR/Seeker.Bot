@@ -229,6 +229,24 @@ start_watchdog.bat
 
 ---
 
+## 🙏 Agradecimentos
+
+O Seeker.Bot foi co-criado com IA — e temos orgulho disso.
+
+| Parceiro | Contribuição |
+|---|---|
+| **[Google DeepMind](https://deepmind.google/)** | Antigravity (Gemini) — ambiente principal de desenvolvimento e co-designer da arquitetura cognitiva |
+| **[Anthropic](https://anthropic.com/)** | Claude Code — pair programming avançado, revisão de arquitetura e geração de código |
+| **[Ollama](https://ollama.com/)** | Motor de inferência local que permite operação 100% offline |
+| **[Groq](https://groq.com/)** | Infraestrutura de inferência ultra-rápida |
+| **[NVIDIA](https://nvidia.com/)** | Plataforma NIM API e ecossistema GPU |
+| **[DeepSeek](https://deepseek.com/)** | Modelos de raciocínio profundo com custo acessível |
+| **[Mistral AI](https://mistral.ai/)** | Provider resiliente de fallback |
+
+> Este projeto é uma prova do que acontece quando um criador humano trabalha ao lado de ferramentas de IA como parceiros reais — não como substitutos, mas como amplificadores cognitivos.
+
+---
+
 ## 🤝 Contribuindo
 
 Contribuições são bem-vindas! Leia [CONTRIBUTING.md](CONTRIBUTING.md) para diretrizes.
