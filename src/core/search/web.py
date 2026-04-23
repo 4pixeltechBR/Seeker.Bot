@@ -207,8 +207,10 @@ class WebSearcher:
         self.backends: list[SearchBackend] = []
 
         if tavily_key:
-            self.backends.append(TavilyBackend(tavily_key))
-            log.info("[search] ✅ Tavily (primary) — AI-native, 1K credits/mês")
+            keys = [k.strip() for k in tavily_key.split(",") if k.strip()]
+            for k in keys:
+                self.backends.append(TavilyBackend(k))
+            log.info(f"[search] ✅ Tavily (primary) — {len(keys)} key(s) carregada(s)")
 
         if brave_key:
             self.backends.append(BraveBackend(brave_key))

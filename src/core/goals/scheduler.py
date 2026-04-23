@@ -695,8 +695,19 @@ class GoalNotifier:
                 if pdf_path and os.path.exists(pdf_path):
                     from aiogram.types import FSInputFile
                     doc = FSInputFile(pdf_path)
-                    safe_caption = clean_html(content)[:1000] + "..." if len(content) > 1000 else clean_html(content)
-                    await self.bot.send_document(uid, doc, caption=safe_caption, reply_markup=reply_markup)
+                    if len(content) > 1000:
+                        # Envia o texto completo primeiro (suporta HTML)
+                        # Nota: se content > 4096, o Telegram limitará, mas dossiês costumam ter ~1500-2500
+                        try:
+                            await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                        except Exception as e:
+                            log.warning(f"Erro ao enviar mensagem longa (HTML): {e}. Tentando fallback sem HTML.")
+                            await self.bot.send_message(uid, clean_html(content)[:4000], reply_markup=reply_markup)
+                        
+                        # Envia o PDF logo em seguida
+                        await self.bot.send_document(uid, doc, caption="📄 Dossiê Anexo")
+                    else:
+                        await self.bot.send_document(uid, doc, caption=content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
                 elif photo_bytes:
                     from aiogram.types import BufferedInputFile
                     photo = BufferedInputFile(photo_bytes, filename="watch_alert.png")
