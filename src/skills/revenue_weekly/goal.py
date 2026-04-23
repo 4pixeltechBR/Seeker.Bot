@@ -37,7 +37,7 @@ class WeeklyLeadsReportGoal(AutonomousGoal):
 
     @property
     def interval_seconds(self) -> int:
-        return 3600  # Checa de hora em hora
+        return 600  # Checa a cada 10 minutos para garantir o gatilho das 07:30
 
     @property
     def budget(self) -> GoalBudget:
@@ -54,11 +54,11 @@ class WeeklyLeadsReportGoal(AutonomousGoal):
         now = datetime.now()
         hoje_str = now.strftime("%Y-%m-%d")
 
-        # Só roda na Segunda-feira (weekday() == 0) entre 08h00 e 08h59
-        if now.weekday() != 0 or now.hour != 8:
+        # Só roda na Segunda-feira (weekday() == 0) entre 07h30 e 07h59
+        if now.weekday() != 0 or now.hour != 7 or now.minute < 30:
             return GoalResult(
                 success=True,
-                summary="Aguardando Segunda-feira 08:00",
+                summary="Aguardando Segunda-feira 07:30",
                 cost_usd=0.0,
             )
 

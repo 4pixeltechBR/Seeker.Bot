@@ -81,7 +81,7 @@ class RevenueMiner:
 
     @property
     def channels(self) -> list[NotificationChannel]:
-        return [NotificationChannel.BOTH]
+        return [NotificationChannel.TELEGRAM]
 
     def get_status(self) -> GoalStatus:
         return self._status
