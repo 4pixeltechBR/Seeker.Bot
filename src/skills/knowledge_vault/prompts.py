@@ -28,6 +28,7 @@ REGRAS:
 - Retorne APENAS um JSON válido.
 - O campo 'tags' deve priorizar o vocabulário, mas pode incluir novas tags se essencial.
 - O campo 'summary' deve ser escrito em Markdown simples.
+- TRADUÇÃO OBRIGATÓRIA: Todo o conteúdo gerado (título, sumário, insights) deve ser escrito em Português do Brasil, mesmo que o material original esteja em inglês ou outra língua.
 """
 
 ANALYSIS_PROMPT_USER = """
@@ -76,8 +77,8 @@ Analise esta imagem. Extraia todo texto visível E descreva o contexto visual (t
 
 Estruture a saída da seguinte forma:
 TEXTO EXTRAÍDO:
-[texto aqui]
+[texto aqui (traduza para o Português do Brasil se estiver em outro idioma)]
 
 CONTEXTO VISUAL:
-[descrição aqui]
+[descrição aqui em Português do Brasil]
 """

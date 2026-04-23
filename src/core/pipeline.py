@@ -67,6 +67,8 @@ class PipelineResult:
     llm_calls: int = 0
     image_bytes: bytes | None = None
     facts_used: int = 0  # fatos de memória injetados no contexto desta resposta
+    new_facts_count: int = 0  # fatos extraídos deste turno
+    _extraction: dict = field(default_factory=dict) # Cache de extração para post-process
     decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # ID p/ RL feedback
 
 
@@ -465,8 +467,19 @@ class SeekerPipeline:
             self._memory_stats["with_facts"] += 1
         self._memory_stats["total_facts_injected"] += facts_used
 
-        # ── 5. Background: session + record ───────────────────
+        # ── 5. Knowledge Extraction (Synchronous for UX) ──────
+        try:
+            extraction = await self.extractor.extract(user_input, result.response)
+            result.new_facts_count = len(extraction.get("facts", []))
+            # Armazena extração para uso no _post_process
+            result._extraction = extraction 
+        except Exception as e:
+            log.warning(f"[pipeline] Falha na extração síncrona: {e}")
+
+        # ── 6. Background: session + record ───────────────────
         self._spawn_background(self._post_process(session_id, user_input, result))
+
+        return result
 
         return result
 
@@ -810,7 +823,7 @@ class SeekerPipeline:
             )
 
             # Extrai fatos e relacionamentos estruturados (Knowledge Graph)
-            extraction = await self.extractor.extract(user_input, result.response)
+            extraction = result._extraction or await self.extractor.extract(user_input, result.response)
             facts = extraction.get("facts", [])
             entities = extraction.get("entities", [])
             triples = extraction.get("triples", [])
@@ -877,8 +890,8 @@ class SeekerPipeline:
             await self.memory.commit()
 
             # Sincroniza Knowledge Graph com Obsidian (Fase 3)
-            if self.obsidian_exporter:
-                asyncio.create_task(self.obsidian_exporter.sync_all())
+            # if self.obsidian_exporter:
+            #     asyncio.create_task(self.obsidian_exporter.sync_all())
 
             # Registra latência e consolidação no Sprint 11 Tracker (Fase 4)
             self.sprint11_tracker.record_latency(result.total_latency_ms)

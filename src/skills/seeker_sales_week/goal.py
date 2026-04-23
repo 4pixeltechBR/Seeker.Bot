@@ -1,6 +1,6 @@
 """
-Seeker.Bot — Weekly Leads Report
-src/skills/revenue_weekly/goal.py
+Seeker.Bot — Seeker Sales Week
+src/skills/seeker_sales_week/goal.py
 
 Toda Segunda-feira às 08h, coleleta os PDFs de leads dos últimos 7 dias,
 compacta em um ZIP e envia via Telegram.
@@ -16,7 +16,7 @@ from src.core.goals.protocol import (
     AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
 )
 
-log = logging.getLogger("seeker.hunter.weekly")
+log = logging.getLogger("seeker.sales_week")
 
 
 class WeeklyLeadsReportGoal(AutonomousGoal):
@@ -33,7 +33,7 @@ class WeeklyLeadsReportGoal(AutonomousGoal):
 
     @property
     def name(self) -> str:
-        return "revenue_weekly_report"
+        return "seeker_sales_week"
 
     @property
     def interval_seconds(self) -> int:

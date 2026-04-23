@@ -475,6 +475,25 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             log.error(f"[crm] Erro no callback CRM '{action}': {e}", exc_info=True)
             await callback_query.message.answer(f"❌ Erro ao processar CRM: {e}")
 
+    @dp.callback_query(F.data == "vault_sync_now")
+    async def cb_vault_sync(query: CallbackQuery):
+        """Dispara sincronização manual com Obsidian após confirmação"""
+        if not _is_allowed_callback(query, allowed_users):
+            return
+            
+        await query.answer("🔄 Sincronizando com Obsidian...")
+        
+        try:
+            if pipeline.obsidian_exporter:
+                await pipeline.obsidian_exporter.sync_all()
+                await query.message.edit_reply_markup(reply_markup=None) # Remove botão
+                await query.message.reply("✅ Conhecimento exportado para o Obsidian com sucesso!")
+            else:
+                await query.answer("❌ Obsidian Exporter não configurado.", show_alert=True)
+        except Exception as e:
+            log.error(f"[obsidian] Erro no sync manual: {e}")
+            await query.answer(f"❌ Erro no sync: {e}", show_alert=True)
+
     @dp.message(F.text == "/test_email")
     async def cmd_test_email(message: Message):
         """Força execução do email_monitor para diagnóstico"""
@@ -2232,18 +2251,15 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     @dp.message(F.photo)
     async def handle_vault_photo(message: Message):
-        """Handler de fotos com debouncer para media groups"""
+        """Handler de fotos com debouncer para media groups. Encaminha para o pipeline se não tiver /obsidian."""
         if not _is_allowed(message, allowed_users):
             return
             
         caption = message.caption or ""
-        # Verifica se é para o obsidian
+        # Verifica se é para o obsidian direto
         is_obsidian = "/obsidian" in caption.lower()
         if not is_obsidian and message.reply_to_message:
             is_obsidian = message.reply_to_message.text and "/obsidian" in message.reply_to_message.text.lower()
-            
-        if not is_obsidian:
-            return # Ignora fotos normais
             
         # Lógica de Debouncer para Media Groups
         mg_id = message.media_group_id
@@ -2251,7 +2267,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             if mg_id not in dp["vault_debouncer"]:
                 dp["vault_debouncer"][mg_id] = []
                 # Agenda o processamento do grupo
-                asyncio.create_task(process_photo_group(mg_id, message, caption))
+                asyncio.create_task(process_photo_group(mg_id, message, caption, is_obsidian))
             
             # Adiciona a foto ao grupo
             file_info = await message.bot.get_file(message.photo[-1].file_id)
@@ -2259,22 +2275,43 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             dp["vault_debouncer"][mg_id].append(photo_file.read())
         else:
             # Foto única
-            status_msg = await message.answer("⏳ Lendo print e salvando no Obsidian...")
             file_info = await message.bot.get_file(message.photo[-1].file_id)
             photo_file = await message.bot.download_file(file_info.file_path)
-            resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", ""))
-            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+            
+            if is_obsidian:
+                status_msg = await message.answer("⏳ Lendo print e salvando no Obsidian...")
+                resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", ""))
+                await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+            else:
+                await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+                try:
+                    from src.skills.knowledge_vault.extractors import extract_from_images
+                    raw_text = await extract_from_images([photo_file.read()], vault.vlm_client)
+                    user_input = f"{caption}\n\n[Imagem Extraída]:\n{raw_text}".strip()
+                    await _process_and_reply(message, user_input, pipeline, dp)
+                except Exception as e:
+                    await message.reply(f"❌ Erro ao analisar imagem: {e}")
 
-    async def process_photo_group(mg_id: str, message: Message, caption: str):
+    async def process_photo_group(mg_id: str, message: Message, caption: str, is_obsidian: bool):
         """Aguarde 1.5s para agrupar todas as fotos do media group"""
         await asyncio.sleep(1.5)
         photos = dp["vault_debouncer"].pop(mg_id, [])
         if not photos:
             return
             
-        status_msg = await message.answer(f"⏳ Processando {len(photos)} prints no Obsidian...")
-        resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", ""))
-        await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+        if is_obsidian:
+            status_msg = await message.answer(f"⏳ Processando {len(photos)} prints no Obsidian...")
+            resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", ""))
+            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
+            try:
+                from src.skills.knowledge_vault.extractors import extract_from_images
+                raw_text = await extract_from_images(photos, vault.vlm_client)
+                user_input = f"{caption}\n\n[{len(photos)} Imagens Extraídas]:\n{raw_text}".strip()
+                await _process_and_reply(message, user_input, pipeline, dp)
+            except Exception as e:
+                await message.reply(f"❌ Erro ao analisar grupo de imagens: {e}")
 
     @dp.message(F.voice | F.audio)
     async def handle_audio(message: Message):
@@ -2500,9 +2537,19 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                         await message.answer(part, parse_mode=ParseMode.HTML)
                 return
             
+            # ── Obsidian Confirmation Button ──────────────────
+            kb = None
+            if result.new_facts_count > 0:
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                kb = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(text=f"📂 Salvar {result.new_facts_count} fatos no Cofre?", callback_data="vault_sync_now")
+                ]])
+
             for part in split_message(response_text):
                     try:
-                        await message.answer(part, parse_mode=ParseMode.HTML)
+                        # Se for a última parte e tiver teclado, envia junto
+                        is_last = part == split_message(response_text)[-1]
+                        await message.answer(part, parse_mode=ParseMode.HTML, reply_markup=kb if (is_last and kb) else None)
                     except Exception:
                         await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
 
