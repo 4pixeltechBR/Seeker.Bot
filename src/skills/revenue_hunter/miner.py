@@ -587,25 +587,9 @@ def _build_pdf(lead: dict, dossier_text: str, target_key: str) -> str | None:
         def field_row(label: str, value: str):
             try:
                 pdf.set_font("Helvetica", "B", 10)
-                # Salva y atual para o multicell
-                start_y = pdf.get_y()
                 pdf.cell(45, 6, clean(f"{label}:"))
                 pdf.set_font("Helvetica", "", 10)
-                
-                # FPDF2 falha ("Not enough horizontal space") se uma palavra for longa demais sem espaços (ex: URLs)
-                val_str = clean(value or "N/A")
-                safe_words = []
-                for word in val_str.split():
-                    if len(word) > 45:  # Quebra palavras extremamente longas
-                        chunks = [word[i:i+45] for i in range(0, len(word), 45)]
-                        safe_words.append(" ".join(chunks))
-                    else:
-                        safe_words.append(word)
-                safe_val_str = " ".join(safe_words)
-                
-                # multi_cell no restante do espaço (cuidado com bordas)
-                pdf.set_xy(pdf.get_x(), start_y)
-                pdf.multi_cell(0, 6, safe_val_str)
+                pdf.multi_cell(0, 6, clean(value or "N/A"))
             except Exception as e:
                 log.warning(f"[hunter] PDF skip row {label}: {e}")
 

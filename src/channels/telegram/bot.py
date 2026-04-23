@@ -422,9 +422,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         )
 
     @dp.callback_query(lambda c: c.data and c.data.startswith('crm_'))
-    async def process_crm_callback(callback_query):
-        # A simple check for user allowlist just in case
-        if not _is_allowed(callback_query.message, allowed_users):
+    async def process_crm_callback(callback_query: CallbackQuery):
+        if not _is_allowed_callback(callback_query, allowed_users):
             return
             
         action = callback_query.data
@@ -440,36 +439,41 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             await callback_query.message.answer("🎪 Para buscar por tipo, digite:\n<code>/crm tipo AGRO</code>\n\nTipos válidos: AGRO, FEST, JUNINO, RELIG, CORP, CERIM, SHOW, GOV, PARTICULAR, OUTRO", parse_mode=ParseMode.HTML)
             return
             
-        from src.skills.revenue_hunter.crm_store import CRMStore
-        from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
-        from aiogram.types import FSInputFile
-        
-        crm = CRMStore(pipeline.memory._db)
-        
-        if action == "crm_ultimos":
-            leads = await crm.get_recent(15)
-            if not leads:
-                await callback_query.message.answer("📭 CRM vazio.")
-                return
-            await callback_query.message.answer("⏳ Gerando relatório dos últimos 15 leads...")
-            pdf_path = generate_crm_report_pdf("Últimos 15 Leads Minerados", leads)
-            doc = FSInputFile(pdf_path)
-            await callback_query.message.answer_document(doc, caption="📊 Relatório dos últimos leads")
+        try:
+            from src.skills.revenue_hunter.crm_store import CRMStore
+            from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+            from aiogram.types import FSInputFile
             
-        elif action == "crm_dashboard":
-            stats = await crm.get_stats()
+            crm = CRMStore(pipeline.memory._db)
+            await crm.init_tables()
             
-            top_cities = "\n".join([f"  • {c[0]}: {c[1]} leads" for c in stats.get('top_cities', [])])
-            types = "\n".join([f"  • {c[0]}: {c[1]}" for c in stats.get('types', [])])
-            
-            dash = (
-                "📈 <b>Dashboard Estratégico CRM</b>\n\n"
-                f"💰 <b>Pipeline de Receita (Estimada):</b> {stats.get('pipeline_value', 'N/A')}\n\n"
-                f"🔥 <b>Leads Esfriando (>14 dias):</b> {stats.get('decaying_count', 0)} leads\n\n"
-                f"🏙️ <b>Top 5 Cidades (Densidade):</b>\n{top_cities}\n\n"
-                f"🎪 <b>Distribuição por Tipo:</b>\n{types}\n"
-            )
-            await callback_query.message.answer(dash, parse_mode=ParseMode.HTML)
+            if action == "crm_ultimos":
+                leads = await crm.get_recent(15)
+                if not leads:
+                    await callback_query.message.answer("📭 CRM vazio. O Revenue Hunter ainda não minerou leads.")
+                    return
+                await callback_query.message.answer("⏳ Gerando relatório dos últimos 15 leads...")
+                pdf_path = generate_crm_report_pdf("Últimos 15 Leads Minerados", leads)
+                doc = FSInputFile(pdf_path)
+                await callback_query.message.answer_document(doc, caption="📊 Relatório dos últimos leads")
+                
+            elif action == "crm_dashboard":
+                stats = await crm.get_stats()
+                
+                top_cities = "\n".join([f"  • {c[0]}: {c[1]} leads" for c in stats.get('top_cities', [])])
+                types = "\n".join([f"  • {c[0]}: {c[1]}" for c in stats.get('types', [])])
+                
+                dash = (
+                    "📈 <b>Dashboard Estratégico CRM</b>\n\n"
+                    f"💰 <b>Pipeline de Receita (Estimada):</b> {stats.get('pipeline_value', 'N/A')}\n\n"
+                    f"🔥 <b>Leads Esfriando (>14 dias):</b> {stats.get('decaying_count', 0)} leads\n\n"
+                    f"🏙️ <b>Top 5 Cidades (Densidade):</b>\n{top_cities}\n\n"
+                    f"🎪 <b>Distribuição por Tipo:</b>\n{types}\n"
+                )
+                await callback_query.message.answer(dash, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            log.error(f"[crm] Erro no callback CRM '{action}': {e}", exc_info=True)
+            await callback_query.message.answer(f"❌ Erro ao processar CRM: {e}")
 
     @dp.message(F.text == "/test_email")
     async def cmd_test_email(message: Message):
