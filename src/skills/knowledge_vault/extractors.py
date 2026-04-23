@@ -26,24 +26,11 @@ async def extract_from_images(image_bytes_list: List[bytes], vlm_client) -> str:
     
     for i, img_bytes in enumerate(image_bytes_list):
         log.debug(f"[extractors] Processando imagem {i+1}/{len(image_bytes_list)}")
-        # Nota: VLMClient.analyze_screenshot geralmente aceita o caminho do arquivo, 
-        # mas precisamos verificar se ele aceita bytes ou se precisamos salvar temporariamente.
-        # Olhando o checkpoint anterior, VLMClient parece lidar com caminhos.
-        
-        # Salvando temporário para processamento
-        temp_path = f"temp_obsidian_extract_{i}.png"
         try:
-            with open(temp_path, "wb") as f:
-                f.write(img_bytes)
-            
-            res = await vlm_client.analyze_screenshot(temp_path)
-            analysis = res.get("analysis", "")
+            analysis = await vlm_client.analyze_screenshot(img_bytes, prompt=prompt)
             results.append(f"--- IMAGEM {i+1} ---\n{analysis}")
         except Exception as e:
-            log.error(f"[extractors] Erro ao processar imagem {i}: {e}")
-        finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            log.error(f"[extractors] Erro ao processar imagem {i}: {e}", exc_info=True)
                 
     return "\n\n".join(results)
 

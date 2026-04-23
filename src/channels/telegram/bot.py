@@ -2285,14 +2285,23 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         # Lógica de Debouncer para Media Groups
         mg_id = message.media_group_id
         if mg_id:
-            if mg_id not in dp["vault_debouncer"]:
+            if "vault_debouncer" not in dp:
+                dp["vault_debouncer"] = {}
+                
+            is_first = mg_id not in dp["vault_debouncer"]
+            if is_first:
                 dp["vault_debouncer"][mg_id] = []
-                # Agenda o processamento do grupo
                 asyncio.create_task(process_photo_group(mg_id, message, caption, is_obsidian))
             
             # Adiciona a foto ao grupo
             file_info = await message.bot.get_file(message.photo[-1].file_id)
             photo_file = await message.bot.download_file(file_info.file_path)
+            
+            # Se a chave sumiu (download lento), recria
+            if mg_id not in dp["vault_debouncer"]:
+                dp["vault_debouncer"][mg_id] = []
+                asyncio.create_task(process_photo_group(mg_id, message, caption, is_obsidian))
+                
             dp["vault_debouncer"][mg_id].append(photo_file.read())
         else:
             # Foto única
