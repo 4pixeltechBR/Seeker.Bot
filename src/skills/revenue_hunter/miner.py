@@ -227,7 +227,7 @@ class RevenueMiner:
                         )}],
                         system="Você é o Seeker SDR. Formate o dossiê em HTML para Telegram.",
                         temperature=0.3,
-                        max_tokens=1200,
+                        max_tokens=2500,
                     ),
                     self.pipeline.model_router,
                     self.pipeline.api_keys,
