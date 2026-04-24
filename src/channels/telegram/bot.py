@@ -383,8 +383,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                 valor = arg
                 
         if filtro:
-            from src.skills.revenue_hunter.crm_store import CRMStore
-            from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+            from src.skills.seeker_sales.crm_store import CRMStore
+            from src.skills.seeker_sales.crm_pdf import generate_crm_report_pdf
             from aiogram.types import FSInputFile
             import os
             
@@ -461,8 +461,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
             
         try:
-            from src.skills.revenue_hunter.crm_store import CRMStore
-            from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+            from src.skills.seeker_sales.crm_store import CRMStore
+            from src.skills.seeker_sales.crm_pdf import generate_crm_report_pdf
             from aiogram.types import FSInputFile
             
             crm = CRMStore(pipeline.memory._db)
