@@ -115,6 +115,34 @@ class CascadeAdapter:
         """
         pass
 
+    def get_health_status(self) -> dict:
+        """Compatibility stub para /cascade_status funcionar sem crashar."""
+        from datetime import datetime
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "overall_health": "100% (Simulado)",
+            "tiers": {
+                "Simples": {
+                    "is_healthy": True,
+                    "success_rate": "N/A",
+                    "avg_latency_ms": 0,
+                    "avg_cost_usd": 0.0,
+                    "fallback_count": 0,
+                    "last_error": ""
+                }
+            }
+        }
+
+    def get_cost_analysis(self) -> dict:
+        """Compatibility stub para /cascade_status funcionar sem crashar."""
+        return {
+            "total_calls": 0,
+            "total_cost_usd": 0.0,
+            "average_cost_per_call": 0.0,
+            "estimated_savings_vs_nim": "$0.00",
+            "error_breakdown": {}
+        }
+
 
     def _is_circuit_open(self, provider: str) -> bool:
         """Verifica se provider está em circuit breaker."""
