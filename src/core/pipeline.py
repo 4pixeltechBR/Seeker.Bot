@@ -2,13 +2,30 @@
 Seeker.Bot — Core Pipeline
 src/core/pipeline.py
 
-Orquestrador fino: recebe input → decide profundidade → delega pra fase → registra.
-Não tem lógica de LLM direta — delega tudo pras phases.
+Main orchestrator for cognitive request processing. Routes incoming requests through
+a multi-tier cognitive system (REFLEX → DELIBERATE → DEEP) based on complexity analysis.
 
-De 554 linhas → ~220 linhas.
-Os prompts vivem em cognition/prompts.py.
-As fases vivem em phases/{reflex,deliberate,deep}.py.
-A sessão vive em memory/session.py.
+Architecture:
+    - CognitiveLoadRouter: Analyzes request → decides depth (0 LLM, regex-based)
+    - PhaseResult: Abstract execution model (each phase implements independently)
+    - MemoryStore: 4-table SQLite for episodic, semantic, facts, embeddings
+    - CascadeAdapter: 6-tier LLM fallback (Gemini → Groq → NVIDIA → DeepSeek → Mistral → Cache)
+    - EvidenceArbitrage: Triangulates 2-3 models for hallucination detection
+    - VerificationGate: Independent judge verifies critical claims
+    - SafetyLayer: Governs autonomy tiers and action permissions
+
+Key Components:
+    - ReflexPhase: Direct response, no LLM calls (status checks, simple facts)
+    - DeliberatePhase: Memory + web search (1-2 LLM calls)
+    - DeepPhase: Evidence arbitrage + triangulation + research loops (3+ LLM calls)
+    - RL Infrastructure: Bandit model learns which provider works best per role
+    - Decay Engine: Confidence degrades over time (half-life per domain)
+
+Usage:
+    pipeline = SeekerPipeline(api_keys={'gemini': '...', 'groq': '...', ...})
+    await pipeline.init()
+    result = await pipeline.process("Pergunta complexa", user_id=123)
+    # result: PipelineResult(response, depth, cost_usd, latency_ms, facts_used, ...)
 """
 
 import asyncio
@@ -74,12 +91,33 @@ class PipelineResult:
 
 class SeekerPipeline:
     """
-    Orquestrador: Input → Router → Phase → Record.
-    
-    Uso:
+    Main request orchestrator. Routes requests through cognitive phases and manages
+    all infrastructure (memory, providers, search, evidence verification).
+
+    Args:
+        api_keys: Dict of provider keys {'gemini', 'groq', 'nvidia_nim', 'deepseek', 'mistral'}
+        db_path: SQLite database path (defaults to data/seeker_memory.db)
+
+    Attributes:
+        cognitive_router: Routes requests to REFLEX, DELIBERATE, or DEEP based on complexity
+        memory: 4-table SQLite store for episodic, semantic, facts, and embeddings
+        cascade_adapter: 6-tier LLM fallback with automatic provider ranking
+        arbitrage: Evidence triangulation with 2-3 models in parallel
+        gate: Verification gate (independent judge) for critical claims
+        session: Session manager with compression and context windowing
+        safety_layer: Governs autonomous actions and autonomy tiers
+
+    Example:
+        api_keys = {
+            'gemini': 'sk-...',
+            'groq': 'gsk_...',
+            'nvidia_nim': 'nvapi-...',
+        }
         pipeline = SeekerPipeline(api_keys)
         await pipeline.init()
-        result = await pipeline.process("vale a pena migrar pra K8s?")
+        result = await pipeline.process("Qual é o melhor framework Python para ML?", user_id=123)
+        print(f"Response: {result.response}")
+        print(f"Depth: {result.depth} | Cost: ${result.total_cost_usd:.4f} | Latency: {result.total_latency_ms}ms")
     """
 
     def __init__(self, api_keys: dict[str, str], db_path: str | None = None):
