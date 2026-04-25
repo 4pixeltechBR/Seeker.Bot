@@ -108,3 +108,5 @@ class SkillCreatorEngine:
             f"✅ Código implementado e salvo com sucesso em '{file_path}'.\n"
             f"Se for uma skill nova, ela será carregada no próximo boot."
         )
+
+CodeGenerator = SkillCreatorEngine

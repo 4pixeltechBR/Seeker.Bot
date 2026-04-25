@@ -11,7 +11,7 @@ from src.providers.base import LLMRequest, invoke_with_fallback
 from src.core.goals.protocol import (
     AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
 )
-from src.skills.revenue_hunter.prompts import (
+from src.skills.seeker_sales.prompts import (
     TARGET_REGIONS,
     TARGET_EVENTS,
     TRIGGER_KEYWORDS,
@@ -20,7 +20,7 @@ from src.skills.revenue_hunter.prompts import (
     DOSSIER_PROMPT,
 )
 from config.models import CognitiveRole
-from src.skills.revenue_hunter.crm_store import CRMStore
+from src.skills.seeker_sales.crm_store import CRMStore
 
 log = logging.getLogger("seeker.hunter")
 
@@ -69,7 +69,7 @@ class RevenueMiner:
 
     @property
     def name(self) -> str:
-        return "revenue_hunter"
+        return "seeker_sales_miner"
 
     @property
     def interval_seconds(self) -> int:
@@ -307,7 +307,7 @@ class RevenueMiner:
 
         if notificacoes:
             count = len(notificacoes)
-            header = f"🚨 <b>REVENUE HUNTER — {count} ALVO(S) EM GOIÁS</b> 🚨\n\n"
+            header = f"🚨 <b>SEEKER SALES — {count} ALVO(S) QUALIFICADO(S)</b> 🚨\n\n"
             final = header + "\n\n➖➖➖➖➖➖\n\n".join(notificacoes)
             cycle_data["leads_count"] = count
             return GoalResult(
@@ -539,7 +539,7 @@ def _build_pdf(lead: dict, dossier_text: str, target_key: str) -> str | None:
 
         # Cabeçalho
         pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, clean("Revenue Hunter - Dossie de Lead"), align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(0, 10, clean("Seeker Sales - Dossie de Lead"), align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.set_font("Helvetica", "I", 10)
         from datetime import datetime
         pdf.cell(0, 6, f"Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')} pelo Seeker.Bot",

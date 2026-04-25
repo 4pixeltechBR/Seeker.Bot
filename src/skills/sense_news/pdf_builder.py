@@ -20,31 +20,35 @@ OUTPUT_DIR = os.path.join(os.getcwd(), "data", "sense_news")
 
 
 class SenseNewsPDF(FPDF):
-    """PDF customizado com header/footer do SenseNews."""
+    """PDF customizado com header/footer do SenseNews — tema escuro."""
 
     def __init__(self, date_label: str):
         super().__init__()
         self.date_label = date_label
-        # Fonte padrão — evita dependência de fontes externas
         self.set_auto_page_break(auto=True, margin=20)
 
+    def _fill_background(self):
+        """Preenche o fundo da página atual com preto."""
+        self.set_fill_color(0, 0, 0)
+        self.rect(0, 0, self.w, self.h, style="F")
+
     def header(self):
+        self._fill_background()
         self.set_font("Helvetica", "B", 14)
-        self.set_text_color(30, 30, 30)
+        self.set_text_color(255, 255, 255)
         self.cell(0, 10, f"SenseNews - {self.date_label}", align="C", new_x="LMARGIN", new_y="NEXT")
         self.set_font("Helvetica", "I", 8)
-        self.set_text_color(120, 120, 120)
+        self.set_text_color(160, 160, 160)
         self.cell(0, 5, "Gerado automaticamente pelo Seeker.Bot", align="C", new_x="LMARGIN", new_y="NEXT")
         self.ln(5)
-        # Linha separadora
-        self.set_draw_color(200, 200, 200)
+        self.set_draw_color(60, 60, 60)
         self.line(10, self.get_y(), 200, self.get_y())
         self.ln(5)
 
     def footer(self):
         self.set_y(-15)
         self.set_font("Helvetica", "I", 8)
-        self.set_text_color(150, 150, 150)
+        self.set_text_color(100, 100, 100)
         self.cell(0, 10, f"Pagina {self.page_no()}/{{nb}}", align="C")
 
 
@@ -103,7 +107,7 @@ def _render_markdown(pdf: FPDF, md_text: str):
         # H1
         if stripped.startswith("# "):
             pdf.set_font("Helvetica", "B", 20)
-            pdf.set_text_color(15, 23, 42) # Slate 900
+            pdf.set_text_color(255, 255, 255)
             text = _clean_text(stripped[2:])
             pdf.multi_cell(0, 10, text)
             pdf.ln(4)
@@ -111,9 +115,9 @@ def _render_markdown(pdf: FPDF, md_text: str):
 
         # H2
         if stripped.startswith("## "):
-            pdf.set_fill_color(241, 245, 249)
+            pdf.set_fill_color(30, 30, 30)
             pdf.set_font("Helvetica", "B", 12)
-            pdf.set_text_color(30, 41, 59)
+            pdf.set_text_color(200, 200, 200)
             text = f"  {_clean_text(stripped[3:])}"
             pdf.cell(0, 8, text, fill=True, new_x="LMARGIN", new_y="NEXT")
             pdf.ln(3)
@@ -122,7 +126,7 @@ def _render_markdown(pdf: FPDF, md_text: str):
         # Blockquote (Radar de Projetos)
         if stripped.startswith(">") or "<blockquote>" in line:
             pdf.set_font("Helvetica", "I", 10)
-            pdf.set_text_color(71, 85, 105)
+            pdf.set_text_color(150, 150, 150)
             pdf.set_left_margin(15)
             text = _strip_inline_markdown(stripped.replace(">", "").replace("<b>", "").replace("</b>", ""))
             pdf.multi_cell(0, 5, _clean_text(text))
@@ -133,14 +137,14 @@ def _render_markdown(pdf: FPDF, md_text: str):
         # Linha separadora
         if stripped in ("---", "***", "___", "━━━━"):
             pdf.ln(2)
-            pdf.set_draw_color(203, 213, 225)
+            pdf.set_draw_color(60, 60, 60)
             pdf.line(20, pdf.get_y(), 190, pdf.get_y())
             pdf.ln(5)
             continue
 
         # Parágrafo normal
         pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(51, 65, 85) # Slate 700
+        pdf.set_text_color(220, 220, 220)
         text = _strip_inline_markdown(stripped)
         text = _clean_text(text)
         pdf.multi_cell(0, 6, text)
@@ -201,21 +205,25 @@ def _fallback_pdf(
         pdf.add_page()
 
         pdf.set_font("Helvetica", "B", 14)
+        pdf.set_text_color(255, 255, 255)
         pdf.cell(0, 10, f"SenseNews - {date_label}", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
 
         for a in analyses:
             pdf.set_font("Helvetica", "B", 11)
+            pdf.set_text_color(255, 255, 255)
             niche = a.get("niche", "?")
             title = _clean_text(a.get("title", "Sem titulo"))
             pdf.multi_cell(0, 6, f"[{niche}] {title}")
 
             pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(220, 220, 220)
             analysis = _clean_text(a.get("analysis", ""))
             pdf.multi_cell(0, 5, analysis)
 
             impact = _clean_text(a.get("impact", ""))
             pdf.set_font("Helvetica", "I", 9)
+            pdf.set_text_color(150, 150, 150)
             pdf.multi_cell(0, 5, f"Impacto: {impact}")
             pdf.ln(3)
 
