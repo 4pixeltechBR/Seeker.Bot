@@ -151,9 +151,6 @@ Skills são agentes autônomos que rodam em background num agendamento. Você es
 ### 🔵 Especialistas
 | Skill | Descrição | Requer |
 |---|---|---|
-| **Seeker Sales** | BDR Unificado — prospecção B2B + mineração de eventos | — |
-| **Event Map Scout** | Mapeamento preditivo regional de eventos com PDF | — |
-| **Seeker Sales Week** | Relatório semanal com dossiês de leads | SMTP |
 | **Email Monitor** | Monitoramento de inbox com filtros inteligentes | IMAP |
 | **Desktop Watch** | Vigilância AFK da tela com detecção de padrões | VLM |
 | **Remote Executor** | Execução de planos complexos com workflow de aprovação | — |
