@@ -36,6 +36,45 @@ SKILLS_DIR = os.path.join(
     "skills",
 )
 
+CONFIG_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    "config",
+)
+
+
+def _load_skills_deny_list() -> set[str]:
+    """
+    Lê config/skills.yaml e retorna set de skills desabilitadas.
+    Se o arquivo não existir, retorna set vazio (carrega tudo).
+    """
+    skills_yaml = os.path.join(CONFIG_DIR, "skills.yaml")
+    if not os.path.exists(skills_yaml):
+        return set()
+
+    try:
+        import yaml
+        with open(skills_yaml, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f) or {}
+
+        disabled: set[str] = set()
+        for category in ("core", "recommended", "specialist"):
+            section = config.get(category, {})
+            if isinstance(section, dict):
+                for skill_name, enabled in section.items():
+                    if not enabled:
+                        disabled.add(skill_name)
+
+        if disabled:
+            log.info(f"[registry] skills.yaml: {len(disabled)} skills desabilitadas: {disabled}")
+        return disabled
+
+    except ImportError:
+        log.warning("[registry] PyYAML não instalado — ignorando skills.yaml")
+        return set()
+    except Exception as e:
+        log.warning(f"[registry] Erro ao ler skills.yaml: {e} — carregando todas as skills")
+        return set()
+
 
 def discover_goals(
     pipeline,
@@ -54,6 +93,9 @@ def discover_goals(
         Lista de goals instanciados e prontos pro scheduler.
     """
     deny_list = deny_list or set()
+    # Merge: deny_list do parâmetro + deny_list do skills.yaml
+    yaml_deny = _load_skills_deny_list()
+    deny_list = deny_list | yaml_deny
     base_dir = Path(skills_dir or SKILLS_DIR)
 
     if not base_dir.exists():

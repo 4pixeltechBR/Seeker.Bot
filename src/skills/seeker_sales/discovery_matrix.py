@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Any
 
-log = logging.getLogger("seeker.scout_hunter.discovery_matrix")
+log = logging.getLogger("seeker.seeker_sales.discovery_matrix")
 
 
 @dataclass

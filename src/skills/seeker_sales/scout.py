@@ -24,8 +24,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 
 from src.providers.cascade import CascadeRole
-from src.skills.scout_hunter.discovery_matrix import DiscoveryMatrix
-from src.skills.scout_hunter.account_research import AccountResearcher
+from src.skills.seeker_sales.discovery_matrix import DiscoveryMatrix
+from src.skills.seeker_sales.account_research import AccountResearcher
 from src.core.evidence import EvidenceEntry, get_evidence_store
 from src.core.search.web import WebSearcher
 from src.core.search.headless import HeadlessScraper

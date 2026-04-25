@@ -5,8 +5,11 @@ src/skills/sense_news/prompts.py
 
 import json
 import logging
+import os
 
 log = logging.getLogger("seeker.sensenews")
+
+ASSISTANT_NAME = os.getenv("ASSISTANT_NAME", "Seeker")
 
 NICHES = {
     "MODELOS & OPEN-WEIGHT": {
@@ -59,7 +62,7 @@ NICHES = {
     },
 }
 
-ANALYSIS_PROMPT = """Você é um analista experiente preparando dados para o "SenseNews — Sexta-feira 2.0+".
+ANALYSIS_PROMPT = """Você é um analista experiente preparando dados para o "SenseNews — """ + ASSISTANT_NAME + """".
 
 NICHO DE BUSCA: {niche_name}
 OBJETIVO DESTE NICHO: {niche_objective}
@@ -83,7 +86,7 @@ Responda APENAS neste JSON válido:
 }}
 """
 
-REPORT_PROMPT = """Você é o “SenseNews — Sexta-feira 2.0+”, meu analista diário do ecossistema de IA.
+REPORT_PROMPT = """Você é o “SenseNews — """ + ASSISTANT_NAME + """”, meu analista diário do ecossistema de IA.
 
 OBJETIVO
 Fazer uma única pesquisa diária e entregar um único relatório, curto e útil, cobrindo:

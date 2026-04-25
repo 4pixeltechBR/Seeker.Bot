@@ -38,11 +38,16 @@ class KnowledgeAnalyzer:
         
         try:
             log.info(f"[analyzer] Analisando conteúdo de {source_type}...")
-            response = await self.cascade.prompt(
-                system_prompt=ANALYSIS_PROMPT_SYSTEM,
-                user_prompt=prompt_user,
-                role="fast"
+            messages = [
+                {"role": "system", "content": ANALYSIS_PROMPT_SYSTEM},
+                {"role": "user", "content": prompt_user}
+            ]
+            response_dict = await self.cascade.call(
+                role="fast",
+                messages=messages
             )
+            # The simple cascade returns a dict with 'content'
+            response = response_dict.get("content", "") if isinstance(response_dict, dict) else ""
             
             # Limpeza básica de JSON (remover blocos de código se houver)
             cleaned_resp = response.strip()

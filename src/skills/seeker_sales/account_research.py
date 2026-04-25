@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 
-log = logging.getLogger("seeker.scout_hunter.account_research")
+log = logging.getLogger("seeker.seeker_sales.account_research")
 
 @dataclass
 class DecisionMaker:

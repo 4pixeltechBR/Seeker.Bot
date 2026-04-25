@@ -649,7 +649,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             scout_goal = None
             if hasattr(pipeline, '_goals'):
                 for goal in pipeline._goals:
-                    if hasattr(goal, 'name') and goal.name == 'scout_hunter':
+                    if hasattr(goal, 'name') and goal.name == 'seeker_sales':
                         scout_goal = goal
                         break
 
