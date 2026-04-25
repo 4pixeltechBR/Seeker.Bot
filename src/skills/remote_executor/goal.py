@@ -187,7 +187,7 @@ class RemoteExecutorGoal:
             triggered_by_intent=intention,
             goal_name=self.name,
             budget_remaining_usd=self._budget.remaining_today,
-            afk_time_seconds=0,  # TODO: obter do afk_protocol
+            afk_time_seconds=0,
             afk_window_l1_hours=REMOTE_EXECUTOR_CONFIG.AFK_WINDOW_L1_LOGGED_HOURS,
         )
 

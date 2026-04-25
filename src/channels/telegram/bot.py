@@ -44,6 +44,18 @@ MAX_MSG_LENGTH = 4096
 TYPING_INTERVAL = 4
 
 
+import re as _re
+_TASK_ID_RE = _re.compile(r'^[\w\-]{1,64}$')
+
+def _parse_task_id(text: str) -> str | None:
+    """Extrai e valida task_id de um comando. Retorna None se inválido."""
+    parts = text.split(" ", 1)
+    if len(parts) < 2:
+        return None
+    tid = parts[1].strip()
+    return tid if _TASK_ID_RE.match(tid) else None
+
+
 def split_message(text: str, max_length: int = MAX_MSG_LENGTH) -> list[str]:
     if len(text) <= max_length:
         return [text]
@@ -1877,7 +1889,10 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         try:
-            task_id = message.text.split(" ", 1)[1].strip()
+            task_id = _parse_task_id(message.text)
+            if not task_id:
+                await message.answer("❌ ID inválido. Use: <code>/detalhe &lt;id&gt;</code>", parse_mode=ParseMode.HTML)
+                return
 
             from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
             from src.skills.scheduler_conversacional.store import SchedulerStore
@@ -1900,7 +1915,10 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         try:
-            task_id = message.text.split(" ", 1)[1].strip()
+            task_id = _parse_task_id(message.text)
+            if not task_id:
+                await message.answer("❌ ID inválido. Use: <code>/pausar &lt;id&gt;</code>", parse_mode=ParseMode.HTML)
+                return
 
             from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
             from src.skills.scheduler_conversacional.store import SchedulerStore
@@ -1923,7 +1941,10 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         try:
-            task_id = message.text.split(" ", 1)[1].strip()
+            task_id = _parse_task_id(message.text)
+            if not task_id:
+                await message.answer("❌ ID inválido. Use: <code>/reativar &lt;id&gt;</code>", parse_mode=ParseMode.HTML)
+                return
 
             from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
             from src.skills.scheduler_conversacional.store import SchedulerStore
@@ -1946,7 +1967,10 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         try:
-            task_id = message.text.split(" ", 1)[1].strip()
+            task_id = _parse_task_id(message.text)
+            if not task_id:
+                await message.answer("❌ ID inválido. Use: <code>/remover &lt;id&gt;</code>", parse_mode=ParseMode.HTML)
+                return
 
             from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
             from src.skills.scheduler_conversacional.store import SchedulerStore
@@ -1969,7 +1993,10 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         try:
-            task_id = message.text.split(" ", 1)[1].strip()
+            task_id = _parse_task_id(message.text)
+            if not task_id:
+                await message.answer("❌ ID inválido. Use: <code>/executar &lt;id&gt;</code>", parse_mode=ParseMode.HTML)
+                return
 
             from src.skills.scheduler_conversacional.telegram_interface import SchedulerTelegramInterface
             from src.skills.scheduler_conversacional.store import SchedulerStore
@@ -2528,7 +2555,7 @@ async def main():
                 allowed_users.add(int(uid))
         log.info(f"Acesso restrito a: {allowed_users}")
     else:
-        log.info("Acesso aberto")
+        log.warning("TELEGRAM_ALLOWED_USERS nao definido — bot acessivel por qualquer usuario. Defina no .env para restringir acesso.")
 
     # ── Init pipeline ─────────────────────────────────────
     pipeline = SeekerPipeline(api_keys)

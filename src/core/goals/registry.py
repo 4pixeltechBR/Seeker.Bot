@@ -69,7 +69,7 @@ def _load_skills_deny_list() -> set[str]:
         return disabled
 
     except ImportError:
-        log.warning("[registry] PyYAML não instalado — ignorando skills.yaml")
+        log.warning("[registry] PyYAML não instalado — skills.yaml ignorado. Execute: pip install pyyaml")
         return set()
     except Exception as e:
         log.warning(f"[registry] Erro ao ler skills.yaml: {e} — carregando todas as skills")
