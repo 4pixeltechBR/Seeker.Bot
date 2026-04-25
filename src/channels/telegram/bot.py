@@ -360,14 +360,31 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
 
         args = message.text.split(maxsplit=2)
+        filtro = None
+        valor = None
         
-        # Se usou parâmetros (ex: /crm cidade goiania)
+        # Parse smart arguments
         if len(args) >= 3:
             filtro = args[1].lower()
             valor = args[2]
-            
-            from src.skills.revenue_hunter.crm_store import CRMStore
-            from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+        elif len(args) == 2:
+            arg = args[1].lower()
+            if arg.isdigit():
+                filtro = "ultimos"
+                valor = int(arg)
+            elif arg in ["janeiro", "fevereiro", "marco", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]:
+                filtro = "mes"
+                valor = arg
+            elif arg in ["agro", "fest", "junino", "relig", "corp", "cerim", "show", "gov", "particular", "outro"]:
+                filtro = "tipo"
+                valor = arg
+            else:
+                filtro = "cidade"
+                valor = arg
+                
+        if filtro:
+            from src.skills.seeker_sales.crm_store import CRMStore
+            from src.skills.seeker_sales.crm_pdf import generate_crm_report_pdf
             from aiogram.types import FSInputFile
             import os
             
@@ -375,15 +392,19 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             leads = []
             title = ""
             
-            if filtro == "cidade":
-                leads = await crm.search_by_city(valor)
+            if filtro == "ultimos":
+                limit = valor if isinstance(valor, int) else 15
+                leads = await crm.get_recent(limit)
+                title = f"Últimos {limit} Leads"
+            elif filtro == "cidade":
+                leads = await crm.search_by_city(str(valor))
                 title = f"Eventos na Cidade: {valor}"
             elif filtro == "mes" or filtro == "mês":
-                leads = await crm.search_by_month(valor)
+                leads = await crm.search_by_month(str(valor))
                 title = f"Eventos no Mês: {valor}"
             elif filtro == "tipo":
-                leads = await crm.search_by_type(valor.upper())
-                title = f"Categoria: {valor.upper()}"
+                leads = await crm.search_by_type(str(valor).upper())
+                title = f"Categoria: {str(valor).upper()}"
             
             if not leads:
                 await message.answer(f"📭 Nenhum lead encontrado para {filtro}: '{valor}'.")
@@ -440,8 +461,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
             
         try:
-            from src.skills.revenue_hunter.crm_store import CRMStore
-            from src.skills.revenue_hunter.crm_pdf import generate_crm_report_pdf
+            from src.skills.seeker_sales.crm_store import CRMStore
+            from src.skills.seeker_sales.crm_pdf import generate_crm_report_pdf
             from aiogram.types import FSInputFile
             
             crm = CRMStore(pipeline.memory._db)
@@ -1907,6 +1928,97 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             log.error(f"[executor_callback] Erro ao rejeitar {approval_id}: {e}")
             await callback.answer(f"❌ Erro: {str(e)[:50]}", show_alert=True)
 
+    # ────────────────────────────────────────────────────────────────
+    # S.A.R.A Approval Callbacks (ApprovalEngine — Day 5)
+    # ────────────────────────────────────────────────────────────────
+
+    @dp.callback_query(F.data.startswith("sara_approve:"))
+    async def handle_sara_approve(callback: CallbackQuery):
+        """Aplica o patch S.A.R.A aprovado pelo usuário."""
+        if not _is_allowed_callback(callback, allowed_users):
+            return
+        try:
+            pending_id = int(callback.data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            await callback.answer("Formato de callback inválido", show_alert=True)
+            return
+
+        try:
+            from src.skills.self_improvement.error_database import get_pending_store
+            import shutil, os
+
+            store = get_pending_store()
+            patch = await store.approve(pending_id)
+
+            if patch is None:
+                await callback.answer("Patch já resolvido ou expirou (>24h)", show_alert=True)
+                await callback.message.edit_reply_markup(reply_markup=None)
+                return
+
+            file_path = patch["file_path"]
+            new_code = patch["proposed_code"]
+            rationale = patch["rationale"]
+            filename = os.path.basename(file_path)
+
+            # Verifica se o arquivo ainda existe
+            if not os.path.exists(file_path):
+                await callback.answer(f"Arquivo não encontrado: {filename}", show_alert=True)
+                return
+
+            # Backup + Overwrite
+            backup_path = f"{file_path}.bak"
+            shutil.copy2(file_path, backup_path)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(new_code)
+
+            log.info(f"[sara_approve] Patch {pending_id} aplicado em {filename} pelo usuario")
+
+            await callback.answer("Patch aplicado com sucesso!")
+            await callback.message.edit_text(
+                f"🛡️ <b>S.A.R.A — PATCH APLICADO</b>\n\n"
+                f"📄 <b>Arquivo:</b> {filename}\n"
+                f"🧠 <b>Motivo:</b> {rationale}\n"
+                f"<i>Backup salvo em .bak</i>",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception as e:
+            log.error(f"[sara_approve] Erro ao aplicar patch {pending_id}: {e}", exc_info=True)
+            await callback.answer(f"Erro ao aplicar: {str(e)[:80]}", show_alert=True)
+
+    @dp.callback_query(F.data.startswith("sara_reject:"))
+    async def handle_sara_reject(callback: CallbackQuery):
+        """Rejeita o patch S.A.R.A — arquivo original preservado."""
+        if not _is_allowed_callback(callback, allowed_users):
+            return
+        try:
+            pending_id = int(callback.data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            await callback.answer("Formato de callback inválido", show_alert=True)
+            return
+
+        try:
+            from src.skills.self_improvement.error_database import get_pending_store
+
+            store = get_pending_store()
+            rejected = await store.reject(pending_id)
+
+            if not rejected:
+                await callback.answer("Patch já resolvido ou expirou (>24h)", show_alert=True)
+                await callback.message.edit_reply_markup(reply_markup=None)
+                return
+
+            log.info(f"[sara_reject] Patch {pending_id} rejeitado pelo usuario")
+            await callback.answer("Patch rejeitado — arquivo preservado")
+            await callback.message.edit_text(
+                f"🛡️ <b>S.A.R.A — PATCH REJEITADO</b>\n\n"
+                f"O arquivo original foi preservado.\n"
+                f"<i>Revisão manual necessária quando conveniente.</i>",
+                parse_mode=ParseMode.HTML,
+            )
+        except Exception as e:
+            log.error(f"[sara_reject] Erro ao rejeitar patch {pending_id}: {e}", exc_info=True)
+            await callback.answer(f"Erro: {str(e)[:80]}", show_alert=True)
+
     @dp.callback_query(F.data.startswith("vis_auth_"))
     async def handle_vision_auth(callback: CallbackQuery):
         # Example data: vis_auth_yes_2
@@ -2257,21 +2369,30 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
         caption = message.caption or ""
         # Verifica se é para o obsidian direto
-        is_obsidian = "/obsidian" in caption.lower()
+        is_obsidian = "/obsidian" in caption.lower() or "/cofre" in caption.lower()
         if not is_obsidian and message.reply_to_message:
-            is_obsidian = message.reply_to_message.text and "/obsidian" in message.reply_to_message.text.lower()
+            is_obsidian = message.reply_to_message.text and ("/obsidian" in message.reply_to_message.text.lower() or "/cofre" in message.reply_to_message.text.lower())
             
         # Lógica de Debouncer para Media Groups
         mg_id = message.media_group_id
         if mg_id:
-            if mg_id not in dp["vault_debouncer"]:
+            if "vault_debouncer" not in dp:
+                dp["vault_debouncer"] = {}
+                
+            is_first = mg_id not in dp["vault_debouncer"]
+            if is_first:
                 dp["vault_debouncer"][mg_id] = []
-                # Agenda o processamento do grupo
                 asyncio.create_task(process_photo_group(mg_id, message, caption, is_obsidian))
             
             # Adiciona a foto ao grupo
             file_info = await message.bot.get_file(message.photo[-1].file_id)
             photo_file = await message.bot.download_file(file_info.file_path)
+            
+            # Se a chave sumiu (download lento), recria
+            if mg_id not in dp["vault_debouncer"]:
+                dp["vault_debouncer"][mg_id] = []
+                asyncio.create_task(process_photo_group(mg_id, message, caption, is_obsidian))
+                
             dp["vault_debouncer"][mg_id].append(photo_file.read())
         else:
             # Foto única
@@ -2280,7 +2401,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
             if is_obsidian:
                 status_msg = await message.answer("⏳ Lendo print e salvando no Obsidian...")
-                resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", ""))
+                resp = await vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
                 await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
             else:
                 await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -2301,7 +2422,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             
         if is_obsidian:
             status_msg = await message.answer(f"⏳ Processando {len(photos)} prints no Obsidian...")
-            resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", ""))
+            resp = await vault.process_images(photos, user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
             await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
         else:
             await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
@@ -2336,9 +2457,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             return
             
         caption = (message.caption or "").lower()
-        if "/obsidian" in caption:
+        if "/obsidian" in caption or "/cofre" in caption:
             status_msg = await message.reply("⏳ Analisando áudio e enviando ao Obsidian...")
-            resp = await vault.process_audio(audio_bytes, user_hint=caption.replace("/obsidian", ""))
+            resp = await vault.process_audio(audio_bytes, user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
             await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
             return
 
