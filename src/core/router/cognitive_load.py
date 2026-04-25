@@ -103,13 +103,20 @@ WEB_TRIGGERS = re.compile(
     r"quem\s+é\s+o|quem\s+é\s+a|quem\s+ganhou|quem\s+venceu|"
     r"qual\s+o\s+preço|qual\s+o\s+valor|quanto\s+custa|"
     r"paper|artigo|publicou|publicação|published|"
-    r"lançou|lançamento|release|versão\s+\d|v\d|"
+    r"lançou|lançamento|lanc(ou|amento|ado)|release|versão\s+\d|v\d+\b|"
+    r"foi\s+lançad|foi\s+lancad|"
     r"estado\s+atual|status\s+de|novidades|"
     r"existe\b|ainda\s+existe|já\s+saiu|"
+    r"verifi[cq]|de\s+novo|novamente|outra\s+vez|confirma|"
+    r"tem\s+certeza|realmente\s+(existe|foi|tem)|"
     r"morreu|faleceu|eleito|nomeado|demitido|"
     r"placar|resultado\s+do\s+jogo|score|"
     r"clima|tempo\s*lá\s*fora|cotação|preço|valor\s*da\s*ação|"
-    r"notícia|aconteceu|google\s|pesquisa|busca\s",
+    r"notícia|aconteceu|google\s|pesquisa|busca\s|"
+    r"deepseek|gemma\s*\d|qwen\s*\d|llama\s*\d|gpt-\d|claude\s*\d|"
+    r"mistral|gemini\s*\d|grok\s*\d|phi-\d|command\s*r|"
+    r"modelo.*lançad|lançad.*modelo|novo\s+modelo|"
+    r"benchmark|mmlu|humaneval|swe-bench|lmarena",
     re.IGNORECASE,
 )
 
@@ -222,7 +229,7 @@ class CognitiveLoadRouter:
                 depth=CognitiveDepth.REFLEX,
                 reason="padrão reflex reconhecido",
                 execution_mode=mode,
-                needs_web=False,  # Reflex nunca busca
+                needs_web=needs_web,
                 needs_vault=needs_vault,
             )
 
@@ -234,7 +241,7 @@ class CognitiveLoadRouter:
                 depth=CognitiveDepth.REFLEX,
                 reason=f"input curto ({words} palavras), sem deep triggers",
                 execution_mode=mode,
-                needs_web=False,
+                needs_web=needs_web,
                 needs_vault=needs_vault,
             )
 
