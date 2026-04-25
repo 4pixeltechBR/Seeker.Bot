@@ -103,13 +103,20 @@ WEB_TRIGGERS = re.compile(
     r"quem\s+é\s+o|quem\s+é\s+a|quem\s+ganhou|quem\s+venceu|"
     r"qual\s+o\s+preço|qual\s+o\s+valor|quanto\s+custa|"
     r"paper|artigo|publicou|publicação|published|"
-    r"lançou|lançamento|release|versão\s+\d|v\d|"
+    r"lançou|lançamento|lanc(ou|amento|ado)|release|versão\s+\d|v\d+\b|"
     r"estado\s+atual|status\s+de|novidades|"
-    r"existe\b|ainda\s+existe|já\s+saiu|"
+    r"existe\b|ainda\s+existe|já\s+saiu|foi\s+lançad|foi\s+lancad|"
     r"morreu|faleceu|eleito|nomeado|demitido|"
     r"placar|resultado\s+do\s+jogo|score|"
     r"clima|tempo\s*lá\s*fora|cotação|preço|valor\s*da\s*ação|"
-    r"notícia|aconteceu|google\s|pesquisa|busca\s",
+    r"notícia|aconteceu|google\s|pesquisa|busca\s|"
+    r"verifi[cq]|de\s+novo|novamente|outra\s+vez|confirma|"
+    r"tem\s+certeza|realmente\s+(existe|foi|tem)|"
+    # Modelos de IA — sempre requerem busca web (versões mudam rápido)
+    r"deepseek|gemma\s*\d|qwen\s*\d|llama\s*\d|gpt-\d|claude\s*\d|"
+    r"mistral|gemini\s*\d|grok\s*\d|phi-\d|command\s*r|"
+    r"modelo.*lançad|lançad.*modelo|novo\s+modelo|"
+    r"benchmark|mmlu|humaneval|swe-bench|lmarena",
     re.IGNORECASE,
 )
 
@@ -222,7 +229,7 @@ class CognitiveLoadRouter:
                 depth=CognitiveDepth.REFLEX,
                 reason="padrão reflex reconhecido",
                 execution_mode=mode,
-                needs_web=False,  # Reflex nunca busca
+                needs_web=needs_web,  # Respeita WEB_TRIGGERS mesmo em reflex
                 needs_vault=needs_vault,
             )
 
@@ -234,7 +241,7 @@ class CognitiveLoadRouter:
                 depth=CognitiveDepth.REFLEX,
                 reason=f"input curto ({words} palavras), sem deep triggers",
                 execution_mode=mode,
-                needs_web=False,
+                needs_web=needs_web,  # Respeita WEB_TRIGGERS mesmo em reflex
                 needs_vault=needs_vault,
             )
 
@@ -319,7 +326,7 @@ class CognitiveLoadRouter:
         )
 
     def _detect_module(self, text: str) -> str | None:
-        """Detecta módulo cognitivo por keyword match."""
+        """Detecta módulo cognitivo por keyword match com hierarquia de desempate."""
         scores: dict[str, int] = {}
         for module, pattern in MODULE_PATTERNS.items():
             matches = pattern.findall(text)
@@ -328,7 +335,18 @@ class CognitiveLoadRouter:
 
         if not scores:
             return None
-        return max(scores, key=scores.get)
+            
+        # Hierarquia estrita (cynefin mapping) em caso de empate
+        hierarchy = ["vision", "debug", "arq", "review", "growth", "edu", "llm", "lumen", "email", "ideia"]
+        
+        # Encontra a pontuação máxima
+        max_score = max(scores.values())
+        
+        # Filtra os módulos que atingiram a pontuação máxima
+        top_modules = [m for m, s in scores.items() if s == max_score]
+        
+        # Desempata usando a hierarquia (o menor índice na lista vence)
+        return min(top_modules, key=lambda m: hierarchy.index(m) if m in hierarchy else 99)
 
 
 # ─────────────────────────────────────────────────────────────────────
