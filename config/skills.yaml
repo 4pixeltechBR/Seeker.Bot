@@ -24,11 +24,9 @@ recommended:
   bug_analyzer: true         # Bug analysis via chat
   skill_creator: true        # Auto-create skills from patterns
 
-# 🔵 SPECIALIST — Business & advanced features
+# 🔵 SPECIALIST — Advanced features
 specialist:
-  seeker_sales: false        # Unified BDR (B2B + Events)
   event_map_scout: false     # Predictive event mapping
-  seeker_sales_week: false   # Weekly sales report
   email_monitor: false       # Inbox monitoring (requires IMAP)
   desktop_watch: false       # AFK screen surveillance (requires VLM)
   remote_executor: false     # Remote plan execution

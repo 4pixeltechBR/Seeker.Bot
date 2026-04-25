@@ -2,7 +2,7 @@
 
 # 🤖 Seeker.Bot
 
-**Agente cognitivo autônomo para Telegram com memória persistente, visão computacional e 17 skills modulares.**
+**Agente cognitivo autônomo para Telegram com memória persistente, visão computacional e 13 skills modulares.**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -19,7 +19,7 @@
 
 ## ✨ O que é o Seeker?
 
-O Seeker.Bot não é um chatbot — é um **agente cognitivo autônomo** que vive no seu Telegram. Ele decide como pensar sobre cada mensagem (reflexiva, deliberada, ou análise profunda), pesquisa na web, lembra de tudo que vocês discutiram, e roda 17 skills independentes em background — de curadoria diária de notícias até prospecção de vendas B2B.
+O Seeker.Bot não é um chatbot — é um **agente cognitivo autônomo** que vive no seu Telegram. Ele decide como pensar sobre cada mensagem (reflexiva, deliberada, ou análise profunda), pesquisa na web, lembra de tudo que vocês discutiram, e roda 13 skills independentes em background — de curadoria diária de notícias até gestão de conhecimento.
 
 O que o torna diferente: uma **cascade multi-provider de APIs** que nunca para de funcionar, um **RL Bandit** (Aprendizado por Reforço) que aprende qual modelo de IA funciona melhor para cada tarefa, e **Evidence Arbitrage** — triangulação de respostas de múltiplos providers para pegar alucinações.
 

@@ -19,6 +19,22 @@ if errorlevel 1 (
 )
 for /f "tokens=2 delims= " %%v in ('python --version 2^>^&1') do set PYVER=%%v
 echo  ✅ Python %PYVER% detected
+
+REM Validate Python >= 3.10
+for /f "tokens=1,2 delims=." %%a in ("%PYVER%") do (
+    set PY_MAJOR=%%a
+    set PY_MINOR=%%b
+)
+if !PY_MAJOR! LSS 3 (
+    echo  ❌ Python 3.10+ required. Found %PYVER%. Please upgrade.
+    pause
+    exit /b 1
+)
+if !PY_MAJOR! EQU 3 if !PY_MINOR! LSS 10 (
+    echo  ❌ Python 3.10+ required. Found %PYVER%. Please upgrade.
+    pause
+    exit /b 1
+)
 echo.
 
 REM ── Step 2: Create virtual environment ──
@@ -35,8 +51,23 @@ echo.
 REM ── Step 3: Install dependencies ──
 echo  [3/6] Installing dependencies...
 pip install -r requirements.txt -q
+if errorlevel 1 (
+    echo  ❌ Failed to install dependencies! Check your internet connection.
+    pause
+    exit /b 1
+)
 pip install pyyaml -q
-echo  ✅ Dependencies installed
+echo  ✅ Core dependencies installed
+
+echo  [3/6] Installing Playwright browsers (required for web search and scraping)...
+pip install playwright -q
+playwright install chromium --with-deps >nul 2>&1
+if errorlevel 1 (
+    echo  ⚠️  Playwright browser install failed. Web scraping skills may not work.
+    echo     Run manually: playwright install chromium
+) else (
+    echo  ✅ Playwright browsers installed
+)
 echo.
 
 REM ── Step 4: Assistant Name ──
@@ -97,8 +128,8 @@ echo.
 echo   [2] 🟡 Core + Recommended (9 skills — recommended)
 echo       + Knowledge Vault, Scheduler, News, Bug Analyzer...
 echo.
-echo   [3] 🔵 All Skills (17 skills — full power)
-echo       + Sales, Events, Email, Desktop Watch, Remote Exec...
+echo   [3] 🔵 All Skills (13 skills — full power)
+echo       + Email Monitor, Desktop Watch, Remote Executor, OS Control...
 echo       (Some require extra configuration)
 echo.
 set /p SKILL_CHOICE="   Your choice [1/2/3]: "
@@ -135,9 +166,7 @@ echo   bug_analyzer: !REC_ENABLED!
 echo   skill_creator: !REC_ENABLED!
 echo.
 echo specialist:
-echo   seeker_sales: !SPEC_ENABLED!
 echo   event_map_scout: !SPEC_ENABLED!
-echo   seeker_sales_week: !SPEC_ENABLED!
 echo   email_monitor: !SPEC_ENABLED!
 echo   desktop_watch: !SPEC_ENABLED!
 echo   remote_executor: !SPEC_ENABLED!
