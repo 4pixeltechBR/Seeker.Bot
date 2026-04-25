@@ -165,7 +165,15 @@ class DesktopWatchGoal:
             # 2. Análise rápida via VLM (singleton reutilizado)
             if self._vlm is None:
                 from src.skills.vision.vlm_client import VLMClient
-                self._vlm = VLMClient()
+                from src.skills.vision.gemini_vlm import GeminiVLMClient
+                from src.skills.vision.vlm_router import VLMRouter
+                cloud_vlm = GeminiVLMClient()
+                local_vlm = VLMClient(model="qwen2.5-vl")
+                self._vlm = VLMRouter(
+                    cloud_vlm_client=cloud_vlm,
+                    local_vlm_client=local_vlm,
+                    glm_ocr_enabled=False # Não precisa de OCR puro para vigilância
+                )
 
             if not await self._vlm.health_check():
                 self._status = GoalStatus.IDLE
@@ -175,13 +183,15 @@ class DesktopWatchGoal:
                     cost_usd=0.0,
                 )
 
-            analysis = await self._vlm.analyze_screenshot(
+            analysis_dict = await self._vlm.analyze_screenshot(
                 screenshot_bytes, WATCH_PROMPT
             )
+            # analyze_screenshot returns a Dict; extract raw text for JSON parsing
+            analysis_raw = analysis_dict.get("analysis") or analysis_dict.get("text") or str(analysis_dict)
 
             # 3. Parse do resultado
             import json
-            result_data = self._parse_vlm_response(analysis)
+            result_data = self._parse_vlm_response(analysis_raw)
 
             if not result_data.get("needs_attention", False):
                 self._consecutive_failures = 0  # Reset circuit breaker em sucesso

@@ -481,8 +481,6 @@ class SeekerPipeline:
 
         return result
 
-        return result
-
     # ─────────────────────────────────────────────────────────
     # RL FEEDBACK
     # ─────────────────────────────────────────────────────────
@@ -890,8 +888,8 @@ class SeekerPipeline:
             await self.memory.commit()
 
             # Sincroniza Knowledge Graph com Obsidian (Fase 3)
-            # if self.obsidian_exporter:
-            #     asyncio.create_task(self.obsidian_exporter.sync_all())
+            if self.obsidian_exporter:
+                self._spawn_background(self.obsidian_exporter.sync_all())
 
             # Registra latência e consolidação no Sprint 11 Tracker (Fase 4)
             self.sprint11_tracker.record_latency(result.total_latency_ms)

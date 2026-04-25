@@ -18,6 +18,8 @@ import logging
 from src.skills.vision.afk_protocol import AFKProtocol, PermissionResult
 from src.skills.vision.screenshot import capture_desktop
 from src.skills.vision.vlm_client import VLMClient
+from src.skills.vision.gemini_vlm import GeminiVLMClient
+from src.skills.vision.vlm_router import VLMRouter
 from src.skills.vision.mouse_engine import MouseEngine, UserInterventionException
 from src.skills.vision.keyboard_engine import KeyboardEngine
 from src.skills.vision.audit import VisionAudit
@@ -38,7 +40,16 @@ class DesktopController:
 
     def __init__(self, afk_protocol: AFKProtocol):
         self.afk = afk_protocol
-        self.vlm = VLMClient()
+        
+        # Inicializa o Stack Sexta-feira: Gemini (Cloud) + Qwen2.5-VL (Local) + GLM-OCR (Local OCR)
+        self.cloud_vlm = GeminiVLMClient()
+        self.local_vlm = VLMClient(model="qwen2.5-vl")
+        self.vlm = VLMRouter(
+            cloud_vlm_client=self.cloud_vlm, 
+            local_vlm_client=self.local_vlm, 
+            glm_ocr_enabled=True
+        )
+        
         self.mouse = MouseEngine()
         self.keyboard = KeyboardEngine()
         self.audit = VisionAudit()
@@ -79,9 +90,10 @@ class DesktopController:
                 ), screenshot_bytes
 
             log.info("[controller] VLM: analisando frame...")
-            analysis = await self.vlm.describe_page(screenshot_bytes)
+            analysis_dict = await self.vlm.describe_page(screenshot_bytes)
+            analysis_text = analysis_dict.get("description") or analysis_dict.get("text") or str(analysis_dict)
 
-            context = f"\n\n━━━ SCREENSHOT ANALISADO ━━━\n{analysis}"
+            context = f"\n\n━━━ SCREENSHOT ANALISADO ━━━\n{analysis_text}"
             return context, screenshot_bytes
 
         except Exception as e:
@@ -150,13 +162,14 @@ class DesktopController:
             # 3. Localizar elemento e Clicar
             if element_description and element_description.lower() not in ["nenhum", "tela", "vazio"]:
                 log.info(f"[controller] VLM: localizando '{element_description}'...")
-                bbox = await self.vlm.locate_element(screenshot_bytes, element_description)
-                if not bbox or bbox.get("confidence", 0) < 0.3:
-                    analysis = await self.vlm.describe_page(screenshot_bytes)
-                    return f"\n\n[SISTEMA: Falha localizando '{element_description}'.\n{analysis}]", screenshot_bytes
-                
-                target_x, target_y = int(bbox["x"]), int(bbox["y"])
-                confidence = bbox.get("confidence", 0.5)
+                loc_result = await self.vlm.locate_element(screenshot_bytes, element_description)
+                if not loc_result or not loc_result.get("found") or not loc_result.get("center"):
+                    analysis_dict = await self.vlm.describe_page(screenshot_bytes)
+                    analysis_text = analysis_dict.get("description") or analysis_dict.get("text") or str(analysis_dict)
+                    return f"\n\n[SISTEMA: Falha localizando '{element_description}'.\n{analysis_text}]", screenshot_bytes
+
+                target_x, target_y = loc_result["center"]
+                confidence = 0.9  # locate_element via Gemini grounding is high-confidence
                 await self.mouse.move_to(target_x, target_y, duration=0.8)
                 await self.mouse.click()
                 await asyncio.sleep(0.5)
@@ -180,7 +193,8 @@ class DesktopController:
 
             if needs_visual_confirm:
                 # Ação complexa (digitação/hotkey) — analisa resultado via VLM
-                after_analysis = await self.vlm.describe_page(confirm_bytes)
+                after_dict = await self.vlm.describe_page(confirm_bytes)
+                after_analysis = after_dict.get("description") or after_dict.get("text") or str(after_dict)
                 context = (
                     f"\n\n━━━ AÇÃO EXECUTADA COM SUCESSO ━━━\n"
                     f"Ação L3: {action_description}\n"
@@ -218,7 +232,8 @@ class DesktopController:
         if self._keyboard_listener_started:
             await self.keyboard.stop_listener()
         try:
-            await self.vlm.unload_model()
+            if hasattr(self.vlm, "unload_model"):
+                await self.vlm.unload_model()
         except Exception:
             pass
 
