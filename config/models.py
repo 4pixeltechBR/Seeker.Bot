@@ -198,26 +198,26 @@ GEMINI_EMBEDDING_2 = ModelConfig(
 
 DEEPSEEK_CHAT = ModelConfig(
     provider="deepseek",
-    model_id="deepseek-chat",
-    display_name="DeepSeek V3.2 Chat",
-    max_tokens=4096,
-    context_window=128_000,
-    cost_per_1m_input=0.28,
-    cost_per_1m_output=0.42,
+    model_id="deepseek-v4-flash",
+    display_name="DeepSeek V4 Flash",
+    max_tokens=8192,
+    context_window=1_000_000,
+    cost_per_1m_input=0.07,
+    cost_per_1m_output=0.28,
     supports_tool_use=True,
-    training_data_cutoff="2025-07",
+    training_data_cutoff="2026-01",
 )
 
 DEEPSEEK_REASONER = ModelConfig(
     provider="deepseek",
-    model_id="deepseek-reasoner",
-    display_name="DeepSeek V3.2 Reasoner",
-    max_tokens=4096,
-    context_window=128_000,
-    cost_per_1m_input=0.28,
-    cost_per_1m_output=0.42,
+    model_id="deepseek-v4-pro",
+    display_name="DeepSeek V4 Pro",
+    max_tokens=8192,
+    context_window=1_000_000,
+    cost_per_1m_input=0.87,
+    cost_per_1m_output=3.48,
     supports_tool_use=True,
-    training_data_cutoff="2025-07",
+    training_data_cutoff="2026-01",
 )
 
 
