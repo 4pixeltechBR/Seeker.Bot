@@ -26,7 +26,6 @@ recommended:
 
 # 🔵 SPECIALIST — Advanced features
 specialist:
-  event_map_scout: false     # Predictive event mapping
   email_monitor: false       # Inbox monitoring (requires IMAP)
   desktop_watch: false       # AFK screen surveillance (requires VLM)
   remote_executor: false     # Remote plan execution

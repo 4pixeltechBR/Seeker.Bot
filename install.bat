@@ -166,7 +166,6 @@ echo   bug_analyzer: !REC_ENABLED!
 echo   skill_creator: !REC_ENABLED!
 echo.
 echo specialist:
-echo   event_map_scout: !SPEC_ENABLED!
 echo   email_monitor: !SPEC_ENABLED!
 echo   desktop_watch: !SPEC_ENABLED!
 echo   remote_executor: !SPEC_ENABLED!
