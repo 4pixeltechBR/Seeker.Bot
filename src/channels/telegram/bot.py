@@ -406,7 +406,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             if not email_goal:
                 scheduler = dp.get("scheduler")
                 if scheduler and hasattr(scheduler, '_goals'):
-                    for goal in scheduler._goals:
+                    for goal in scheduler._goals.values():
                         if hasattr(goal, 'name') and goal.name == 'email_monitor':
                             email_goal = goal
                             log.debug("[telegram] Email goal encontrado em scheduler._goals")
@@ -416,7 +416,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             if not email_goal and hasattr(pipeline, '_scheduler'):
                 scheduler = pipeline._scheduler
                 if scheduler and hasattr(scheduler, '_goals'):
-                    for goal in scheduler._goals:
+                    for goal in scheduler._goals.values():
                         if hasattr(goal, 'name') and goal.name == 'email_monitor':
                             email_goal = goal
                             log.debug("[telegram] Email goal encontrado em pipeline._scheduler")
@@ -1637,24 +1637,57 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         else:
             await message.answer("Habit Tracker não inicializado.")
 
+    # Estado local do watch loop
+    _watch_task: dict = {"task": None, "scans": 0, "alerts": 0}
+
+    async def _watch_loop(bot, chat_id: int):
+        """Loop de monitoramento de tela a cada 2 minutos."""
+        import asyncio
+        from src.skills.vision.screenshot import capture_desktop
+        from aiogram.types import BufferedInputFile
+
+        while True:
+            try:
+                await asyncio.sleep(120)  # 2 minutos
+                screenshot_bytes = await capture_desktop()
+                if screenshot_bytes:
+                    _watch_task["scans"] += 1
+                    photo = BufferedInputFile(screenshot_bytes, filename="watch.png")
+                    await bot.send_photo(
+                        chat_id=chat_id,
+                        photo=photo,
+                        caption=f"👁️ <b>Desktop Watch</b> — scan #{_watch_task['scans']}",
+                        parse_mode="HTML",
+                    )
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                log.warning(f"[watch] Erro no scan: {e}")
+
     @dp.message(F.text == "/watch")
     async def cmd_watch(message: Message):
         if not _is_allowed(message, allowed_users):
             return
-        scheduler = dp.get("scheduler")
-        if not scheduler:
-            await message.answer("Scheduler não inicializado.")
+            
+        if _watch_task["task"] and not _watch_task["task"].done():
+            await message.answer(
+                "👁️ <b>Desktop Watch já está ATIVO.</b>\n"
+                f"<i>Scans realizados: {_watch_task['scans']}</i>\n"
+                "<i>Use /watchoff para desativar.</i>",
+                parse_mode=ParseMode.HTML,
+            )
             return
-        # Procura o goal desktop_watch
-        watch_goal = scheduler._goals.get("desktop_watch")
-        if not watch_goal:
-            await message.answer("Desktop Watch não está registrado.")
-            return
-        watch_goal.enable()
+
+        import asyncio
+        _watch_task["scans"] = 0
+        _watch_task["alerts"] = 0
+        _watch_task["task"] = asyncio.create_task(
+            _watch_loop(message.bot, message.chat.id)
+        )
         await message.answer(
             "👁️ <b>Desktop Watch ATIVADO</b>\n\n"
             "Estou monitorando sua tela a cada 2 minutos.\n"
-            "Você será notificado se algo precisar de atenção.\n\n"
+            "Você receberá prints automáticos aqui.\n\n"
             "<i>Use /watchoff para desativar.</i>",
             parse_mode=ParseMode.HTML,
         )
@@ -1663,21 +1696,22 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     async def cmd_watchoff(message: Message):
         if not _is_allowed(message, allowed_users):
             return
-        scheduler = dp.get("scheduler")
-        if not scheduler:
-            await message.answer("Scheduler não inicializado.")
+            
+        if not _watch_task["task"] or _watch_task["task"].done():
+            await message.answer("Desktop Watch não está rodando.")
             return
-        watch_goal = scheduler._goals.get("desktop_watch")
-        if not watch_goal:
-            await message.answer("Desktop Watch não está registrado.")
-            return
-        scans = watch_goal._scans_total
-        alerts = watch_goal._alerts_sent
-        watch_goal.disable()
+            
+        scans = _watch_task["scans"]
+        alerts = _watch_task["alerts"]
+        
+        _watch_task["task"].cancel()
+        _watch_task["task"] = None
+        
         await message.answer(
             "👁️ <b>Desktop Watch DESATIVADO</b>\n\n"
             f"Sessão: {scans} scans, {alerts} alertas.\n"
             "<i>Use /watch para reativar.</i>",
+
             parse_mode=ParseMode.HTML,
         )
 
@@ -2094,6 +2128,14 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             chat_id = message.chat.id
             msg = await bug_ui.cmd_bug_approve(chat_id)
             await message.answer(msg, parse_mode=ParseMode.HTML)
+
+            # Auto-restart via watchdog se o patch foi aplicado
+            if "PATCH APLICADO" in msg:
+                await message.answer("🔄 **Reiniciando Seeker.Bot para aplicar o patch em 3 segundos...**", parse_mode=ParseMode.MARKDOWN)
+                import asyncio
+                import sys
+                await asyncio.sleep(3)
+                sys.exit(0)
 
         except Exception as e:
             log.error(f"[bug_analyzer] Erro em /bug_approve: {e}", exc_info=True)
