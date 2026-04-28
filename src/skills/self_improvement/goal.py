@@ -117,7 +117,8 @@ class SelfImprovementGoal:
             "{\n"
             '  "rationale": "Explicação 1 linha",\n'
             '  "full_code": "O CÓDIGO FONTE COMPLETO corrigido (nunca trunque). Não use markdown ticks no valor."\n'
-            "}\n\n"
+            "}\n"
+            "CRÍTICO: NÃO invente caminhos de importação. Se faltar uma função e você não souber o módulo exato no projeto, NÃO adivinhe (isso causará ImportError). Escreva um fallback local.\n\n"
             f"=== TARGET FILE ===\n{target_file}\n"
             f"=== ERROR TRACEBACK ===\n{target_error[:2000]}\n=======================\n\n"
             f"=== ORIGINAL SOURCE CODE ===\n{source_code}\n===========================\n"

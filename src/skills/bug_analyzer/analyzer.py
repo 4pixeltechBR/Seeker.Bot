@@ -150,7 +150,8 @@ Format your response as JSON with this structure:
 Context:
 {context_text}
 
-Provide detailed, actionable analysis. Focus on actual bugs, not style improvements."""
+Provide detailed, actionable analysis. Focus on actual bugs, not style improvements.
+CRITICAL: Do NOT hallucinate import paths. If a function is missing, DO NOT guess its module path (e.g., `src.utils...`). Either suggest a local fallback or leave it unimported."""
 
     def _parse_analysis_response(
         self, bug_report: BugReport, response_text: str, model_used: str
