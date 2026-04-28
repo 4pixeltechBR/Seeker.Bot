@@ -21,7 +21,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config.models import build_default_router, CognitiveRole
 from src.core.pipeline import SeekerPipeline, PipelineResult
 from src.core.router.cognitive_load import CognitiveDepth
-from src.channels.telegram.formatter import md_to_telegram_html
+from src.channels.telegram.formatter import md_to_telegram_html, format_cost_line
 from src.providers.base import _rate_limiters, cleanup_client_pool
 from src.skills.vision.afk_protocol import AFKProtocol
 from src.core.reasoning.ooda_loop import OODALoop, OODAIteration
@@ -75,19 +75,6 @@ def split_message(text: str, max_length: int = MAX_MSG_LENGTH) -> list[str]:
     return parts
 
 
-def format_cost_line(result: PipelineResult) -> str:
-    parts = []
-    if result.total_cost_usd > 0:
-        parts.append(f"${result.total_cost_usd:.4f}")
-    parts.append(f"{result.total_latency_ms}ms")
-    parts.append(f"{result.llm_calls} calls")
-    if result.facts_used > 0:
-        parts.append(f"🧠 {result.facts_used} fatos")
-    if result.arbitrage and result.arbitrage.has_conflicts:
-        parts.append(f"⚠️ {len(result.arbitrage.conflict_zones)} conflitos")
-    if result.verdict:
-        parts.append(result.verdict.to_footer())
-    return " · ".join(parts)
 
 
 async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
