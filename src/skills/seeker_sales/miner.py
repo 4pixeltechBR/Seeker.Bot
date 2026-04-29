@@ -2,6 +2,7 @@ import asyncio
 import logging
 import random
 import json
+import re
 import time
 import os
 
@@ -230,9 +231,9 @@ class RevenueMiner:
                             link_card=link_card,
                             sinais_contratacao=lead.get("sinais_contratacao", "N/A"),
                         )}],
-                        system="Você é o Seeker SDR. Formate o dossiê em HTML para Telegram.",
+                        system="Você é o Seeker SDR. Formate o dossiê em HTML para Telegram. NÃO crie seções além das solicitadas.",
                         temperature=0.3,
-                        max_tokens=2500,
+                        max_tokens=4096,
                     ),
                     self.pipeline.model_router,
                     self.pipeline.api_keys,
@@ -528,7 +529,7 @@ def _build_pdf(lead: dict, dossier_text: str, target_key: str) -> str | None:
         leads_dir = os.path.join(os.getcwd(), "data", "leads")
         os.makedirs(leads_dir, exist_ok=True)
         
-        safe_name = target_key.replace(" ", "_")[:40]
+        safe_name = re.sub(r'[\\/:*?"<>|]', '_', target_key).replace(" ", "_")[:40]
         file_name = f"Dossier_{safe_name}_{int(time.time())}.pdf"
         file_path = os.path.join(leads_dir, file_name)
 
@@ -618,7 +619,6 @@ def _build_pdf(lead: dict, dossier_text: str, target_key: str) -> str | None:
         pdf.ln(3)
 
         # Dossiê completo (sem tags HTML)
-        import re
         clean_dossier = re.sub(r"<[^>]+>", "", dossier_text)
         section("Dossiê Completo (Texto do Seeker)")
         pdf.set_font("Helvetica", "", 9)

@@ -2,16 +2,22 @@
     {
         "name": "Nemotron-H NIM",
         "status": "pending",
-        "added_at": "2026-04-16T13:54:00Z"
+        "added_at": "2026-04-16T13:54:00Z",
+        "id": "3fd90a01-1a35-41f5-9020-e10fe3204b98",
+        "category": "llm"
     },
     {
         "name": "Elastic 8B Mamba-2 on Unsloth",
         "status": "pending",
-        "added_at": "2026-04-16T13:54:00Z"
+        "added_at": "2026-04-16T13:54:00Z",
+        "id": "73325bfd-6d67-46ca-9cb2-4a7e9c4b8323",
+        "category": "llm"
     },
     {
         "name": "DeepSeek",
         "status": "pending",
-        "added_at": "2026-04-17T21:08:15.168926"
+        "added_at": "2026-04-17T21:08:15.168926",
+        "id": "c390c15d-6fad-49ee-8b1f-856d621b2c2c",
+        "category": "llm"
     }
 ]

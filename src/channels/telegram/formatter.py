@@ -15,6 +15,53 @@ Este módulo faz a ponte.
 
 import re
 import html as html_module
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.core.pipeline import PipelineResult
+
+
+
+MAX_MSG_LENGTH = 4096
+
+
+def format_cost_line(result: "PipelineResult") -> str:
+    """Formata o rodapé de custo/latência de uma resposta do pipeline."""
+    parts = []
+    if result.total_cost_usd > 0:
+        parts.append(f"${result.total_cost_usd:.4f}")
+    parts.append(f"{result.total_latency_ms}ms")
+    parts.append(f"{result.llm_calls} calls")
+    if result.facts_used > 0:
+        parts.append(f"🧠 {result.facts_used} fatos")
+    if result.arbitrage and result.arbitrage.has_conflicts:
+        parts.append(f"⚠️ {len(result.arbitrage.conflict_zones)} conflitos")
+    if result.verdict:
+        parts.append(result.verdict.to_footer())
+    return " · ".join(parts)
+
+
+def split_message(text: str, max_length: int = MAX_MSG_LENGTH) -> list[str]:
+    """Split a long Telegram message into chunks that respect the 4096-char limit.
+
+    Prefers splitting on double newlines, then single newlines, then hard-cuts.
+    """
+    if len(text) <= max_length:
+        return [text]
+    parts = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_length:
+            parts.append(remaining)
+            break
+        cut = remaining.rfind("\n\n", 0, max_length)
+        if cut == -1 or cut < max_length // 2:
+            cut = remaining.rfind("\n", 0, max_length)
+        if cut == -1 or cut < max_length // 2:
+            cut = max_length
+        parts.append(remaining[:cut].rstrip())
+        remaining = remaining[cut:].lstrip()
+    return parts
 
 
 # Tags que o Telegram aceita (para sanitização)

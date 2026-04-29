@@ -113,9 +113,10 @@ class ScoutEngine:
         self.model_router = model_router
         self.api_keys = api_keys
 
+        import os
         self.web_searcher = WebSearcher(
-            tavily_key=api_keys.get("TAVILY_API_KEY", ""),
-            brave_key=api_keys.get("BRAVE_API_KEY", "")
+            tavily_key=api_keys.get("TAVILY_API_KEY") or os.getenv("TAVILY_API_KEY", ""),
+            brave_key=api_keys.get("BRAVE_API_KEY") or os.getenv("BRAVE_API_KEY", "")
         )
         self.headless = HeadlessScraper()
 
@@ -170,6 +171,9 @@ class ScoutEngine:
                 ("bant_reasoning", "ALTER TABLE scout_leads ADD COLUMN bant_reasoning TEXT"),
                 ("copy_generated_at", "ALTER TABLE scout_leads ADD COLUMN copy_generated_at TIMESTAMP"),
                 ("outreach_copy", "ALTER TABLE scout_leads ADD COLUMN outreach_copy TEXT"),
+                ("copy_formats", "ALTER TABLE scout_leads ADD COLUMN copy_formats TEXT"),
+                ("copy_variant", "ALTER TABLE scout_leads ADD COLUMN copy_variant TEXT"),
+                ("copy_target_decision_maker", "ALTER TABLE scout_leads ADD COLUMN copy_target_decision_maker TEXT"),
             ]
 
             for col_name, migration_sql in migrations:

@@ -23,7 +23,7 @@ class AutoSkillCreatorGoal(AutonomousGoal):
         self.pipeline = pipeline
         self._status = GoalStatus.IDLE
         self._budget = GoalBudget(max_per_cycle_usd=0.05, max_daily_usd=0.10)
-        self.coder = CodeGenerator(pipeline)
+        # CodeGenerator (SkillCreatorEngine) usa apenas @staticmethod — não instanciar com args
         
     @property
     def name(self) -> str:
@@ -43,6 +43,12 @@ class AutoSkillCreatorGoal(AutonomousGoal):
 
     def get_status(self) -> GoalStatus:
         return self._status
+
+    def serialize_state(self) -> dict:
+        return {}  # Sem estado persistível neste goal
+
+    def load_state(self, state: dict) -> None:
+        pass  # Sem estado para restaurar
 
     async def run_cycle(self) -> GoalResult:
         self._status = GoalStatus.RUNNING

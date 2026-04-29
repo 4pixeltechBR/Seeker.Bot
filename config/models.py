@@ -327,8 +327,9 @@ def build_default_router() -> ModelRouter:
         CognitiveRole.DEEP: [
             NVIDIA_DEEPSEEK_V32,
             GEMINI_3_FLASH,
-            NVIDIA_NEMOTRON_ULTRA,
+            NVIDIA_GEMMA_4_31B,  # Substitui Nemotron Ultra (404 no NIM desde 2026-04)
             DEEPSEEK_CHAT,
+            MISTRAL_FREE,        # Último recurso garantido
         ],
         CognitiveRole.ADVERSARIAL: [
             NVIDIA_GEMMA_4_31B,  # Perspectiva "Google" sem gastar cota do Gemini API
@@ -337,6 +338,8 @@ def build_default_router() -> ModelRouter:
             GEMINI_3_FLASH,
         ],
         CognitiveRole.SYNTHESIS: [
+            GEMINI_3_FLASH,
+            NVIDIA_NEMOTRON_SUPER,
             GEMINI_31_FLASH_LITE,
             NVIDIA_DEEPSEEK_V32,
             DEEPSEEK_CHAT,

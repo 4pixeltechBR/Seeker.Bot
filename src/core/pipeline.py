@@ -51,6 +51,7 @@ from src.core.budget import RastreadorCustos
 from src.core.data import ArmazemDados, Indexador, GerenciadorRetencao
 from src.core.analytics import DashboardFinanceiro, Forecaster, Reporter
 from src.core.memory.obsidian import ObsidianExporter
+from src.core.memory.cortex_manager import CortexManager
 
 log = logging.getLogger("seeker.pipeline")
 
@@ -111,6 +112,9 @@ class SeekerPipeline:
         self.compressor = SessionCompressor(self.model_router, self.api_keys)
         self.session = SessionManager(self.memory, compressor=self.compressor)
         self.decay_engine: DecayEngine | None = None
+        
+        # Cortex Manager encapsula Staging e Curated Memory File IO
+        self.cortex_manager = CortexManager()
 
         # Cascade Adapter — multi-tier LLM routing com fallback
         self.cascade_adapter = CascadeAdapter(self.model_router, api_keys)
@@ -791,11 +795,17 @@ class SeekerPipeline:
         # Episódios recentes (continuidade conversacional)
         episodes = await self.memory.get_recent_episodes(limit=5)
 
+        # L0.5: Curated Knowledge (Cortex)
+        curated_text = self.cortex_manager.get_curated_knowledge(cached=True)
+
         memory_prompt = format_4layer_context(
             essential_facts=essential,
             on_demand_facts=search_results if search_results else None,
             episodes=episodes if episodes else None,
         )
+        
+        if curated_text:
+            memory_prompt = curated_text + "\n\n" + memory_prompt
         
         if audit_context:
             memory_prompt += f"\n\n{audit_context}"
@@ -826,6 +836,14 @@ class SeekerPipeline:
             entities = extraction.get("entities", [])
             triples = extraction.get("triples", [])
             summary = extraction.get("summary", "")
+
+            # Cortex Staging: registra insights se houver
+            self.cortex_manager.stage_insights(
+                session_id=session_id,
+                facts=facts,
+                triples=triples,
+                source=result.routing_reason[:50]
+            )
 
             # Salva Entidades
             for ent in entities:

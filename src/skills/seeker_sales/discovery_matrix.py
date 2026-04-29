@@ -157,6 +157,8 @@ class DiscoveryMatrix:
 
     def _parse_llm_response(self, response_text: str) -> DiscoveryMatrixResult:
         """Parseia resposta JSON do LLM."""
+        if not response_text:
+            return self._default_result()
         try:
             # Extrair JSON da resposta (pode ter texto antes/depois)
             s = response_text.find("{")

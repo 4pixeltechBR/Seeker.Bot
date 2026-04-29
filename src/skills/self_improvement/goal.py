@@ -2,6 +2,8 @@ import os
 import re
 import logging
 import asyncio
+import shutil
+import time
 
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import LLMRequest, invoke_with_fallback
@@ -11,14 +13,18 @@ from src.core.goals.protocol import (
 from config.models import CognitiveRole
 from src.skills.self_improvement.code_validator import get_validator
 from src.skills.self_improvement.error_database import ErrorDatabase, PendingPatchStore, sanitize_traceback
+from src.skills.self_improvement.patch_engine import apply_changes, generate_diff_preview, PatchError
+from src.core.reasoning.ooda_loop import OODALoop, ObservationData, OrientationModel, Decision, ActionResult, LoopResult
+from src.core.utils import parse_llm_json
 
 log = logging.getLogger("seeker.self_improvement")
 
 class SelfImprovementGoal:
     """
-    Motor de auto-cura de código. Lê os logs em busca de Tracebacks e Exceções,
-    propõe correções usando LLMs avançados, e escreve o relatório de correção
-    no diretório ativo (para ser aplicado ou para auto-aplicar se permitido).
+    Motor de auto-cura de código autônomo (S.A.R.A).
+    Integrado com o OODA Loop formal para inferir o nível de risco (Autonomy Tier).
+    Erros em core/infraestrutura exigem aprovação (Tier 1),
+    Erros isolados em skills são curados de forma 100% autônoma (Tier 3).
     """
 
     def __init__(self, pipeline: SeekerPipeline):
@@ -26,52 +32,42 @@ class SelfImprovementGoal:
         self._status = GoalStatus.IDLE
         self._budget = GoalBudget(max_per_cycle_usd=0.20, max_daily_usd=1.0)
         self.last_log_byte_parsed = 0
+        
+        self.ooda = OODALoop()
+        self._current_context = {}
 
-        # Resolve caminho absoluto do log do Seeker
         root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         self.log_file = os.path.join(root_dir, "logs", "seeker.log")
 
-        # ErrorDatabase — telemetria e dedup de erros
         self.error_db = ErrorDatabase()
-        # PendingPatchStore — patches aguardando aprovação via Telegram
         self.pending_store = PendingPatchStore(db_path=self.error_db.db_path)
 
     @property
-    def name(self) -> str:
-        return "self_improvement_loop"
+    def name(self) -> str: return "self_improvement_loop"
 
     @property
-    def interval_seconds(self) -> int:
-        return 21600  # A cada 6 horas ou pós-crash
+    def interval_seconds(self) -> int: return 21600
 
     @property
-    def budget(self) -> GoalBudget:
-        return self._budget
+    def budget(self) -> GoalBudget: return self._budget
 
     @property
-    def channels(self) -> list[NotificationChannel]:
-        return [NotificationChannel.TELEGRAM]
+    def channels(self) -> list[NotificationChannel]: return [NotificationChannel.TELEGRAM]
 
-    def get_status(self) -> GoalStatus:
-        return self._status
+    def get_status(self) -> GoalStatus: return self._status
 
     async def run_cycle(self) -> GoalResult:
         self._status = GoalStatus.RUNNING
-        cycle_cost = 0.0
-
-        # Inicializa ErrorDB na primeira execução
         await self.error_db.init()
 
         if not os.path.exists(self.log_file):
             self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="Arquivo de log não encontrado para análise.", cost_usd=0.0)
+            return GoalResult(success=True, summary="Arquivo de log não encontrado.", cost_usd=0.0)
 
-        # Trunca se o log for menor que a marcação (houve rotação)
         file_size = os.path.getsize(self.log_file)
         if file_size < self.last_log_byte_parsed:
             self.last_log_byte_parsed = 0
 
-        # Coleta novas linhas
         try:
             with open(self.log_file, "r", encoding="utf-8") as f:
                 f.seek(self.last_log_byte_parsed)
@@ -86,227 +82,311 @@ class SelfImprovementGoal:
             self._status = GoalStatus.IDLE
             return GoalResult(success=True, summary="Sem novos logs.", cost_usd=0.0)
 
-        # Procura tracebacks
         exception_blocks = self._extract_exceptions(new_logs)
-
         if not exception_blocks:
             self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="Sem erros críticos nos logs recentes.", cost_usd=0.0)
+            return GoalResult(success=True, summary="Sem erros críticos.", cost_usd=0.0)
 
-        log.info(f"[self_improvement] Detectados {len(exception_blocks)} erros recentes. Analisando o mais grave...")
-        target_error = exception_blocks[-1]  # Pega o último (mais recente)
+        target_error = exception_blocks[-1]
+        log.info(f"[sara] OODA Loop iniciado para o erro mais recente.")
 
-        # Dedup: não gastar LLM call no mesmo erro repetido nas últimas 6h
-        if await self.error_db.is_recent_duplicate(target_error, hours=6.0):
-            self._status = GoalStatus.IDLE
-            return GoalResult(
-                success=True,
-                summary="Erro recente já analisado (dedup 6h) — pulando.",
-                cost_usd=0.0,
-            )
+        # Injeta contexto para ser carregado pelo ciclo OODA
+        self._current_context = {"raw_traceback": target_error, "cycle_cost": 0.0, "notification": None, "buttons": None}
 
-        # Sanitiza traceback antes de enviar ao LLM (remove paths absolutos, secrets)
-        target_error_safe = sanitize_traceback(target_error, max_len=2000)
-
-        # Extrai arquivos do traceback (usa versão raw para paths reais no disco)
-        import re
-        file_paths = re.findall(r'File "(.*?)", line \d+', target_error)
-        relevant_files = []
-        for fp in set(file_paths):
-            if "Seeker.Bot" in fp and os.path.exists(fp):
-                relevant_files.append(fp)
-        
-        # Pega o arquivo principal do erro (geralmente o último no traceback que é do nosso código)
-        target_file = relevant_files[-1] if relevant_files else None
-        
-        if not target_file:
-            self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="Traceback não aponta para arquivo local do Seeker.", cost_usd=0.0)
-
-        # 2. Ler o código fonte afetado
-        try:
-            with open(target_file, "r", encoding="utf-8") as f:
-                source_code = f.read()
-        except (FileNotFoundError, IOError, UnicodeDecodeError) as e:
-            log.error(f"[self_improvement] Falha ao ler {target_file}: {e}", exc_info=True)
-            return GoalResult(success=True, summary="Falha ao ler arquivo afetado para o SARA.", cost_usd=0.0)
-
-        # Registra erro no ErrorDB (usa path real para o arquivo, traceback sanitizado para LLM)
-        error_type = target_error.strip().splitlines()[-1].split(":")[0].strip() if target_error.strip() else "Unknown"
-        error_id = await self.error_db.record_error(target_error, target_file, error_type)
-
-        prompt = (
-            "Você é o S.A.R.A (Systematic Automatic Retrospective Analysis), o motor de auto-cura Nível 5 do Seeker.Bot.\n"
-            "Analise o traceback abaixo e o código fonte original, corrija o bug ESTRITAMENTE, "
-            "e retorne um JSON formatado exatamente assim:\n"
-            "{\n"
-            '  "rationale": "Explicação 1 linha",\n'
-            '  "full_code": "O CÓDIGO FONTE COMPLETO corrigido (nunca trunque). Não use markdown ticks no valor."\n'
-            "}\n\n"
-            f"=== TARGET FILE ===\n{os.path.basename(target_file)}\n"
-            f"=== ERROR TRACEBACK ===\n{target_error_safe}\n=======================\n\n"
-            f"=== ORIGINAL SOURCE CODE ===\n{source_code}\n===========================\n"
+        # Executa o OODA Loop formal
+        iteration = await self.ooda.execute(
+            user_input="sara_trigger",
+            observe_fn=self._sara_observe,
+            orient_fn=self._sara_orient,
+            decide_fn=self._sara_decide,
+            act_fn=self._sara_act
         )
 
-        from config.models import ModelRouter, DEEPSEEK_CHAT, CognitiveRole
-        from src.core.utils import parse_llm_json
-        import shutil
+        self._status = GoalStatus.IDLE
+        cost = self._current_context.get("cycle_cost", 0.0)
+        
+        # Converte o LoopResult no GoalResult
+        if iteration.result == LoopResult.SUCCESS:
+            return GoalResult(
+                success=True,
+                summary="S.A.R.A Cycle OK",
+                cost_usd=cost,
+                notification=self._current_context.get("notification"),
+                data={"buttons": self._current_context.get("buttons")} if self._current_context.get("buttons") else None
+            )
+        else:
+            return GoalResult(
+                success=False,
+                summary=f"S.A.R.A Cycle Aborted/Failed: {iteration.action_result.error if iteration.action_result else 'Unknown'}",
+                cost_usd=cost,
+                notification=self._current_context.get("notification")
+            )
+
+    # ─── OODA LOOP PHASES ────────────────────────────────────────────────────────
+
+    async def _sara_observe(self, user_input: str, context: dict) -> ObservationData:
+        ctx = self._current_context
+        target_error = ctx["raw_traceback"]
+        
+        # Dedup Check
+        ctx["is_duplicate"] = await self.error_db.is_recent_duplicate(target_error, hours=6.0)
+        
+        target_error_safe = sanitize_traceback(target_error, max_len=2000)
+        ctx["target_error_safe"] = target_error_safe
+        
+        file_paths = re.findall(r'File "(.*?)", line \d+', target_error)
+        relevant_files = [fp for fp in set(file_paths) if "Seeker.Bot" in fp and os.path.exists(fp)]
+        target_file = relevant_files[-1] if relevant_files else None
+        
+        ctx["target_file"] = target_file
+        
+        target_line = None
+        if target_file:
+            for match in re.finditer(r'File "' + re.escape(target_file) + r'", line (\d+)', target_error):
+                target_line = int(match.group(1))
+                
+        ctx["target_line"] = target_line
+        ctx["error_type"] = target_error.strip().splitlines()[-1].split(":")[0].strip() if target_error.strip() else "Unknown"
+        
+        if target_file:
+            try:
+                with open(target_file, "r", encoding="utf-8") as f:
+                    all_lines = f.readlines()
+                ctx["source_code"] = "".join(all_lines)
+                
+                MAX_LINES = 150
+                if len(all_lines) > MAX_LINES and target_line:
+                    start = max(0, target_line - 60)
+                    end = min(len(all_lines), target_line + 60)
+                    source_section = "".join(all_lines[start:end])
+                    section_note = f"[Exibindo linhas {start+1}-{end} de {len(all_lines)} totais. Linha do erro: {target_line}]"
+                    ctx["source_for_llm"] = f"{section_note}\n{source_section}"
+                else:
+                    ctx["source_for_llm"] = ctx["source_code"]
+            except Exception as e:
+                log.error(f"[sara] Fail read file: {e}")
+                ctx["source_code"] = ""
+                ctx["source_for_llm"] = ""
+        else:
+            ctx["source_code"] = ""
+            ctx["source_for_llm"] = ""
+
+        return ObservationData(user_input=target_error)
+
+    async def _sara_orient(self, obs: ObservationData) -> OrientationModel:
+        ctx = self._current_context
+        constraints = []
+        
+        if ctx.get("is_duplicate"):
+            constraints.append("Duplicate error")
+            
+        target_file = ctx.get("target_file", "")
+        
+        # Risk Assessment (Autonomy Tier Determination)
+        tier = 1
+        reasoning = ""
+        
+        if not target_file:
+            tier = 1
+            reasoning = "Nenhum arquivo local identificado no traceback."
+        elif "src\\core" in target_file or "src/core" in target_file or "bot.py" in target_file or "message.py" in target_file:
+            tier = 1 # MANUAL
+            reasoning = "Módulo Core ou Roteador (Risco Crítico). Exige aprovação manual."
+        elif "src\\skills" in target_file or "src/skills" in target_file:
+            if "self_improvement" in target_file:
+                tier = 1
+                reasoning = "O SARA não deve modificar a si mesmo sem supervisão."
+            else:
+                tier = 3 # AUTONOMOUS
+                reasoning = "Skill isolada. Impacto de blast-radius baixo. Seguro para auto-cura."
+        else:
+            tier = 2 # REVERSIBLE
+            reasoning = "Módulo de domínio geral."
+
+        ctx["autonomy_tier"] = tier
+        return OrientationModel(
+            confidence=0.9 if not ctx.get("is_duplicate") else 0.0,
+            constraints=constraints,
+            reasoning=reasoning
+        )
+
+    async def _sara_decide(self, orient: OrientationModel) -> Decision:
+        ctx = self._current_context
+        
+        if "Duplicate error" in orient.constraints:
+            return Decision(action_type="abort", rationale="Erro duplicado nas últimas 6h.", verification_required=False)
+            
+        if not ctx.get("target_file") or not ctx.get("source_for_llm"):
+            return Decision(action_type="abort", rationale="Arquivo não legível ou inexistente.", verification_required=False)
+            
+        # Error record mapping
+        ctx["error_id"] = await self.error_db.record_error(ctx["raw_traceback"], ctx["target_file"], ctx["error_type"])
+
+        prompt = (
+            "Você é o S.A.R.A (Systematic Automatic Retrospective Analysis).\n"
+            "Analise o traceback e o código fonte. Retorne APENAS este JSON:\n"
+            "{\n"
+            '  "rationale": "Explicação do bug em 1 linha",\n'
+            '  "changes": [\n'
+            '    {"search": "bloco exato", "replace": "bloco corrigido"}\n'
+            '  ]\n'
+            "}\n"
+            "REGRAS:\n1. 'search' copia EXATA.\n2. Inclua apenas linhas que mudam.\n"
+            f"=== TARGET FILE ===\n{os.path.basename(ctx['target_file'])}\n"
+            f"=== TRACEBACK ===\n{ctx['target_error_safe']}\n================\n"
+            f"=== SOURCE ===\n{ctx['source_for_llm']}\n================\n"
+        )
         
         try:
-            # Cria um router one-off apenas com DeepSeek para tarefas analíticas pesadas
-            deepseek_router = ModelRouter(routes={CognitiveRole.DEEP: [DEEPSEEK_CHAT]})
-            
             response = await invoke_with_fallback(
-                CognitiveRole.DEEP,
+                CognitiveRole.FAST,
                 LLMRequest(
                     messages=[{"role": "user", "content": prompt}],
-                    system="Você retorna APENAS JSON válido sem marcações markdown extra.",
-                    max_tokens=6144,
-                    temperature=0.0
+                    system="Retorne JSON puro.", max_tokens=8192, temperature=0.0
                 ),
-                deepseek_router,
+                self.pipeline.model_router,
                 self.pipeline.api_keys,
             )
-            cycle_cost += response.cost_usd
+            ctx["cycle_cost"] += response.cost_usd
             
-            try:
-                # O parse_llm_json limpa os blocos markdown ```json
-                repaired_data = parse_llm_json(response.text)
-                new_code = repaired_data.get("full_code")
-                rationale = repaired_data.get("rationale", "Correção automática aplicada.")
-                
-                if not new_code or len(new_code) < 10:
-                    raise ValueError("Código vazio retornado.")
+            repaired_data = parse_llm_json(response.text)
+            rationale = repaired_data.get("rationale", "Auto-correção.")
+            changes = repaired_data.get("changes")
+            full_code_fallback = repaired_data.get("full_code")
 
-                # 3. Validar antes de escrever (CodeValidator — Day 2)
-                filename = os.path.basename(target_file)
-                validator = get_validator(use_pyright=True)
-                validation = validator.validate(new_code, filename=filename)
+            source_code = ctx["source_code"]
+            if changes:
+                new_code = apply_changes(source_code, changes)
+            elif full_code_fallback and len(full_code_fallback) > 10:
+                new_code = full_code_fallback
+            else:
+                raise ValueError("JSON sem changes ou full_code.")
 
-                if not validation.passed:
-                    # Patch inválido — preservar arquivo original
-                    error_preview = "\n".join(validation.errors[:3])
-                    log.warning(
-                        f"[sara] Patch REJEITADO ({validation.stage_failed}) para {filename}: "
-                        f"{validation.errors[0][:120] if validation.errors else 'sem detalhes'}"
-                    )
-                    # Registra patch rejeitado no ErrorDB
-                    await self.error_db.record_patch(
-                        error_id=error_id,
-                        validation_passed=False,
-                        stage_failed=validation.stage_failed,
-                        applied=False,
-                        cost_usd=cycle_cost,
-                        rationale=rationale,
-                    )
-                    rejection_msg = (
-                        f"🛡️ <b>S.A.R.A — PATCH REJEITADO</b>\n\n"
-                        f"🐛 <b>Bug original:</b> <code>{target_error.splitlines()[-1][:120]}</code>\n"
-                        f"📄 <b>Arquivo:</b> {filename}\n"
-                        f"❌ <b>Validação falhou ({validation.stage_failed}):</b>\n"
-                        f"<code>{error_preview[:400]}</code>\n\n"
-                        f"<i>O arquivo original foi preservado. Revisão manual necessária.</i>"
-                    )
-                    self._status = GoalStatus.IDLE
-                    return GoalResult(
-                        success=False,
-                        summary=f"Patch inválido ({validation.stage_failed}) — {filename} preservado",
-                        notification=rejection_msg,
-                        cost_usd=cycle_cost,
-                        data={"sara_edits": 0, "validation_failed": True, "stage": validation.stage_failed}
-                    )
+            # Validation Phase
+            filename = os.path.basename(ctx["target_file"])
+            validator = get_validator(use_pyright=True)
+            validation = validator.validate(new_code, filename=filename)
 
-                # 4. Patch válido — Solicitar aprovação via Telegram (ApprovalEngine)
-                pending_id = await self.pending_store.create_pending(
-                    file_path=target_file,
-                    proposed_code=new_code,
-                    rationale=rationale,
-                )
+            ctx["patch_data"] = {
+                "new_code": new_code,
+                "rationale": rationale,
+                "validation": validation,
+                "changes_count": len(changes) if changes else 1,
+                "diff_preview": generate_diff_preview(source_code, new_code, filename)
+            }
 
-                # Registra patch validado (não aplicado ainda — aguarda aprovação)
-                await self.error_db.record_patch(
-                    error_id=error_id,
-                    validation_passed=True,
-                    stage_failed=None,
-                    applied=False,  # Será True após aprovação
-                    cost_usd=cycle_cost,
-                    rationale=rationale,
-                )
-
-                # Preview do diff: primeiras 5 linhas do código novo
-                code_preview = "\n".join(new_code.splitlines()[:6])
-
-                approval_msg = (
-                    f"🛡️ <b>S.A.R.A — PATCH VALIDADO (aguardando aprovacao)</b>\n\n"
-                    f"🐛 <b>Bug:</b> <code>{target_error.splitlines()[-1][:100]}</code>\n"
-                    f"📄 <b>Arquivo:</b> {filename}\n"
-                    f"✅ <b>Validacao:</b> ast + compile + pyright OK\n"
-                    f"🧠 <b>Raciocinio:</b> {rationale}\n\n"
-                    f"<b>Preview do patch:</b>\n<pre>{code_preview[:400]}...</pre>\n\n"
-                    f"<i>Aprovacao necessaria antes de aplicar.</i>"
-                )
-
-                log.info(f"[sara] Patch {pending_id} criado para {filename} — aguardando aprovacao")
-
-                self._status = GoalStatus.IDLE
-                return GoalResult(
-                    success=True,
-                    summary=f"Patch validado para {filename} — aguardando aprovacao",
-                    notification=approval_msg,
-                    cost_usd=cycle_cost,
-                    data={
-                        "sara_edits": 0,  # Ainda não aplicado
-                        "buttons": [[
-                            {"text": "Aprovar", "callback_data": f"sara_approve:{pending_id}"},
-                            {"text": "Rejeitar", "callback_data": f"sara_reject:{pending_id}"},
-                        ]],
-                    },
-                )
-
-            except Exception as parse_e:
-                log.error(f"[sara] Falha no parser SARA: {parse_e}", exc_info=True)
-                self._status = GoalStatus.ERROR
-                return GoalResult(success=False, summary=f"Falha de parser SARA: {parse_e}", cost_usd=cycle_cost)
-
+            if not validation.passed:
+                return Decision(action_type="reject_patch", rationale=f"Falha de validação: {validation.stage_failed}", verification_required=False)
+            
+            return Decision(action_type="apply_patch", autonomy_tier=ctx["autonomy_tier"], rationale=orient.reasoning, verification_required=False)
+            
         except Exception as e:
-            self._status = GoalStatus.ERROR
-            return GoalResult(success=False, summary="Falha Cognitiva no Self Improvement", cost_usd=cycle_cost)
+            log.error(f"[sara] Exception no Decide: {e}")
+            return Decision(action_type="abort", rationale=f"Falha LLM: {str(e)}", verification_required=False)
+
+    async def _sara_act(self, decision: Decision) -> ActionResult:
+        ctx = self._current_context
+        
+        if decision.action_type == "abort":
+            return ActionResult(success=True, error=decision.rationale)
+            
+        pd = ctx.get("patch_data", {})
+        error_id = ctx.get("error_id")
+        filename = os.path.basename(ctx["target_file"])
+        
+        if decision.action_type == "reject_patch":
+            await self.error_db.record_patch(
+                error_id=error_id, validation_passed=False, stage_failed=pd["validation"].stage_failed,
+                applied=False, cost_usd=ctx["cycle_cost"], rationale=pd["rationale"]
+            )
+            rejection_msg = (
+                f"🛡️ <b>S.A.R.A — PATCH REJEITADO</b>\n\n"
+                f"🐛 <b>Bug:</b> <code>{ctx['error_type']}</code>\n"
+                f"❌ <b>Falha ({pd['validation'].stage_failed})</b>\n"
+                f"<i>Revisão manual necessária.</i>"
+            )
+            ctx["notification"] = rejection_msg
+            return ActionResult(success=False, error="Validação Falhou")
+            
+        if decision.action_type == "apply_patch":
+            tier = decision.autonomy_tier
+            
+            if tier == 3:
+                # AUTÔNOMO: Aplica o patch direto no arquivo
+                try:
+                    with open(ctx["target_file"], "w", encoding="utf-8") as f:
+                        f.write(pd["new_code"])
+                        
+                    await self.error_db.record_patch(
+                        error_id=error_id, validation_passed=True, stage_failed=None,
+                        applied=True, cost_usd=ctx["cycle_cost"], rationale=pd["rationale"]
+                    )
+                    
+                    msg = (
+                        f"🤖 <b>S.A.R.A — AUTO-CURA AUTÔNOMA (Tier 3)</b>\n\n"
+                        f"🐛 <b>Corrigido:</b> <code>{ctx['error_type']}</code>\n"
+                        f"📄 <b>Arquivo:</b> {filename}\n"
+                        f"⚙️ <b>Motivo:</b> Impacto isolado, corrigido e aplicado via OODA Loop."
+                    )
+                    ctx["notification"] = msg
+                    return ActionResult(success=True)
+                except Exception as e:
+                    return ActionResult(success=False, error=f"I/O error: {str(e)}")
+                    
+            else:
+                # MANUAL/REVERSIBLE: Pendente para Telegram
+                pending_id = await self.pending_store.create_pending(
+                    file_path=ctx["target_file"], proposed_code=pd["new_code"], rationale=pd["rationale"]
+                )
+                await self.error_db.record_patch(
+                    error_id=error_id, validation_passed=True, stage_failed=None,
+                    applied=False, cost_usd=ctx["cycle_cost"], rationale=pd["rationale"]
+                )
+                
+                preview_text = pd["diff_preview"] if pd["diff_preview"].strip() else "\n".join(pd["new_code"].splitlines()[:6])
+                approval_msg = (
+                    f"🛡️ <b>S.A.R.A — OODA LOOP (Aguardando Aprovação)</b>\n\n"
+                    f"🐛 Bug: <code>{ctx['error_type']}</code>\n"
+                    f"📄 Arquivo: {filename}\n"
+                    f"🚥 Autonomy Tier: {tier} ({decision.rationale})\n"
+                    f"🧠 Raciocínio: {pd['rationale']}\n\n"
+                    f"Diff Preview:\n<code>{preview_text[:500]}</code>"
+                )
+                ctx["notification"] = approval_msg
+                ctx["buttons"] = [[
+                    {"text": "✅ Aprovar", "callback_data": f"sara_approve:{pending_id}"},
+                    {"text": "❌ Rejeitar", "callback_data": f"sara_reject:{pending_id}"},
+                ]]
+                return ActionResult(success=True)
+
+        return ActionResult(success=False, error="Unknown decision type")
 
     def _extract_exceptions(self, text: str) -> list[str]:
-        """Extrai blocos de Traceback de logs em raw string."""
         blocks = []
         lines = text.split('\n')
         in_traceback = False
         current_block = []
-        
         for line in lines:
             if "Traceback (most recent call last):" in line or "Exception:" in line or "[ERROR]" in line:
                 in_traceback = True
                 if current_block:
                     blocks.append("\n".join(current_block))
                     current_block = []
-            
             if in_traceback:
                 current_block.append(line)
                 if not line.startswith(" ") and "Traceback" not in line and "Error" in line:
                     blocks.append("\n".join(current_block))
                     current_block = []
                     in_traceback = False
-
-        if current_block:
-             blocks.append("\n".join(current_block))
+        if current_block: blocks.append("\n".join(current_block))
         return blocks
 
     async def get_sara_stats(self) -> str:
-        """Retorna telemetria do S.A.R.A formatada para Telegram (/sara ou health)."""
         await self.error_db.init()
         return await self.error_db.format_stats_for_telegram()
 
-    def serialize_state(self) -> dict:
-        return {"last_log_byte_parsed": self.last_log_byte_parsed}
-
-    def load_state(self, state: dict) -> None:
-        self.last_log_byte_parsed = state.get("last_log_byte_parsed", 0)
+    def serialize_state(self) -> dict: return {"last_log_byte_parsed": self.last_log_byte_parsed}
+    def load_state(self, state: dict) -> None: self.last_log_byte_parsed = state.get("last_log_byte_parsed", 0)
 
 def create_goal(pipeline) -> SelfImprovementGoal:
     return SelfImprovementGoal(pipeline)
