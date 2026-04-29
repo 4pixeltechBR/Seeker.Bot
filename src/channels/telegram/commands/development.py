@@ -160,6 +160,13 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
             msg = await bug_ui.cmd_bug_approve(chat_id)
             await message.answer(msg, parse_mode=ParseMode.HTML)
 
+            # Auto-restart via watchdog se o patch foi aplicado
+            if "PATCH APLICADO" in msg:
+                await message.answer("🔄 **Reiniciando Seeker.Bot para aplicar o patch em 3 segundos...**", parse_mode=ParseMode.MARKDOWN)
+                import asyncio
+                import signal
+                await asyncio.sleep(3)
+                os.kill(os.getpid(), signal.SIGTERM)
         except Exception as e:
             log.error(f"[bug_analyzer] Erro em /bug_approve: {e}", exc_info=True)
             await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
