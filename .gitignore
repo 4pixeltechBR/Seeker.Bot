@@ -1,77 +1,49 @@
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# SECRETS — NUNCA subir
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-.env
-config/.env
-Credenciais/
-*.pem
-*.key
-*.crt
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# DATA — gerado em runtime, não pertence ao repo
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-data/
-*.db
-*.sqlite
-*.jsonl
-*.pdf
-reports/
-Downloads/
-Logos/
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# LOGS
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-logs/
-*.log
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# PYTHON
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Python
+.venv/
 __pycache__/
 *.pyc
 *.pyo
-*.egg-info/
-.venv/
+*.pyd
+.Python
+env/
 venv/
-.pytest_cache/
-dist/
-build/
+ENV/
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# IDE & OS
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Seeker Config & Data
+.env
+config/.env
+data/
+logs/
+scratch/
+
+# IDE & Editor
 .vscode/
 .idea/
-.claude/
 *.swp
 *.swo
-Thumbs.db
-.DS_Store
-screenshot.png
+.claude/
+.claudeignore
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# BENCHMARK & TEMP
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-benchmark_*.log
-benchmark_*.txt
-*.sh
-seeker-v2-foundation/
-seeker_bot.egg-info/
-ESeeker.Botconfiglocales/
-Integrações/
--p/
+# Credentials & Sensitive Data
+Credenciais/
+credentials.json
+gcp-oauth.keys.json
+*token*.json
 
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ONE-OFF SCRIPTS (não fazem parte do core)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-test_*.py
-!tests/
-manual_*.py
-analyze_*.py
-populate_*.py
-db_*.py
-run_*.py
-monitor_*.py
-start_bot_vision.py
+# Ferramentas Comerciais & Scripts Temporarios
+src/skills/seeker_sales/
+src/skills/sherlock_news/targets.json
+src/skills/cortex/
+src/skills/revenue_hunter/
+*.bak
+temp_*.py
+check_*.py
+push_*.py
+extract_*.py
+search_*.py
+audit*.py
+matches*.txt
+download_*.py
+refactor_*.py
+validate_*.py
+drive_decompiled.py
