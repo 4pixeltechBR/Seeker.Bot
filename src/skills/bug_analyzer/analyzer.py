@@ -151,7 +151,11 @@ Context:
 {context_text}
 
 Provide detailed, actionable analysis. Focus on actual bugs, not style improvements.
-CRITICAL: Do NOT hallucinate import paths. If a function is missing, DO NOT guess its module path (e.g., `src.utils...`). Either suggest a local fallback or leave it unimported."""
+CRITICAL RULES FOR DIAGNOSIS:
+1. If the context does NOT contain actual Error Tracebacks or Stack Traces (e.g., terminal output is empty or lacks Python errors), do NOT invent complex architectural causes like network timeouts, async state sync issues, or worker deaths.
+2. If the user reports a visual/formatting issue (e.g., text missing data, weird string literals like \\n, or wrong counters), assume it's a simple string formatting or dictionary parsing bug.
+3. If you do not have the exact file path and current code snippet, DO NOT generate a blind FixSuggestion that creates new generic wrapper/retry files (like auto_retry). Provide a diagnosis pointing to formatting/logic and explicitly say: "Code inspection required".
+4. Do NOT hallucinate import paths. If a function is missing, DO NOT guess its module path."""
 
     def _parse_analysis_response(
         self, bug_report: BugReport, response_text: str, model_used: str
