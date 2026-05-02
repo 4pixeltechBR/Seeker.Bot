@@ -22,11 +22,13 @@ class MessageController:
     Follows Clean Architecture by decoupling handlers from the setup logic
     and breaking down the massive _process_and_reply method into focused services.
     """
-    def __init__(self, pipeline: SeekerPipeline, vault, obsidian_wait_users: set, check_obsidian_state):
+    def __init__(self, pipeline: SeekerPipeline, vault, obsidian_wait_users: set, check_obsidian_state, transcribe_wait_users: set, check_transcribe_state):
         self.pipeline = pipeline
         self.vault = vault
         self._obsidian_wait_users = obsidian_wait_users
         self._check_obsidian_state = check_obsidian_state
+        self._transcribe_wait_users = transcribe_wait_users
+        self._check_transcribe_state = check_transcribe_state
         self.router = Router(name="message_router")
         self._register_handlers()
 
@@ -104,16 +106,17 @@ class MessageController:
     async def _process_single_photo(self, message: Message, caption: str, is_obsidian: bool):
         file_info = await message.bot.get_file(message.photo[-1].file_id)
         photo_file = await message.bot.download_file(file_info.file_path)
+        photo_bytes = photo_file.read()
 
         if is_obsidian:
             status_msg = await message.answer("⏳ Lendo print e salvando no Obsidian...")
-            resp = await self.vault.process_images([photo_file.read()], user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
+            resp = await self.vault.process_images([photo_bytes], user_hint=caption.replace("/obsidian", "").replace("/cofre", ""))
             await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
         else:
             await message.bot.send_chat_action(message.chat.id, ChatAction.TYPING)
             try:
                 from src.skills.knowledge_vault.extractors import extract_from_images
-                raw_text = await extract_from_images([photo_file.read()], self.vault.vlm_client)
+                raw_text = await extract_from_images([photo_bytes], self.vault.vlm_client)
                 user_input = f"{caption}\n\n[Imagem ExtraÃ­da]:\n{raw_text}".strip()
                 await self._process_and_reply(message, user_input)
             except Exception as e:
@@ -141,7 +144,24 @@ class MessageController:
             await status_msg.edit_text(resp, parse_mode=ParseMode.HTML)
             return
 
+        is_pure_transcribe = self._check_transcribe_state(message.from_user.id)
+
         from src.skills.stt_groq import transcribe_audio_groq
+        
+        if is_pure_transcribe:
+            status_msg = await message.reply("🎙️ <b>Transcrevendo áudio...</b>", parse_mode=ParseMode.HTML)
+            text = await transcribe_audio_groq(audio_bytes)
+            if not text:
+                await status_msg.edit_text("❌ Falha na transcrição. Verifique a chave da API do Groq.")
+            else:
+                from src.channels.telegram.formatter import split_message
+                formatted_text = f"📝 <b>Transcrição concluída:</b>\n\n{text}"
+                parts = split_message(formatted_text)
+                await status_msg.edit_text(parts[0], parse_mode=ParseMode.HTML)
+                for part in parts[1:]:
+                    await message.answer(part, parse_mode=ParseMode.HTML)
+            return
+
         user_input = await transcribe_audio_groq(audio_bytes)
 
         if not user_input:
@@ -163,6 +183,20 @@ class MessageController:
                 self._obsidian_wait_users.discard(message.from_user.id)
                 await message.reply("❌ Modo Cofre cancelado.")
                 return
+            if message.from_user.id in self._transcribe_wait_users:
+                self._transcribe_wait_users.discard(message.from_user.id)
+                await message.reply("❌ Modo Transcrição cancelado.")
+                return
+
+        if user_input.lower() == "/transcrever":
+            self._transcribe_wait_users.add(message.from_user.id)
+            await message.reply(
+                "🎙️ <b>Modo Transcrição Ativado!</b>\n\n"
+                "Envie o áudio agora e eu retornarei apenas o texto transcrito via Groq.\n\n"
+                "<i>(Para cancelar, envie /cancelar)</i>",
+                parse_mode=ParseMode.HTML
+            )
+            return
 
         if self._check_obsidian_state(message.from_user.id):
             await self._handle_obsidian_wait_state(message, user_input)
@@ -440,8 +474,8 @@ class MessageController:
                 await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
 
 # Factory function to preserve bot.py setup flow compatibility
-def setup_message_handlers(dp: Dispatcher, pipeline: SeekerPipeline, vault, _obsidian_wait_users, _check_obsidian_state):
-    controller = MessageController(pipeline, vault, _obsidian_wait_users, _check_obsidian_state)
+def setup_message_handlers(dp: Dispatcher, pipeline: SeekerPipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state):
+    controller = MessageController(pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
     controller.setup(dp)
     # Inject god_mode_users compatibility
     god_users = dp.get("god_mode_users")
