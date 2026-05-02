@@ -101,6 +101,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"),
         BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
         BotCommand(command="/drive", description="📁 Google Drive: listar, criar, enviar e baixar arquivos"),
+        BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
     ]
     await bot.set_my_commands(commands)
 
@@ -133,10 +134,17 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     # Variaveis de estado local
     _obsidian_wait_users = set()
+    _transcribe_wait_users = set()
     _bug_context = {}
     
     def _check_obsidian_state(uid: int) -> bool:
         return uid in _obsidian_wait_users
+
+    def _check_transcribe_state(uid: int) -> bool:
+        if uid in _transcribe_wait_users:
+            _transcribe_wait_users.discard(uid)
+            return True
+        return False
 
     # Import and call factories
     from src.channels.telegram.commands.system import setup_system_handlers
@@ -159,7 +167,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     setup_vision_handlers(dp, pipeline)
     setup_vault_handlers(dp, pipeline, vault, _obsidian_wait_users)
     setup_development_handlers(dp, pipeline, _bug_context)
-    setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state)
+    setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
 
     from src.channels.telegram.commands.drive import setup_drive_handlers
     setup_drive_handlers(dp, pipeline)
