@@ -71,6 +71,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
         BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
         BotCommand(command="/search", description="Busca direta e forçada na web"),
+        BotCommand(command="/deep", description="🕵️ Pesquisa profunda autônoma (Kimi)"),
         BotCommand(command="/rate", description="Exibe status dos rate limiters"),
         BotCommand(command="/decay", description="Roda limpeza de confiança manual"),
         BotCommand(command="/budget", description="Gastos de hoje por provedor"),
@@ -104,6 +105,32 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
     ]
     await bot.set_my_commands(commands)
+
+
+async def check_storage_health(notifier: GoalNotifier):
+    """
+    Pilar 3: HealthCheck de Storage. 
+    Verifica se o storage principal (GDRIVE_PATH) está acessível e alerta no Telegram se falhar.
+    """
+    gdrive_path = os.getenv("GDRIVE_PATH")
+    if not gdrive_path:
+        return True # Sem configuração de drive, opera normal local
+
+    if not os.path.exists(gdrive_path):
+        log.error(f"[health] GDRIVE_PATH definido mas INACESSÍVEL: {gdrive_path}")
+        try:
+            await notifier.notify_admin(
+                "<b>🚨 ALERTA DE PERSISTÊNCIA (Pilar 3)</b>\n\n"
+                f"A unidade de storage <code>{gdrive_path}</code> está <b>inacessível</b>.\n\n"
+                "⚠️ O sistema de salvamento de dossiês foi interrompido para evitar perda de dados.\n"
+                "💡 <i>Certifique-se que o Google Drive Desktop está aberto e a unidade I: montada.</i>"
+            )
+        except Exception as e:
+            log.warning(f"Falha ao enviar alerta de storage: {e}")
+        return False
+    
+    log.info(f"[health] Storage verificado: {gdrive_path} (ONLINE)")
+    return True
 
 
 def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[int]):
@@ -376,6 +403,73 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             except asyncio.CancelledError:
                 pass
 
+    @dp.message(F.text.startswith("/deep "))
+    async def cmd_deep_research(message: Message):
+        query = message.text[6:].strip()
+        if not query:
+            await message.answer("Uso: /deep [tópico para investigação profunda]")
+            return
+
+        await message.answer(
+            f"🕵️‍♂️ <b>S.A.R.A RESEARCH ATIVADO</b>\n\n"
+            f"<i>Iniciando investigação autônoma sobre:</i>\n"
+            f"<code>{html.escape(query)}</code>\n\n"
+            f"⏳ <i>Ista pode levar de 30 a 90 segundos. O agente irá navegar na web, ler artigos e cruzar fontes antes de responder.</i>",
+            parse_mode=ParseMode.HTML
+        )
+
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(
+            keep_typing(message.bot, message.chat.id, stop_typing)
+        )
+        
+        try:
+            from src.providers.base import LLMRequest, invoke_with_fallback
+            
+            prompt = (
+                f"Sua missão é atuar como um investigador sênior de inteligência. "
+                f"Pesquise profundamente sobre o tópico abaixo. Use a ferramenta $web_search "
+                f"quantas vezes forem necessárias para cobrir todos os ângulos, fatos recentes e divergências.\n\n"
+                f"TÓPICO:\n{query}\n\n"
+                f"Entregue um dossiê completo, estruturado e cite os links/fontes que você encontrou. "
+                f"Seja analítico, fuja do óbvio."
+            )
+            
+            req = LLMRequest(
+                messages=[{"role": "user", "content": prompt}],
+                system="Você é um Agente de Pesquisa Autônomo. Use $web_search sem hesitar para encontrar fatos no mundo real.",
+                max_tokens=8192,
+                temperature=0.3
+            )
+            
+            resp = await invoke_with_fallback(
+                CognitiveRole.RESEARCH,
+                req,
+                pipeline.model_router,
+                pipeline.api_keys
+            )
+            
+            # Divide e envia a resposta (pode ser longa)
+            final_text = resp.text
+            final_text += f"\n\n💰 <i>Custo da Pesquisa: ${resp.cost_usd:.4f} | Tempo: {resp.latency_ms / 1000:.1f}s</i>"
+            
+            from src.channels.telegram.formatter import split_message, md_to_telegram_html
+            chunks = split_message(md_to_telegram_html(final_text))
+            for chunk in chunks:
+                await message.answer(chunk, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+                
+        except asyncio.TimeoutError:
+            await message.answer("⏱️ Timeout: A pesquisa foi muito profunda e excedeu o tempo limite (90s). Tente um tópico mais restrito.")
+        except Exception as e:
+            log.error(f"[deep] Erro na pesquisa autônoma: {e}", exc_info=True)
+            await message.answer(f"❌ Erro durante a investigação: {str(e)[:100]}")
+        finally:
+            stop_typing.set()
+            try:
+                await typing_task
+            except asyncio.CancelledError:
+                pass
+
     @dp.message(F.text == "/test_email")
     async def cmd_test_email(message: Message):
         """Força execução do email_monitor para diagnóstico"""
@@ -542,6 +636,7 @@ async def main():
         "deepseek": os.getenv("DEEPSEEK_API_KEY", ""),
         "gemini": os.getenv("GEMINI_API_KEY", ""),
         "groq": os.getenv("GROQ_API_KEY", ""),
+        "kimi": os.getenv("KIMI_API_KEY", ""),
         "mistral": os.getenv("MISTRAL_API_KEY", ""),
         "nvidia": os.getenv("NVIDIA_API_KEY", ""),
     }
@@ -637,6 +732,9 @@ async def main():
     if scheduler._goals:
         await scheduler.start()
         log.info(f"  Goal Engine ativado ({len(scheduler._goals)} goals)")
+        
+        # Pilar 3: HealthCheck de Storage ativo no startup
+        asyncio.create_task(check_storage_health(notifier))
     else:
         log.warning("  Nenhum goal registrado — rodando só pipeline conversacional.")
 
