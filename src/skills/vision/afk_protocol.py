@@ -75,8 +75,8 @@ class AFKProtocol:
         msg = f"<b>🚨 AUTORIZAÇÃO VISUAL: Tier {tier}</b>\n\n{reason}\n\n"
         msg += f"<b>Tipo:</b> {'📖 Leitura' if action_type == 'read' else '✍️ Escrita'}\n\n"
 
-        # Consulta padrão de hábito antes de perguntar
-        habit = self.habits.suggest(reason[:30], action_type)
+        # Consulta padrão de hábito antes de perguntar (async offload)
+        habit = await asyncio.to_thread(self.habits.suggest, reason[:30], action_type)
         if habit["action"] == "auto_approve" and tier == 2 and action_type == "read":
             log.info(
                 f"[AFK] Auto-approve por hábito: {habit['reasoning']} "
@@ -233,6 +233,6 @@ class AFKProtocol:
             # Set Future com resultado (thread-safe)
             future.set_result(permission_result)
 
-            # Registra decisão no Habit Tracker
+            # Registra decisão no Habit Tracker (async offload)
             if goal_name:
-                self.habits.record(goal_name, action_type, approved=approved)
+                await asyncio.to_thread(self.habits.record, goal_name, action_type, approved)
