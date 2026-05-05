@@ -40,6 +40,7 @@ O Seeker.Bot não é um script linear; é um ecossistema de **Capabilities** que
 | **S.A.R.A (Auto-Cura)** | 🛠️ | *Systematic Automatic Retrospective Analysis*. Monitora logs e corrige bugs via patches automáticos. | Relatórios de "Raciocínio Aberto" + Auto-Fix. |
 | **SenseNews** | 📰 | Curadoria diária (10:00 AM) em nichos escolhidos com análise cruzada de impacto. | Relatório de Inteligência em PDF. |
 | **Vision 3.0 (DOM vs Vision)** | 👁️ | Roteamento visual (Cloud/Local/OCR). Executa Takeover via protocolo AFK e extrai bounding boxes precisos sem OCR alucinado. | Contexto visual para decisões exatas no SO. |
+| **Storage Watchdog** | 📁 | Sistema de persistência blindada (Pilares 2 e 3). Força montagem de drives de rede e alerta no Telegram se o storage estiver offline. | Garantia de persistência zero-loss para dossiês. |
 | **Skill Creator** | 🧬 | Meta-capacidade de programar, testar e registrar novos Goals autonomamente. | Expansão orgânica do sistema. |
 | **Git & OS Automator** | 💻 | Gestão de repositórios, deploy e monitoramento de saúde do sistema (HealthCheck). | Sistema 100% íntegro e atualizado. |
 
