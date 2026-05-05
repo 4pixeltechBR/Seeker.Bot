@@ -35,11 +35,14 @@ class StealthBrowser:
         self.page = None
 
     async def __aenter__(self):
-        await self.start()
+        # Apenas garante que está iniciado (Pool Pattern)
+        if not self.browser:
+            await self.start()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        # Agora o fechamento não é forçado no exit, suportando Stand-by mode
+        pass
 
     async def start(self):
         self.playwright = await async_playwright().start()
@@ -133,6 +136,38 @@ class StealthBrowser:
         if self.page:
             return await self.page.content()
         return ""
+
+    async def extract_dom_boxes(self) -> str:
+        """
+        Otimização P5 (DOM vs Visão): Injeta script para mapear coordenadas exatas
+        dos elementos visíveis interativos. Elimina necessidade do VLM adivinhar posições
+        por imagem e acelera o processamento no LLM de navegação Headless.
+        """
+        if not self.page: return "[]"
+        script = '''() => {
+            const elements = document.querySelectorAll('button, a, input, select, textarea, [role="button"], [onclick]');
+            return Array.from(elements).filter(el => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 && rect.top >= 0 && rect.top <= window.innerHeight;
+            }).map((el, i) => {
+                const rect = el.getBoundingClientRect();
+                let ident = el.innerText ? el.innerText.substring(0, 50).trim() : el.value || el.name || el.id || el.getAttribute("aria-label") || "";
+                ident = ident.replace(/\\s+/g, ' ');
+                return {
+                    id: i,
+                    tag: el.tagName.toLowerCase(),
+                    label: ident,
+                    box: [Math.round(rect.x), Math.round(rect.y), Math.round(rect.width), Math.round(rect.height)]
+                };
+            }).filter(item => item.label.length > 0);
+        }'''
+        try:
+            boxes = await self.page.evaluate(script)
+            import json
+            return json.dumps(boxes, ensure_ascii=False)
+        except Exception as e:
+            log.warning(f"[browser] Falha ao extrair DOM boxes: {e}")
+            return "[]"
 
     async def get_current_url(self) -> str:
         if self.page:
