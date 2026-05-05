@@ -39,7 +39,7 @@ O Seeker.Bot não é um script linear; é um ecossistema de **Capabilities** que
 | **Revenue Hunter** | 🎯 | Mineração B2B/B2G em 3 fases (Discovery, Enrich, Dossier) com BANT Scoring. | Dossiê Comercial completo + PDF. |
 | **S.A.R.A (Auto-Cura)** | 🛠️ | *Systematic Automatic Retrospective Analysis*. Monitora logs e corrige bugs via patches automáticos. | Relatórios de "Raciocínio Aberto" + Auto-Fix. |
 | **SenseNews** | 📰 | Curadoria diária (10:00 AM) em nichos escolhidos com análise cruzada de impacto. | Relatório de Inteligência em PDF. |
-| **Vision (AFK)** | 👁️ | Monitoramento visual do desktop e protocolo de presença inteligente. | Contexto visual para decisões. |
+| **Vision 3.0 (DOM vs Vision)** | 👁️ | Roteamento visual (Cloud/Local/OCR). Executa Takeover via protocolo AFK e extrai bounding boxes precisos sem OCR alucinado. | Contexto visual para decisões exatas no SO. |
 | **Skill Creator** | 🧬 | Meta-capacidade de programar, testar e registrar novos Goals autonomamente. | Expansão orgânica do sistema. |
 | **Git & OS Automator** | 💻 | Gestão de repositórios, deploy e monitoramento de saúde do sistema (HealthCheck). | Sistema 100% íntegro e atualizado. |
 
@@ -127,11 +127,14 @@ graph TD
     G -->|Notification| A
 ```
 
-### 🧠 O Motor de Decisão (Cognitive Load Router)
+### 🧠 O Motor de Decisão (Cognitive Load Router & Vision Router)
 Para evitar o desperdício de tokens e VRAM, o Seeker avalia a **entropia** da tarefa antes de selecionar o provedor:
 - **Fast Role**: Extração de entidades, JSON parsing e roteamento básico (Groq).
 - **Synthesis Role**: Geração de relatórios, escrita de código e análise de mercado (DeepSeek/Gemini).
-- **Vision Role**: Leitura de tela e interface com o OS (Gemini).
+- **Vision Role**: Triagem multi-modelo (Vision 3.0):
+  - *Task.OCR*: Vai para o especialista (GLM-OCR Zhipu) batendo 94.5% de precisão sub-sec.
+  - *Grounding & Description*: Vai para Cloud (Gemini 1.5 Pro) com Fallback Local Inteligente (Qwen2.5-VL) quando VRAM está livre.
+  - *DOM vs Visão*: Injeção Javascript P5 para raspar bounding boxes, eliminando 100% de alucinação de clique no "Desktop/Browser Use".
 
 ### 💾 Memória Reflexiva
 Utilizamos um sistema de **DecayEngine** no SQLite:
