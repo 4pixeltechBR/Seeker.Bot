@@ -145,19 +145,37 @@ class EmailMonitorGoal:
         cycle_cost = 0.0
 
         try:
-            reader = IMAPReader.from_env()
-            if not reader:
-                self._status = GoalStatus.IDLE
-                return GoalResult(
-                    success=True,
-                    summary="IMAP não configurado — skipping.",
-                    cost_usd=0.0,
-                )
+            # Tenta via Gmail API (mais confiável que IMAP)
+            emails = await self._fetch_unread_gmail_api()
 
-            # Busca max 30 não lidos
-            emails = await reader.fetch_unread_emails(max_emails=30)
+            if emails is None:
+                # Fallback para IMAP se API não disponível
+                reader = IMAPReader.from_env()
+                if not reader:
+                    self._status = GoalStatus.IDLE
+                    log.warning("[email_monitor] Gmail API e IMAP não configurados — skipping.")
+                    return GoalResult(
+                        success=True,
+                        summary="Gmail API e IMAP não configurados — skipping.",
+                        cost_usd=0.0,
+                    )
+
+                log.info("[email_monitor] Tentando IMAP fallback...")
+                emails = await reader.fetch_unread_emails(max_emails=30)
+
+            # Busca max 30 não lidos (já feito acima)
+            if emails is None:
+                emails = []
 
             if not emails:
+                # ⚠️ DIAGNÓSTICO: Se chegou aqui com emails vazio, significa IMAP retornou []
+                log.warning(
+                    "[email_monitor] IMAP retornou vazio. Verifique:\n"
+                    "  - IMAP_PASSWORD configurado?\n"
+                    "  - SMTP_USER = seu email?\n"
+                    "  - Credenciais IMAP corretas?\n"
+                    "  - Gmail com App Password (não senha comum)?"
+                )
                 self._last_run_date = today_str
                 self._status = GoalStatus.IDLE
                 return GoalResult(
@@ -229,6 +247,15 @@ class EmailMonitorGoal:
             )
 
     # ── Helpers ───────────────────────────────────────────────
+
+    async def _fetch_unread_gmail_api(self) -> list[dict] | None:
+        """
+        Placeholder para integração futura com Gmail API.
+        MCPs (como Gmail MCP) só ficam disponíveis no contexto do Claude,
+        não como imports Python em processos independentes.
+        O Seeker.Bot usa IMAP como fonte primária de emails.
+        """
+        return None  # Sempre usa IMAP
 
     def _format_for_llm(self, emails: list[dict]) -> str:
         lines = []

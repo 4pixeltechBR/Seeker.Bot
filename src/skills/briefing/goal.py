@@ -141,7 +141,7 @@ class DailyNewsGoal:
             messages=[{"role": "user", "content": prompt}],
             system="Você é um Assistente Executivo Sênior analisando a caixa de entrada do seu chefe. Output HTML formatado pro Telegram.",
             temperature=0.3,
-            max_tokens=1500
+            max_tokens=4096
         )
 
         try:

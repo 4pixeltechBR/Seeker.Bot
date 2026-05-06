@@ -164,8 +164,59 @@ class MemoryProtocol(Protocol):
         """Remove sessões antigas. Retorna quantidade removida."""
         ...
 
+    # ─── Knowledge Graph (Temporal Triples) ──────────────────
+    # Sujeito → Predicado → Objeto (com validade temporal)
+
+    async def add_entity(self, name: str, entity_type: str = "unknown", properties: dict | None = None) -> str:
+        """Adiciona ou atualiza um nó de entidade. Retorna o entity_id."""
+        ...
+
+    async def add_triple(
+        self,
+        *,
+        subject: str,
+        predicate: str,
+        object_: str,
+        valid_from: str | None = None,
+        valid_to: str | None = None,
+        confidence: float = 1.0,
+        source_file: str | None = None,
+        source_drawer_id: str | None = None,
+        adapter_name: str | None = None,
+    ) -> str:
+        """Adiciona uma tripla de relacionamento subject → predicate → object."""
+        ...
+
+    async def invalidate_triple(self, subject: str, predicate: str, object_: str, ended: str | None = None) -> None:
+        """Marca um relacionamento como não mais válido (set valid_to)."""
+        ...
+
+    async def query_knowledge(self, entity_name: str, as_of: str | None = None, direction: str = "outgoing") -> list[dict]:
+        """Busca relacionamentos de uma entidade."""
+        ...
+
+    async def get_knowledge_timeline(self, entity_name: str | None = None, limit: int = 100) -> list[dict]:
+        """Timeline cronológica de fatos do grafo."""
+        ...
+
+    # ─── Auditoria Temporal ───────────────────────────────────
+
+    async def find_temporal_anomalies(self, limit: int = 5) -> list[dict]:
+        """Encontra triplas antigas ou de baixa confiança que podem estar obsoletas."""
+        ...
+
+    async def get_verification_context(self) -> str:
+        """Gera bloco de texto para o LLM verificar fatos possivelmente obsoletos."""
+        ...
+
     # ─── Contexto para LLM ──────────────────────────────────
 
-    async def format_context(self, query: str = "", limit: int = 10) -> str:
-        """Formata memória semântica + episódios recentes como contexto textual."""
+    async def format_context(
+        self,
+        query: str = "",
+        limit: int = 10,
+        identity: str = "",
+        on_demand_category: str | None = None,
+    ) -> str:
+        """Formata memória usando o 4-Layer Stack (L0-L3)."""
         ...

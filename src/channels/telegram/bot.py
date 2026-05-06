@@ -13,7 +13,7 @@ import html
 
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, CallbackQuery, BotCommand, BufferedInputFile
+from aiogram.types import Message, CallbackQuery, BotCommand, BufferedInputFile, User
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -21,54 +21,30 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config.models import build_default_router, CognitiveRole
 from src.core.pipeline import SeekerPipeline, PipelineResult
 from src.core.router.cognitive_load import CognitiveDepth
-from src.channels.telegram.formatter import md_to_telegram_html
+from src.channels.telegram.formatter import md_to_telegram_html, split_message, MAX_MSG_LENGTH, format_cost_line
 from src.providers.base import _rate_limiters, cleanup_client_pool
 from src.skills.vision.afk_protocol import AFKProtocol
 from src.core.reasoning.ooda_loop import OODALoop, OODAIteration
+from src.core.logging_secure import setup_secure_logging
 
 # Goal Engine
 from src.core.goals import GoalScheduler, GoalNotifier, discover_goals
 from src.channels.email.client import EmailClient
 from src.skills.sense_news.prompts import NICHES
+# SherlockNews helpers live in commands/sherlock.py
 
+# Knowledge Vault (Obsidian)
+from src.skills.knowledge_vault import KnowledgeVault, ObsidianWriter, VaultSearcher, extract_from_audio
+
+# Setup secure logging (masks secrets automatically)
+setup_secure_logging()
 log = logging.getLogger("seeker.telegram")
 
-MAX_MSG_LENGTH = 4096
+
 TYPING_INTERVAL = 4
 
 
-def split_message(text: str, max_length: int = MAX_MSG_LENGTH) -> list[str]:
-    if len(text) <= max_length:
-        return [text]
-    parts = []
-    remaining = text
-    while remaining:
-        if len(remaining) <= max_length:
-            parts.append(remaining)
-            break
-        cut = remaining.rfind("\n\n", 0, max_length)
-        if cut == -1 or cut < max_length // 2:
-            cut = remaining.rfind("\n", 0, max_length)
-        if cut == -1 or cut < max_length // 2:
-            cut = max_length
-        parts.append(remaining[:cut].rstrip())
-        remaining = remaining[cut:].lstrip()
-    return parts
 
-
-def format_cost_line(result: PipelineResult) -> str:
-    parts = []
-    if result.total_cost_usd > 0:
-        parts.append(f"${result.total_cost_usd:.4f}")
-    parts.append(f"{result.total_latency_ms}ms")
-    parts.append(f"{result.llm_calls} calls")
-    if result.facts_used > 0:
-        parts.append(f"🧠 {result.facts_used} fatos")
-    if result.arbitrage and result.arbitrage.has_conflicts:
-        parts.append(f"⚠️ {len(result.arbitrage.conflict_zones)} conflitos")
-    if result.verdict:
-        parts.append(result.verdict.to_footer())
-    return " · ".join(parts)
 
 
 async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
@@ -90,6 +66,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
         BotCommand(command="/perf", description="Dashboard de performance e latência"),
         BotCommand(command="/perf_detailed", description="Métricas detalhadas por fase"),
+        BotCommand(command="/cascade_status", description="Status detalhado da API Cascade (6 tiers)"),
         BotCommand(command="/recovery", description="Status de circuit breakers e degradação"),
         BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
         BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
@@ -109,17 +86,96 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/scout", description="Dispara campanha B2B Scout (leads qualificados)"),
         BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
         BotCommand(command="/crm", description="Lista histórico de leads qualificados"),
-        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews")
+        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
+        BotCommand(command="/agendar", description="📅 Agenda nova tarefa (wizard conversacional)"),
+        BotCommand(command="/listar", description="📋 Lista tarefas agendadas do chat"),
+        BotCommand(command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"),
+        BotCommand(command="/pausar", description="⏸ Pausa tarefa (/pausar <ID>)"),
+        BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
+        BotCommand(command="/remover", description="🗑 Remove tarefa (/remover <ID>)"),
+        BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)"),
+        BotCommand(command="/bug", description="🐛 Analisa bug com contexto e sugestões"),
+        BotCommand(command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"),
+        BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug"),
+        BotCommand(command="/sherlock", description="🕵️ SherlockNews: Painel Interativo de Monitoramento IA"),
+        BotCommand(command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"),
+        BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
+        BotCommand(command="/drive", description="📁 Google Drive: listar, criar, enviar e baixar arquivos"),
+        BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
     ]
     await bot.set_my_commands(commands)
 
 
 def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[int]):
+    
+    # Adiciona dependências no dispatcher
+    dp["pipeline"] = pipeline
+    dp["allowed_users"] = allowed_users
+    
+    from src.channels.telegram.commands.sherlock import sherlock_router
+    dp.include_router(sherlock_router)
+
+    # --- AUTH MIDDLEWARE (covers every message + callback_query) ---
+    from src.channels.telegram.middlewares.auth import AuthMiddleware
+    _auth = AuthMiddleware(allowed_users)
+    dp.message.middleware(_auth)
+    dp.callback_query.middleware(_auth)
+
+    # Initialize Knowledge Vault com VLM + WebSearcher para enriquecimento
+    from src.skills.vision.vlm_client import VLMClient
+    from src.core.search.web import WebSearcher
+    vlm = VLMClient()
+    web_searcher = WebSearcher(
+        tavily_key=os.getenv("TAVILY_API_KEY", ""),
+        brave_key=os.getenv("BRAVE_API_KEY", ""),
+    )
+    vault = KnowledgeVault(pipeline.cascade_adapter, vlm_client=vlm, web_searcher=web_searcher)
+    dp["vault_debouncer"] = {}  # Para agrupamento de mídias
+
+    # Variaveis de estado local
+    _obsidian_wait_users = set()
+    _transcribe_wait_users = set()
+    _bug_context = {}
+    
+    def _check_obsidian_state(uid: int) -> bool:
+        return uid in _obsidian_wait_users
+
+    def _check_transcribe_state(uid: int) -> bool:
+        if uid in _transcribe_wait_users:
+            _transcribe_wait_users.discard(uid)
+            return True
+        return False
+
+    # Import and call factories
+    from src.channels.telegram.commands.system import setup_system_handlers
+    from src.channels.telegram.commands.tasks import setup_tasks_handlers
+    try:
+        from src.channels.telegram.commands.sales import setup_sales_handlers
+        has_sales = True
+    except ImportError:
+        has_sales = False
+
+    from src.channels.telegram.commands.vision import setup_vision_handlers
+    from src.channels.telegram.commands.vault import setup_vault_handlers
+    from src.channels.telegram.commands.development import setup_development_handlers
+    from src.channels.telegram.commands.message import setup_message_handlers
+
+    setup_system_handlers(dp, pipeline)
+    setup_tasks_handlers(dp, pipeline)
+    if has_sales:
+        setup_sales_handlers(dp, pipeline)
+    setup_vision_handlers(dp, pipeline)
+    setup_vault_handlers(dp, pipeline, vault, _obsidian_wait_users)
+    setup_development_handlers(dp, pipeline, _bug_context)
+    setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
+
+    from src.channels.telegram.commands.drive import setup_drive_handlers
+    setup_drive_handlers(dp, pipeline)
+
+
 
     @dp.message(F.text == "/start")
     async def cmd_start(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
 
         user_id = message.from_user.id
         user_niches = await pipeline.memory.get_user_niches(user_id)
@@ -134,7 +190,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/search [query] — busca direta na web\n"
             "/print — screenshot rápido do desktop\n"
             "/watch — ativa vigilância AFK (2 min)\n"
-            "/watchoff — desativa vigilância\n\n"
+            "/watchoff — desativa vigilância\n"
+            "/sherlock [modelo] — monitora lançamento de modelo\n\n"
             "<b>📊 Sistema & Performance:</b>\n"
             "/status — painel de providers e metas\n"
             "/saude — dashboard detalhado de goals\n"
@@ -144,11 +201,14 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/rate — status dos rate limiters\n"
             "/habits — padrões de decisão aprendidos\n"
             "/decay — limpeza manual de memória\n\n"
+            "<b>🤖 Aprendizado (RL):</b>\n"
+            "/bandit — progresso do LinUCB (shadow mode)\n\n"
             "<b>🚀 Produção:</b>\n"
             "/scout — campanha B2B (leads qualificados)\n"
             "/crm — histórico de leads\n"
             "/git_backup — backup manual no GitHub\n"
-            "/configure_news — personaliza notícias"
+            "/configure_news — personaliza notícias\n"
+            "/drive — 📁 acesso ao Google Drive"
         )
 
         await message.answer(help_text, parse_mode=ParseMode.HTML)
@@ -189,8 +249,6 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     @dp.callback_query(F.data.startswith("niche_toggle:"))
     async def cb_niche_toggle(query: CallbackQuery):
         """Callback para alternar seleção de nicho"""
-        if not _is_allowed_callback(query, allowed_users):
-            return
 
         niche = query.data.split(":", 1)[1]
         user_id = query.from_user.id
@@ -233,8 +291,6 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     @dp.callback_query(F.data == "niches_done")
     async def cb_niches_done(query: CallbackQuery):
         """Callback para confirmar seleção de nichos"""
-        if not _is_allowed_callback(query, allowed_users):
-            return
 
         user_id = query.from_user.id
 
@@ -267,15 +323,11 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     @dp.message(F.text == "/configure_news")
     async def cmd_configure_news(message: Message):
         """Permite usuário reconfigurar preferências de SenseNews"""
-        if not _is_allowed(message, allowed_users):
-            return
 
         await _show_niches_menu(message, message.from_user.id)
 
     @dp.message(F.text.startswith("/search "))
     async def cmd_search(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
         query = message.text[8:].strip()
         if not query:
             await message.answer("Uso: /search sua pergunta aqui")
@@ -298,8 +350,25 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                     f"  <i>{html.escape(r.snippet[:150])}</i>\n"
                 )
             await message.answer("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+        except (AttributeError, TypeError) as e:
+            log.error(f"[search] Searcher not properly configured: {e}", exc_info=True,
+                      extra={"context": "search_command", "error_type": type(e).__name__})
+            await message.answer("❌ Serviço de busca não está disponível")
+        except ValueError as e:
+            log.error(f"[search] Invalid search query: {e}", exc_info=True,
+                      extra={"context": "search_command", "error_type": "ValueError"})
+            await message.answer(f"❌ Erro na busca: consulta inválida")
+        except asyncio.TimeoutError:
+            log.warning("[search] Search operation timeout")
+            await message.answer("⏱️ Timeout na busca (>30s). Tente novamente com uma query mais simples.")
+        except (RuntimeError, OSError) as e:
+            log.error(f"[search] Search service error: {e}", exc_info=True,
+                      extra={"context": "search_command", "error_type": type(e).__name__})
+            await message.answer(f"❌ Erro na busca: {str(e)[:100]}")
         except Exception as e:
-            await message.answer(f"❌ Erro na busca: {e}")
+            log.critical(f"[search] Unexpected error in search: {e}", exc_info=True,
+                         extra={"context": "search_command", "error_type": type(e).__name__})
+            await message.answer("❌ Erro inesperado na busca")
         finally:
             stop_typing.set()
             try:
@@ -307,95 +376,76 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             except asyncio.CancelledError:
                 pass
 
-    @dp.message(F.text.startswith("/crm"))
-    async def cmd_crm(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
+    @dp.message(F.text == "/test_email")
+    async def cmd_test_email(message: Message):
+        """Força execução do email_monitor para diagnóstico"""
 
-        args = message.text.split()
-        limit = 5  # Default: 5 últimos leads
-        if len(args) > 1 and args[1].isdigit():
-            limit = int(args[1])
-            
-        leads = await pipeline.memory.get_leads(limit=limit)
-        
-        if not leads:
-            await message.answer("📭 Nenhum lead qualificado no CRM ainda.")
-            return
-            
-        header = f"🎯 <b>CRM SEEKER — ÚLTIMOS {len(leads)} LEADS</b>\n\n"
-        out = [header]
-        
-        for i, lead in enumerate(leads, 1):
-            name = lead.get("name", "Desconhecido")
-            score = lead.get("score", 0)
-            city = lead.get("city", "GO")
-            contacts = json.loads(lead.get("contact_info", "{}"))
-            
-            # Formata contatos
-            c_links = []
-            if contacts.get("whatsapp"): c_links.append("WA")
-            if contacts.get("instagram"): c_links.append("IG")
-            if contacts.get("website"): c_links.append("WEB")
-            c_str = " | ".join(c_links) if c_links else "S/ Contato"
-            
-            out.append(
-                f"<b>{i}. {name}</b> ({city})\n"
-                f"Score: <code>{score}</code> | {c_str}\n"
-                f"Sinais: <i>{lead.get('hiring_signs', 'N/A')[:100]}...</i>\n"
-            )
-            
-        final_text = "\n".join(out)
-        await message.answer(final_text, parse_mode=ParseMode.HTML)
-
-    @dp.message(F.text.startswith("/scout"))
-    async def cmd_scout(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-
-        await message.answer("🎯 Disparando campanha Scout B2B...", parse_mode=ParseMode.HTML)
+        await message.answer("🧪 Disparando teste do Email Monitor...", parse_mode=ParseMode.HTML)
 
         try:
-            # Tenta obter Scout skill do pipeline
-            scout_goal = None
-            if hasattr(pipeline, '_goals'):
+            # Estratégia de busca: pipeline → scheduler → fallback
+            email_goal = None
+
+            # 1. Tenta em pipeline._goals (setado no startup)
+            if hasattr(pipeline, '_goals') and pipeline._goals:
                 for goal in pipeline._goals:
-                    if hasattr(goal, 'name') and goal.name == 'scout_hunter':
-                        scout_goal = goal
+                    if hasattr(goal, 'name') and goal.name == 'email_monitor':
+                        email_goal = goal
+                        log.debug("[telegram] Email goal encontrado em pipeline._goals")
                         break
 
-            if not scout_goal:
+            # 2. Fallback: tenta em scheduler._goals
+            if not email_goal:
+                scheduler = dp.get("scheduler")
+                if scheduler and hasattr(scheduler, '_goals'):
+                    for goal in scheduler._goals.values():
+                        if hasattr(goal, 'name') and goal.name == 'email_monitor':
+                            email_goal = goal
+                            log.debug("[telegram] Email goal encontrado em scheduler._goals")
+                            break
+
+            # 3. Último fallback: tenta pipeline._scheduler
+            if not email_goal and hasattr(pipeline, '_scheduler'):
+                scheduler = pipeline._scheduler
+                if scheduler and hasattr(scheduler, '_goals'):
+                    for goal in scheduler._goals.values():
+                        if hasattr(goal, 'name') and goal.name == 'email_monitor':
+                            email_goal = goal
+                            log.debug("[telegram] Email goal encontrado em pipeline._scheduler")
+                            break
+
+            if not email_goal:
+                # Debug: lista o que encontrou
+                goals_available = []
+                if hasattr(pipeline, '_goals'):
+                    goals_available = [g.name for g in pipeline._goals if hasattr(g, 'name')]
+
                 await message.answer(
-                    "❌ Scout skill não foi encontrada ou não está ativa.\n"
-                    "Execute `/saude` para verificar o status dos goals.",
+                    f"❌ Email Monitor não encontrado.\n"
+                    f"Goals disponíveis: {', '.join(goals_available) if goals_available else 'nenhum'}\n"
+                    f"Execute `/saude` para verificar.",
                     parse_mode=ParseMode.HTML
                 )
                 return
 
-            # Dispara um ciclo da Scout
-            result = await scout_goal.run_cycle()
+            # Reset de hoje para forçar re-execução
+            email_goal._last_run_date = ""
+            log.info("[telegram] Forçando execução de email_monitor para diagnóstico")
+
+            # Dispara um ciclo do email monitor
+            result = await email_goal.run_cycle()
 
             # Formata resposta
-            summary = result.summary or "Campanha concluída"
+            summary = result.summary or "Ciclo concluído"
             cost = f"💰 Custo: ${result.cost_usd:.4f}" if result.cost_usd > 0 else ""
 
             response_lines = [
-                "✅ <b>Scout Campaign Executada</b>\n",
+                "✅ <b>Email Monitor Executado</b>\n",
                 f"📋 {summary}",
             ]
 
-            if result.data:
-                data = result.data
-                if data.get('campaign_id'):
-                    response_lines.append(f"🆔 Campaign ID: <code>{data['campaign_id'][:12]}</code>")
-                if data.get('total_scraped'):
-                    response_lines.append(f"📊 Leads Raspados: {data['total_scraped']}")
-                if data.get('qualified'):
-                    response_lines.append(f"✅ Qualificados: {data['qualified']}")
-                if data.get('written'):
-                    response_lines.append(f"📝 Com Copy: {data['written']}")
-                if data.get('rejected'):
-                    response_lines.append(f"❌ Rejeitados: {data['rejected']}")
+            if result.notification:
+                response_lines.append(f"\n{result.notification}")
 
             if cost:
                 response_lines.append(cost)
@@ -403,748 +453,50 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             final_response = "\n".join(response_lines)
             await message.answer(final_response, parse_mode=ParseMode.HTML)
 
-        except Exception as e:
-            log.error(f"[scout] Erro ao disparar campanha: {e}", exc_info=True)
+            # Envia logs relevantes
+            log.info("[telegram] Email monitor test completado com sucesso")
+
+        except (AttributeError, TypeError) as e:
+            # Erro estrutural: goal ou método não existe/tipo incorreto
+            log.error(
+                f"[email_test] Erro estrutural ao testar email: {e}",
+                exc_info=True,
+                extra={"context": "email_test", "error_type": type(e).__name__}
+            )
             await message.answer(
-                f"❌ Erro ao executar Scout: <code>{str(e)[:100]}</code>",
+                "❌ Erro: Email Monitor não está configurado corretamente. Execute `/saude` para mais detalhes.",
                 parse_mode=ParseMode.HTML
             )
-
-    @dp.message(F.text == "/git_backup")
-    async def cmd_git_backup(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-
-        await message.answer("📦 Iniciando backup de código no GitHub...", parse_mode=ParseMode.HTML)
-
-        try:
-            # Encontra o goal git_backup
-            git_backup_goal = None
-            if hasattr(pipeline, '_goals'):
-                for goal in pipeline._goals:
-                    if hasattr(goal, 'name') and goal.name == 'git_backup':
-                        git_backup_goal = goal
-                        break
-
-            if not git_backup_goal:
-                await message.answer(
-                    "❌ Git backup skill não foi encontrada ou não está ativa.\n"
-                    "Execute `/saude` para verificar o status dos goals.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-
-            # Dispara um ciclo do git_backup
-            result = await git_backup_goal.run_cycle()
-
-            # Formata resposta
-            summary = result.summary or "Backup concluído"
-            cost = f"💰 Custo: ${result.cost_usd:.4f}" if result.cost_usd > 0 else ""
-
-            response_lines = [
-                "✅ <b>GitHub Backup Executado</b>\n",
-                f"📋 {summary}",
-            ]
-
-            if result.data:
-                data = result.data
-                if data.get('status'):
-                    response_lines.append(f"🔄 Status: {data['status']}")
-                if data.get('pushed'):
-                    response_lines.append(f"📤 Pushed: {data['pushed']}")
-                if data.get('commit'):
-                    response_lines.append(f"🔗 Commit: <code>{data['commit'][:12]}</code>")
-                if data.get('repo'):
-                    response_lines.append(f"📦 Repo: <code>{data['repo']}</code>")
-
-            if cost:
-                response_lines.append(cost)
-
-            final_response = "\n".join(response_lines)
-            await message.answer(final_response, parse_mode=ParseMode.HTML)
-
-        except Exception as e:
-            log.error(f"[git_backup] Erro ao disparar backup: {e}", exc_info=True)
+        except asyncio.TimeoutError:
+            log.warning("[email_test] Timeout ao executar email monitor (>30s)")
             await message.answer(
-                f"❌ Erro ao executar backup: <code>{str(e)[:100]}</code>",
+                "⏱️ Timeout: o Email Monitor demorou muito tempo para responder.",
                 parse_mode=ParseMode.HTML
             )
-
-    @dp.message(F.text == "/status")
-    async def cmd_status(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        router = pipeline.model_router
-        lines = ["<b>Seeker.Bot — Status</b>\n"]
-        for role in CognitiveRole:
-            try:
-                model = router.get(role)
-                lines.append(f"<b>{role.value}</b>: {model.display_name}")
-            except ValueError:
-                lines.append(f"<b>{role.value}</b>: ⚠️ não configurado")
-        lines.append(f"\n<b>Providers na arbitragem:</b>")
-        for m in router.get_all_for_arbitrage():
-            lines.append(f"  → {m.display_name} ({m.provider})")
-        try:
-            stats = await pipeline.memory.get_episode_stats()
-            facts = await pipeline.memory.get_facts(limit=999)
-            lines.append(f"\n<b>Memória:</b>")
-            lines.append(f"  {stats['total_episodes']} episódios | {len(facts)} fatos")
-            lines.append(f"  Custo acumulado: ${stats['total_cost_usd']:.4f}")
-            if stats['avg_latency_ms']:
-                lines.append(f"  Latência média: {stats['avg_latency_ms']}ms")
-            # Métricas de uso de memória semântica
-            mem_stats = pipeline.get_memory_stats()
-            if mem_stats["responses"] > 0:
-                lines.append(
-                    f"  Uso de fatos: {mem_stats['with_facts']}/{mem_stats['responses']} "
-                    f"respostas ({mem_stats['usage_rate_pct']}%) · "
-                    f"média {mem_stats['avg_facts_per_response']} fatos/resp"
-                )
-            # Session info
-            active = pipeline.session.active_sessions
-            if active:
-                lines.append(f"  Sessões ativas: {len(active)}")
-            
-            # Goal Engine status
-            scheduler = dp.get("scheduler")
-            if scheduler:
-                lines.append(f"\n{scheduler.get_status_report()}")
-
-            # OODA Loop statistics (FASE 4)
-            ooda_loop = dp.get("ooda_loop")
-            if ooda_loop:
-                ooda_stats = ooda_loop.get_stats()
-                if ooda_stats["total_iterations"] > 0:
-                    lines.append(f"\n<b>🔄 OODA Loop:</b>")
-                    lines.append(f"  {ooda_stats['total_iterations']} iterações")
-                    lines.append(
-                        f"  Success rate: {ooda_stats['success_rate']:.0%} "
-                        f"| Bloqueadas: {ooda_stats['blocked_count']}"
-                    )
-                    lines.append(f"  Latência média: {ooda_stats['avg_latency_ms']:.0f}ms")
-
-        except Exception:
-            lines.append(f"\n<b>Memória:</b> inicializando...")
-        await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
-
-    @dp.message(F.text == "/saude")
-    async def cmd_saude(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            scheduler = dp.get("scheduler")
-            if not scheduler:
-                await message.answer("❌ Goal scheduler não inicializado.", parse_mode=ParseMode.HTML)
-                return
-
-            dashboard = scheduler.get_health_dashboard()
-            lines = ["<b>📊 Health Dashboard dos Goals</b>\n"]
-
-            # Global summary
-            lines.append(f"<b>🌍 Global:</b>")
-            lines.append(
-                f"  Total: {dashboard['summary']['total_goals']} goals | "
-                f"Taxa média: {dashboard['summary']['avg_success_rate']:.1f}% | "
-                f"Custo: ${dashboard['summary']['total_cost_today']:.4f}"
+        except (RuntimeError, ValueError) as e:
+            # Erro de execução: problema na lógica do goal
+            log.error(
+                f"[email_test] Erro de execução: {e}",
+                exc_info=True,
+                extra={"context": "email_test", "error_type": type(e).__name__}
             )
-
-            # Budget
-            spent = dashboard["global_budget"]["spent"]
-            limit = dashboard["global_budget"]["limit"]
-            pct = spent / limit * 100 if limit > 0 else 0
-            emoji = "🔴" if pct > 80 else ("🟡" if pct > 50 else "🟢")
-            lines.append(f"\n<b>💰 Budget Global:</b> {emoji} ${spent:.4f}/${limit} ({pct:.0f}%)")
-
-            # Per-goal metrics
-            lines.append(f"\n<b>📈 Goals Detalhados:</b>")
-            for goal_name, metrics in sorted(dashboard["goals"].items()):
-                m = metrics["metrics"]
-                status_emoji = {
-                    "RUNNING": "🟢",
-                    "IDLE": "⏸",
-                    "PAUSED": "🟡",
-                    "ERROR": "🔴",
-                }.get(metrics["status"], "⚪")
-
-                # Trend sparkline
-                trend_emoji = m.get("trend", "➡️")
-
-                # Success rate with recent comparison
-                recent = m.get("recent_5_success_rate", 0)
-                rate = m["success_rate"]
-                rate_str = f"{rate:.0f}% ({recent:.0f}% recent)"
-
-                lines.append(
-                    f"  {status_emoji} <b>{goal_name}</b> {trend_emoji}\n"
-                    f"    ✅ Taxa: {rate_str} | "
-                    f"⏱️ Latência: {m['avg_latency']:.2f}s | "
-                    f"💵 Total: ${m['total_cost']:.4f}\n"
-                    f"    📊 Ciclos: {m['total_cycles']} | "
-                    f"🔴 Falhas: {m['consecutive_failures']}"
-                )
-
-                # Budget per-goal
-                budget = metrics["budget"]
-                budget_pct = budget["spent_today"] / budget["limit"] * 100 if budget["limit"] > 0 else 0
-                budget_emoji = "🔴" if budget_pct > 80 else ("🟡" if budget_pct > 50 else "🟢")
-                lines.append(f"    {budget_emoji} Budget: ${budget['spent_today']:.4f}/${budget['limit']} ({budget_pct:.0f}%)")
-
-            # Friction metrics
-            friction = dashboard["friction_metrics"]
-            if sum(friction.values()) > 0:
-                lines.append(f"\n<b>🛡️ Fricção Controlada:</b>")
-                if friction["rethinks_blocked"] > 0:
-                    lines.append(f"  🛑 Rethinks: {friction['rethinks_blocked']}")
-                if friction["sara_edits"] > 0:
-                    lines.append(f"  🛠️ SARA Edits: {friction['sara_edits']}")
-                if friction["rate_limits"] > 0:
-                    lines.append(f"  🚷 Rate Limits: {friction['rate_limits']}")
-
-            # Last update timestamp
-            import datetime
-            ts = datetime.datetime.fromtimestamp(dashboard["timestamp"])
-            lines.append(f"\n<i>Atualizado em: {ts.strftime('%H:%M:%S')}</i>")
-
-            msg = "\n".join(lines)
-
-            # Split if too long
-            for part in split_message(msg):
-                await message.answer(part, parse_mode=ParseMode.HTML)
-
-        except Exception as e:
-            await message.answer(f"❌ Erro ao carregar dashboard: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-
-    @dp.message(F.text == "/perf")
-    async def cmd_perf(message: Message):
-        """Dashboard de performance do sistema"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            report = pipeline.format_perf_report()
-            await message.answer(report, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            await message.answer(f"❌ Erro ao gerar relatório de performance: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_perf] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/perf_detailed")
-    async def cmd_perf_detailed(message: Message):
-        """Métricas detalhadas de performance por fase"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            dashboard = pipeline.get_performance_dashboard()
-            goals = dashboard["goals"]
-
-            if not goals:
-                await message.answer(
-                    "⏳ Sem dados de performance ainda.\n"
-                    "Aguarde alguns ciclos de processamento para coletar métricas.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-
-            # Formata por goal
-            lines = ["<b>📈 DETAILED PERFORMANCE METRICS</b>\n"]
-            for goal_id, metrics in goals.items():
-                lines.append(
-                    f"<b>{goal_id}</b>\n"
-                    f"  Cycles: {metrics['cycles']} | Success: {metrics['success_rate']}\n"
-                    f"  Cost: {metrics['total_cost']} | Avg Latency: {metrics['avg_latency_ms']}ms\n"
-                    f"  Tokens: {metrics['tokens']}"
-                )
-
-            detailed = "\n".join(lines)
-
-            # Dividir em chunks se muito grande
-            for part in split_message(detailed):
-                await message.answer(part, parse_mode=ParseMode.HTML)
-
-        except Exception as e:
-            await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_perf_detailed] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/recovery")
-    async def cmd_recovery(message: Message):
-        """Status de recuperação de erros, circuit breakers e degradação"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            report = pipeline.error_recovery.format_recovery_report()
-
-            # Dividir em chunks se muito grande
-            for part in split_message(report):
-                await message.answer(part, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            await message.answer(f"❌ Erro ao recuperar status: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_recovery] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/memory")
-    async def cmd_memory(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            facts = await pipeline.memory.get_facts(min_confidence=0.3, limit=20)
-            if not facts:
-                await message.answer("Memória vazia — ainda estou aprendendo sobre você.")
-                return
-            lines = ["<b>🧠 Memória Semântica</b>\n"]
-            for f in facts:
-                bar = "█" * int(f['confidence'] * 10) + "░" * (10 - int(f['confidence'] * 10))
-                lines.append(
-                    f"[{bar}] {f['confidence']:.0%} <i>({f['category']})</i>\n"
-                    f"  {html.escape(f['fact'][:100])}"
-                )
-            await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
-        except Exception as e:
-            await message.answer(f"❌ Erro: {e}")
-
-    @dp.message(F.text == "/god")
-    async def cmd_god(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        await message.answer(
-            "🔴 God Mode armado.\n"
-            "Próxima mensagem será processada com profundidade máxima."
-        )
-        dp["god_mode_users"] = dp.get("god_mode_users", set()) | {message.from_user.id}
-
-    @dp.message(F.text == "/rate")
-    async def cmd_rate(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        if not _rate_limiters:
-            await message.answer("Nenhum rate limiter ativo ainda.")
-            return
-        lines = ["<b>⏱ Rate Limiters</b>\n"]
-        for key, limiter in sorted(_rate_limiters.items()):
-            if limiter.rpm <= 0:
-                lines.append(f"  <b>{key}</b>: sem limite")
-            else:
-                used = limiter.current_usage
-                total = limiter.rpm
-                bar_len = 15
-                filled = int((used / total) * bar_len) if total > 0 else 0
-                bar = "█" * filled + "░" * (bar_len - filled)
-                lines.append(f"  <b>{key.split(':')[0]}</b>")
-                lines.append(f"  [{bar}] {used}/{total} RPM")
-        await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
-
-    @dp.message(F.text == "/decay")
-    async def cmd_decay(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        if not pipeline.decay_engine:
-            await message.answer("Decay engine não inicializado.")
-            return
-        try:
-            await message.answer("⏳ Rodando decay...")
-            stats = await pipeline.decay_engine.run()
             await message.answer(
-                f"<b>Confidence Decay</b>\n\n"
-                f"  Fatos avaliados: {stats['total']}\n"
-                f"  Decayed: {stats['decayed']}\n"
-                f"  Removidos: {stats['removed']}\n"
-                f"  Sessões limpas: {stats['sessions_cleaned']}",
-                parse_mode=ParseMode.HTML,
-            )
-        except Exception as e:
-            await message.answer(f"❌ Erro: {e}")
-
-    @dp.message(F.text == "/budget")
-    async def cmd_budget(message: Message):
-        """Mostra resumo de gastos do dia"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            relatorio = pipeline.cost_tracker.formatar_relatorio_custos()
-            await message.answer(relatorio, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            await message.answer(f"Erro ao recuperar custos: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_budget] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/budget_monthly")
-    async def cmd_budget_monthly(message: Message):
-        """Mostra resumo de gastos do mês"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            resumo = pipeline.cost_tracker.obter_resumo_mensal()
-
-            linhas = ["<b>Gastos - Resumo Mensal</b>\n"]
-            linhas.append(f"Mes: {resumo['mes']}")
-            linhas.append(f"Total: ${resumo['custo_total']:.2f}")
-            linhas.append(f"Limite: ${resumo['limite']:.2f}")
-            linhas.append(f"Porcentagem: {resumo['porcentagem_limite']:.0f}%\n")
-
-            linhas.append("<b>Por Provedor:</b>")
-            for prov, custo in sorted(
-                resumo['provedores'].items(),
-                key=lambda x: x[1],
-                reverse=True
-            ):
-                if custo > 0:
-                    linhas.append(f"  {prov}: ${custo:.4f}")
-
-            await message.answer(
-                "\n".join(linhas),
+                f"❌ Erro ao executar Email Monitor: {str(e)[:100]}",
                 parse_mode=ParseMode.HTML
             )
         except Exception as e:
-            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_budget_monthly] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/data_stats")
-    async def cmd_data_stats(message: Message):
-        """Mostra estatísticas do armazém de dados"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            stats = await pipeline.data_store.estatisticas()
-
-            linhas = ["<b>Armazem de Dados - Estatisticas</b>\n"]
-            linhas.append(f"Total de fatos: {stats['total_fatos']}")
-            linhas.append(f"Confianca media: {stats['confianca_media']:.2f}")
-            linhas.append(f"Categorias: {len(stats['categorias'])}\n")
-
-            linhas.append("<b>Por Categoria:</b>")
-            for cat, qtd in stats['quantidade_por_categoria'].items():
-                linhas.append(f"  {cat}: {qtd}")
-
+            # Catch-all para exceções inesperadas
+            log.critical(
+                f"[email_test] Erro inesperado: {e}",
+                exc_info=True,
+                extra={"context": "email_test", "error_type": type(e).__name__}
+            )
             await message.answer(
-                "\n".join(linhas),
+                f"❌ Erro ao executar Email Monitor",
                 parse_mode=ParseMode.HTML
             )
-        except Exception as e:
-            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_data_stats] Erro: {e}", exc_info=True)
 
-    @dp.message(F.text == "/data_clean")
-    async def cmd_data_clean(message: Message):
-        """Executa limpeza de dados antigos"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            await message.answer("Executando limpeza de dados...")
-            resultado = await pipeline.data_gerenciador.limpar_dados(simular=False)
-
-            linhas = ["<b>Limpeza de Dados Concluida</b>\n"]
-            linhas.append(f"Total deletado: {resultado['total_deletados']}")
-            linhas.append(f"  Idade maxima: {resultado['por_motivo']['idade_maxima']}")
-            linhas.append(f"  Confianca baixa: {resultado['por_motivo']['confianca_baixa']}")
-            linhas.append(f"  Nunca utilizado: {resultado['por_motivo']['nunca_utilizado']}")
-
-            await message.answer(
-                "\n".join(linhas),
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as e:
-            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_data_clean] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/dashboard")
-    async def cmd_dashboard(message: Message):
-        """Mostra dashboard financeiro com status atual"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            relatorio = await pipeline.analytics_reporter.gerar_relatorio_diario()
-            await message.answer(relatorio.conteudo_html, parse_mode=ParseMode.HTML)
-        except Exception as e:
-            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_dashboard] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/forecast")
-    async def cmd_forecast(message: Message):
-        """Mostra previsoes de custos para proximos 7 e 30 dias"""
-        if not _is_allowed(message, allowed_users):
-            return
-        try:
-            previsoes = await pipeline.analytics_forecaster.obter_resumo_previsoes()
-
-            linhas = ["<b>Previsoes de Custos</b>\n"]
-            linhas.append("<b>Proximos 7 Dias</b>")
-            linhas.append(f"Total: ${previsoes['previsao_7d']['total']:.2f}")
-            linhas.append(f"Media/Dia: ${previsoes['previsao_7d']['media_diaria']:.2f}")
-            linhas.append(f"Range: ${previsoes['previsao_7d']['min']:.2f} - ${previsoes['previsao_7d']['max']:.2f}\n")
-
-            linhas.append("<b>Proximos 30 Dias</b>")
-            linhas.append(f"Total: ${previsoes['previsao_30d']['total']:.2f}")
-            linhas.append(f"Media/Dia: ${previsoes['previsao_30d']['media_diaria']:.2f}")
-            linhas.append(f"Range: ${previsoes['previsao_30d']['min']:.2f} - ${previsoes['previsao_30d']['max']:.2f}\n")
-
-            if previsoes['data_alerta_mensal']:
-                linhas.append("<b>Alerta de Limite</b>")
-                linhas.append(f"Previsto para: {previsoes['data_alerta_mensal']}")
-                linhas.append(f"Em {previsoes['dias_ate_alerta']} dias")
-
-            await message.answer(
-                "\n".join(linhas),
-                parse_mode=ParseMode.HTML
-            )
-        except Exception as e:
-            await message.answer(f"Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
-            log.error(f"[cmd_forecast] Erro: {e}", exc_info=True)
-
-    @dp.message(F.text == "/habits")
-    async def cmd_habits(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        afk = dp.get("afk_protocol")
-        if afk and afk.habits:
-            await message.answer(afk.habits.get_report(), parse_mode=ParseMode.HTML)
-        else:
-            await message.answer("Habit Tracker não inicializado.")
-
-    @dp.message(F.text == "/watch")
-    async def cmd_watch(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        scheduler = dp.get("scheduler")
-        if not scheduler:
-            await message.answer("Scheduler não inicializado.")
-            return
-        # Procura o goal desktop_watch
-        watch_goal = scheduler._goals.get("desktop_watch")
-        if not watch_goal:
-            await message.answer("Desktop Watch não está registrado.")
-            return
-        watch_goal.enable()
-        await message.answer(
-            "👁️ <b>Desktop Watch ATIVADO</b>\n\n"
-            "Estou monitorando sua tela a cada 2 minutos.\n"
-            "Você será notificado se algo precisar de atenção.\n\n"
-            "<i>Use /watchoff para desativar.</i>",
-            parse_mode=ParseMode.HTML,
-        )
-
-    @dp.message(F.text == "/watchoff")
-    async def cmd_watchoff(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        scheduler = dp.get("scheduler")
-        if not scheduler:
-            await message.answer("Scheduler não inicializado.")
-            return
-        watch_goal = scheduler._goals.get("desktop_watch")
-        if not watch_goal:
-            await message.answer("Desktop Watch não está registrado.")
-            return
-        scans = watch_goal._scans_total
-        alerts = watch_goal._alerts_sent
-        watch_goal.disable()
-        await message.answer(
-            "👁️ <b>Desktop Watch DESATIVADO</b>\n\n"
-            f"Sessão: {scans} scans, {alerts} alertas.\n"
-            "<i>Use /watch para reativar.</i>",
-            parse_mode=ParseMode.HTML,
-        )
-
-    @dp.message(F.text == "/print")
-    async def cmd_print(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-        status_msg = await message.answer("📸 Capturando tela...")
-        try:
-            from src.skills.vision.screenshot import capture_desktop
-            from aiogram.types import BufferedInputFile
-            
-            screenshot_bytes = await capture_desktop()
-            if not screenshot_bytes:
-                await status_msg.edit_text("Falha ao capturar a tela.")
-                return
-                
-            photo = BufferedInputFile(screenshot_bytes, filename="print.png")
-            await message.bot.send_photo(
-                chat_id=message.chat.id,
-                photo=photo,
-                caption="📸 Aqui está a sua tela atual."
-            )
-            await status_msg.delete()
-        except Exception as e:
-            await status_msg.edit_text(f"Erro no print: {e}")
-
-
-    @dp.callback_query(F.data.startswith("vis_auth_"))
-    async def handle_vision_auth(callback: CallbackQuery):
-        # Example data: vis_auth_yes_2
-        parts = callback.data.split("_")
-        if len(parts) >= 3:
-            result = parts[2] # "yes" or "no"
-            tier = parts[3] if len(parts) > 3 else "2"
-            
-            # Buscando o AFK Protocol no Dispatcher (setado no start)
-            afk_protocol = dp.get("afk_protocol")
-            if afk_protocol:
-                await afk_protocol.resolve_request(result, tier)
-                
-            await callback.message.edit_text(
-                f"{callback.message.text}\n\n<b>➔ Resposta do Usuário: {'✅ Autorizado' if result == 'yes' else '❌ Negado'}</b>"
-            )
-        await callback.answer()
-
-    @dp.message(F.voice | F.audio)
-    async def handle_audio(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-
-        file_id = message.voice.file_id if message.voice else message.audio.file_id
-        file_info = await message.bot.get_file(file_id)
-        
-        # Avisar que está ouvindo
-        await message.bot.send_chat_action(message.chat.id, ChatAction.RECORD_VOICE)
-        
-        # Download do Telegram
-        audio_file = await message.bot.download_file(file_info.file_path)
-        audio_bytes = audio_file.read()
-        
-        from src.skills.stt_groq import transcribe_audio_groq
-        user_input = await transcribe_audio_groq(audio_bytes)
-        
-        if not user_input:
-            await message.reply("❌ Falha ao transcrever o áudio. (Verifique a GROQ_API_KEY).")
-            return
-            
-        await message.reply(f"🎤 <i>Transcrição recebida:</i>\n\n\"{user_input}\"", parse_mode=ParseMode.HTML)
-        await _process_and_reply(message, user_input, pipeline, dp)
-
-    @dp.message(F.text)
-    async def handle_message(message: Message):
-        if not _is_allowed(message, allowed_users):
-            return
-
-        user_input = message.text.strip()
-        if not user_input:
-            return
-
-        await _process_and_reply(message, user_input, pipeline, dp)
-
-    async def _process_and_reply(message: Message, user_input: str, pipeline: SeekerPipeline, dp: Dispatcher) -> None:
-
-        # God mode check
-        god_users: set = dp.get("god_mode_users", set())
-        if message.from_user.id in god_users:
-            user_input = f"god mode — {user_input}"
-            god_users.discard(message.from_user.id)
-            dp["god_mode_users"] = god_users
-
-        # Session ID baseado no chat (suporta múltiplos chats futuramente)
-        session_id = f"telegram:{message.chat.id}"
-
-        # OODA Loop for structured decision-making
-        ooda_loop = dp.get("ooda_loop")
-
-        stop_typing = asyncio.Event()
-        typing_task = asyncio.create_task(
-            keep_typing(message.bot, message.chat.id, stop_typing)
-        )
-
-        try:
-            result = await pipeline.process(
-                user_input,
-                session_id=session_id,
-                afk_protocol=dp.get("afk_protocol")
-            )
-
-            # OODA Loop logging: Record the decision cycle
-            if ooda_loop:
-                # Simulate OODA cycle with pipeline result as success marker
-                import time
-                from src.core.reasoning.ooda_loop import ObservationData, OrientationModel, Decision, ActionResult, LoopResult
-
-                ooda_iteration = OODAIteration(
-                    iteration_id=f"telegram_{message.message_id}",
-                    user_input=user_input,
-                    observation=ObservationData(user_input=user_input),
-                    orientation=OrientationModel(
-                        confidence=0.9,
-                        reasoning=result.routing_reason,
-                    ),
-                    decision=Decision(
-                        action_type="send_response",
-                        autonomy_tier=3,
-                        parameters={"depth": result.depth.value},
-                        rationale=result.routing_reason,
-                        verification_required=False,
-                    ),
-                    action_result=ActionResult(
-                        success=True,
-                        output=result.response,
-                        latency_ms=result.total_latency_ms,
-                        cost=result.total_cost_usd,
-                    ),
-                    result=LoopResult.SUCCESS,
-                    total_latency_ms=result.total_latency_ms,
-                )
-                log.info(ooda_iteration.to_log_entry())
-                ooda_loop.history.append(ooda_iteration)
-
-            badge = {
-                CognitiveDepth.REFLEX: "⚡",
-                CognitiveDepth.DELIBERATE: "🧠",
-                CognitiveDepth.DEEP: "🔬",
-            }.get(result.depth, "")
-            if "god" in result.routing_reason.lower():
-                badge = "🔴 GOD MODE"
-
-            footer = format_cost_line(result)
-            memory_footer = pipeline.format_memory_footer()
-            formatted = md_to_telegram_html(result.response)
-            if not formatted.strip():
-                formatted = result.response
-            response_text = f"{badge}\n\n{formatted}" if badge else formatted
-            response_text += f"\n\n<i>{footer}</i>"
-            response_text += memory_footer
-
-            if result.image_bytes:
-                from aiogram.types import BufferedInputFile
-                photo = BufferedInputFile(result.image_bytes, filename="screenshot.png")
-                # Telegram caption has a limit of 1024 characters
-                caption = response_text[:1024]
-                try:
-                    await message.answer_photo(photo, caption=caption, parse_mode=ParseMode.HTML)
-                except Exception:
-                    await message.answer_photo(photo, caption=html.escape(caption)[:1024])
-                
-                # Envia o restante se o texto for muito longo para o caption
-                if len(response_text) > 1024:
-                    remaining = response_text[1024:]
-                    for part in split_message(remaining):
-                        await message.answer(part, parse_mode=ParseMode.HTML)
-                return
-            
-            for part in split_message(response_text):
-                    try:
-                        await message.answer(part, parse_mode=ParseMode.HTML)
-                    except Exception:
-                        await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
-
-        except Exception as e:
-            log.error(f"Erro: {e}", exc_info=True)
-            await message.answer(f"❌ Erro: {str(e)[:200]}")
-        finally:
-            stop_typing.set()
-            typing_task.cancel()
-            try:
-                await typing_task
-            except asyncio.CancelledError:
-                pass
-
-
-def _is_allowed(message: Message, allowed_users: set[int]) -> bool:
-    if not allowed_users:
-        return True
-    if message.from_user and message.from_user.id in allowed_users:
-        return True
-    return False
-
-
-def _is_allowed_callback(query: CallbackQuery, allowed_users: set[int]) -> bool:
-    if not allowed_users:
-        return True
-    if query.from_user and query.from_user.id in allowed_users:
-        return True
-    return False
+    # SherlockNews is handled by sherlock_router (registered above via dp.include_router)
 
 
 async def main():
@@ -1209,6 +561,24 @@ async def main():
     pipeline = SeekerPipeline(api_keys)
     await pipeline.init()
 
+    # ── Reset heartbeat file (watchdog init) ───────────────
+    # Limpar arquivo de heartbeat antigo para evitar que watchdog
+    # mate o bot logo após iniciar pensando que está travado
+    try:
+        hb_path = "logs/bot_heartbeat.txt"
+        if os.path.exists(hb_path):
+            os.remove(hb_path)
+        log.debug("[startup] Heartbeat file limpo para novo ciclo")
+    except Exception as e:
+        log.warning(f"[startup] Erro ao limpar heartbeat: {e}")
+
+    # ── Init API Cascade Health Checks (Sprint 7.1) ─────────
+    try:
+        await pipeline.cascade_adapter.start_health_checks(interval_seconds=30)
+        log.info("  API Cascade health checks iniciados (interval=30s)")
+    except Exception as e:
+        log.warning(f"Erro ao iniciar health checks: {e}")
+
     # ── Init bot ──────────────────────────────────────────
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
@@ -1216,7 +586,11 @@ async def main():
     # ── Init OODA Loop (for structured decision-making + auditability) ──
     dp["ooda_loop"] = OODALoop()
 
-    await setup_commands(bot)
+    try:
+        await setup_commands(bot)
+    except Exception as e:
+        log.warning(f"setup_commands falhou (não crítico): {e}")
+
     setup_handlers(dp, pipeline, allowed_users)
 
     # ── Init Autonomous Skills (Goal Engine) ──────────────
@@ -1242,6 +616,7 @@ async def main():
     # ── Scheduler + Auto-discovery de Goals ───────────────
     scheduler = GoalScheduler(notifier)
     dp["scheduler"] = scheduler
+    pipeline._scheduler = scheduler  # Guarda referência para commands acessarem
 
     try:
         deny_list = {
@@ -1250,7 +625,11 @@ async def main():
             if g.strip()
         }
         goals = discover_goals(pipeline, deny_list=deny_list)
+        pipeline._goals = goals  # Também guarda goals no pipeline
         for goal in goals:
+            # Injeta notifier em goals que suportam (como RemoteExecutor)
+            if hasattr(goal, 'notifier') and goal.notifier is None:
+                goal.notifier = notifier
             scheduler.register(goal)
     except Exception as e:
         log.error(f"[scheduler] Falha no discovery de goals: {e}", exc_info=True)
@@ -1273,13 +652,40 @@ async def main():
     log.info("  Embeddings persistidos")
     log.info("  Aguardando mensagens...")
 
+    # Workaround para "Logged out" error após logOut() API call
+    # Se bot.me() falha, cria um User fake para permitir polling
     try:
-        await dp.start_polling(bot)
+        test_me = await bot.me()
+        log.info(f"Bot verificado: @{test_me.username}")
+    except Exception as e:
+        if "Logged out" in str(e):
+            log.warning("Bot retornou 'Logged out' em bot.me(), mas continuando com polling...")
+            # Cria um User fake para permitir que dispatcher inicie
+            # Nota: polling ainda funcionará porque bot.me() foi cacheado internamente
+            fake_user = User(
+                id=int(token.split(":")[0]),  # Extrai bot ID do token
+                is_bot=True,
+                first_name="SeekerBot",
+                username="SeekerBR1_bot"
+            )
+            bot._me = fake_user  # Cache do aiogram
+            log.warning("Usando User fake para bypass de session check")
+        else:
+            raise
+
+    try:
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
     finally:
         # Cleanup Goal Engine
         scheduler = dp.get("scheduler")
         if scheduler:
             await scheduler.stop()
+
+        # Cleanup: API Cascade health checks (Sprint 7.1)
+        try:
+            pipeline.cascade_adapter.stop_health_checks()
+        except Exception as e:
+            log.warning(f"Erro ao parar health checks: {e}")
 
         # Cleanup: pipeline (cancela decay, aguarda tasks, fecha memória)
         await pipeline.close()

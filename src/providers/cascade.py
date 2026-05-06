@@ -93,7 +93,56 @@ class CascadeAdapter:
         self._failures = {}
         self._last_failure_time = {}
         self._failure_threshold = 3
-        self._recovery_time = 60.0  # segundos
+        self._recovery_time = 300.0  # 5 min de penalidade antes de tentar novamente
+
+    async def start_health_checks(self, **kwargs) -> None:
+        """
+        No-op compatibility stub.
+
+        The advanced CascadeAdapter (cascade_advanced.py) runs background
+        health checks. The simple adapter doesn't — just a compatibility shim.
+        """
+        pass
+
+    def stop_health_checks(self, **kwargs) -> None:
+        """
+        No-op compatibility stub.
+
+        The advanced CascadeAdapter (cascade_advanced.py) runs a background
+        health-check task that must be cancelled on shutdown. This simple
+        adapter has no such task, but bot.py shutdown unconditionally calls
+        this method, so we expose it as a no-op to preserve a unified API.
+        """
+        pass
+
+    def get_health_status(self) -> dict:
+        """Compatibility stub para /cascade_status funcionar sem crashar."""
+        from datetime import datetime
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "overall_health": "100% (Simulado)",
+            "tiers": {
+                "Simples": {
+                    "is_healthy": True,
+                    "success_rate": "N/A",
+                    "avg_latency_ms": 0,
+                    "avg_cost_usd": 0.0,
+                    "fallback_count": 0,
+                    "last_error": ""
+                }
+            }
+        }
+
+    def get_cost_analysis(self) -> dict:
+        """Compatibility stub para /cascade_status funcionar sem crashar."""
+        return {
+            "total_calls": 0,
+            "total_cost_usd": 0.0,
+            "average_cost_per_call": 0.0,
+            "estimated_savings_vs_nim": "$0.00",
+            "error_breakdown": {}
+        }
+
 
     def _is_circuit_open(self, provider: str) -> bool:
         """Verifica se provider está em circuit breaker."""

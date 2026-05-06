@@ -1,0 +1,20 @@
+{
+  "_placeholder_idle_1.png": {
+    "state": "idle",
+    "_metadata": {
+      "duration": "2min"
+    }
+  },
+  "_placeholder_active_1.png": {
+    "state": "active",
+    "_metadata": {
+      "user_action": "typing"
+    }
+  },
+  "_placeholder_modal_1.png": {
+    "state": "modal",
+    "_metadata": {
+      "modal_type": "dialog"
+    }
+  }
+}

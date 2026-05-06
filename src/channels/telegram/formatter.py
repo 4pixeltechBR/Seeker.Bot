@@ -15,11 +15,31 @@ Este módulo faz a ponte.
 
 import re
 import html as html_module
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.core.pipeline import PipelineResult
 
 
 # Tags que o Telegram aceita (para sanitização)
 _ALLOWED_TAGS = {"b", "i", "s", "u", "code", "pre", "a"}
 _TAG_RE = re.compile(r"<(/?)(\w+)([^>]*)>")
+
+
+def format_cost_line(result: "PipelineResult") -> str:
+    """Formata o rodapé de custo/latência de uma resposta do pipeline."""
+    parts = []
+    if result.total_cost_usd > 0:
+        parts.append(f"${result.total_cost_usd:.4f}")
+    parts.append(f"{result.total_latency_ms}ms")
+    parts.append(f"{result.llm_calls} calls")
+    if result.facts_used > 0:
+        parts.append(f"🧠 {result.facts_used} fatos")
+    if result.arbitrage and result.arbitrage.has_conflicts:
+        parts.append(f"⚠️ {len(result.arbitrage.conflict_zones)} conflitos")
+    if result.verdict:
+        parts.append(result.verdict.to_footer())
+    return " · ".join(parts)
 
 
 def _sanitize_html(text: str) -> str:

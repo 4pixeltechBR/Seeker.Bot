@@ -30,7 +30,7 @@ dashboard = scheduler.get_health_dashboard()
 #   "global_budget": {"spent": 1.5, "limit": 2.0},
 #   "friction_metrics": {"rethinks_blocked": 2, "sara_edits": 1, "rate_limits": 0},
 #   "goals": {
-#     "revenue_hunter": {...},
+#     "sense_news": {...},
 #     "sense_news": {...}
 #   },
 #   "summary": {
@@ -45,9 +45,9 @@ dashboard = scheduler.get_health_dashboard()
 Métricas detalhadas de um goal:
 
 ```python
-metrics = scheduler.get_goal_metrics("revenue_hunter")
+metrics = scheduler.get_goal_metrics("sense_news")
 # {
-#   "name": "revenue_hunter",
+#   "name": "sense_news",
 #   "status": "RUNNING",
 #   "budget": {"spent_today": 0.5, "limit": 1.0},
 #   "metrics": {
@@ -83,7 +83,7 @@ Histórico de ciclos é persistido automaticamente em `data/goals/{goal_name}.js
 
 ```json
 {
-  "name": "revenue_hunter",
+  "name": "sense_news",
   "_budget": {"spent_today_usd": 0.5, "budget_reset_date": "2026-04-08"},
   "_failures": 0,
   "_cycle_history": [
@@ -120,10 +120,10 @@ return jsonify(dashboard)
 
 ### 2. Alertas Proativos
 ```python
-metrics = scheduler.get_goal_metrics("revenue_hunter")
+metrics = scheduler.get_goal_metrics("sense_news")
 if metrics["metrics"]["recent_5_success_rate"] < 50:
     # Alerta: degradação detectada
-    await notifier.send("admin", "⚠️ Revenue Hunter degradado", ...)
+    await notifier.send("admin", "⚠️ SenseNews degradado", ...)
 ```
 
 ### 3. Análise de Custo

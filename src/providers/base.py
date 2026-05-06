@@ -122,10 +122,10 @@ def _get_rate_limiter(config: ModelConfig) -> AsyncRateLimiter:
 # ─────────────────────────────────────────────────────────────────────
 
 PROVIDER_TIMEOUTS = {
-    "nvidia": 15.0,     # Rápido, raramente engasga
+    "nvidia": 25.0,     # Aumentado para 25s (era 15s) — suporta latência de rede melhor
     "groq": 15.0,       # Groq é LPU, deve responder instantaneamente
     "gemini": 30.0,     # Padrão, às vezes tem cold start na API
-    "deepseek": 30.0,   # Responde rápido mas tem delay as vezes no Chinese firewall
+    "deepseek": 40.0,   # Aumentado para 40s (era 30s) — China firewall pode ser lento
     "mistral": 30.0,
     "ollama": 120.0,    # GPU local ou offload CPU (lento por padrão no fallback)
 }

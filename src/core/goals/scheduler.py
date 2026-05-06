@@ -1,8 +1,8 @@
 """
-Seeker.Bot — Goal Scheduler
+Seeker.Bot — Goal Scheduler (Unified + Preemption)
 src/core/goals/scheduler.py
 
-Orquestra múltiplos AutonomousGoal em background.
+Orquestra múltiplos AutonomousGoal em background com priorização inteligente.
 Equivalente ao Coordinator Mode do Claude Code, adaptado para agente autônomo.
 
 Responsabilidades:
@@ -11,6 +11,11 @@ Responsabilidades:
 - Backoff em falhas consecutivas
 - Persistência de estado de todos os goals
 - Roteamento de notificações (Telegram, Email, ambos)
+
+Melhorias Sprint 7.2:
+- Priority system: CRITICAL > HIGH > NORMAL > LOW
+- Preemption: Goals CRITICAL interrompem goals NORMAL/LOW
+- Coroutine pool: Limita concurrent goals executando (máx 3)
 """
 
 import asyncio
@@ -20,6 +25,7 @@ import os
 import time
 from collections import deque
 from datetime import date
+from enum import Enum
 from typing import Any, Coroutine
 
 from src.core.goals.protocol import (
@@ -37,42 +43,71 @@ log = logging.getLogger("seeker.scheduler")
 STATE_DIR = os.path.join(os.getcwd(), "data", "goals")
 
 
+class GoalPriority(Enum):
+    """Priority levels para goals — determina preemption e scheduling"""
+    CRITICAL = 0  # Interrompe goals em execução (alerta, health check)
+    HIGH = 1      # Executado antes de NORMAL/LOW (importante mas não crítico)
+    NORMAL = 2    # Priority padrão (maioria dos goals)
+    LOW = 3       # Executado apenas se recursos disponíveis (background tasks)
+
+
 class GoalScheduler:
     """
-    Roda N goals em background, cada um no seu ritmo.
-    
+    Roda N goals em background com priorização inteligente.
+
+    Melhorias Sprint 7.2:
+    - Priority-based scheduling (CRITICAL > HIGH > NORMAL > LOW)
+    - Preemption: CRITICAL interrompe NORMAL/LOW em execução
+    - Coroutine pool: Máx 3 goals executando em paralelo
+
     Uso:
         scheduler = GoalScheduler(notifier)
-        scheduler.register(revenue_hunter)
-        scheduler.register(sense_news)
+        scheduler.register(revenue_hunter, priority=GoalPriority.NORMAL)
+        scheduler.register(critical_alert, priority=GoalPriority.CRITICAL)
         await scheduler.start()
     """
 
     MAX_CONSECUTIVE_FAILURES = 3
     GLOBAL_DAILY_BUDGET_USD = 2.00  # Teto de segurança para TODOS os goals somados
+    MAX_CONCURRENT_GOALS = 3        # Limita goals executando em paralelo (Sprint 7.2)
 
     def __init__(self, notifier: "GoalNotifier"):
         self.notifier = notifier
         self._goals: dict[str, AutonomousGoal] = {}
+        self._goal_priorities: dict[str, GoalPriority] = {}  # Sprint 7.2: priority mapping
         self._tasks: dict[str, asyncio.Task] = {}
         self._rethink_tasks: set = set()  # Background rethink tasks (tracked for shutdown)
         self._failure_counts: dict[str, int] = {}
         self._cycle_history: dict[str, deque] = {}
         self._global_spent_today: float = 0.0
         self._budget_date: str = ""
+
+        # Sprint 7.2: Preemption & Pooling
+        self._running_goals: set[str] = set()  # Goals currently executing
+        self._paused_by_preemption: set[str] = set()  # Goals paused due to CRITICAL
+        self._pool_semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_GOALS)
+
         self.friction_metrics = {"rate_limits": 0, "rethinks_blocked": 0, "sara_edits": 0}
         self.running = False
 
         os.makedirs(STATE_DIR, exist_ok=True)
 
-    def register(self, goal: AutonomousGoal) -> None:
-        """Registra um goal e carrega estado persistido se existir."""
+    def register(self, goal: AutonomousGoal, priority: GoalPriority = GoalPriority.NORMAL) -> None:
+        """
+        Registra um goal e carrega estado persistido se existir.
+
+        Args:
+            goal: AutonomousGoal para registrar
+            priority: GoalPriority (CRITICAL/HIGH/NORMAL/LOW) — Sprint 7.2
+        """
         self._goals[goal.name] = goal
+        self._goal_priorities[goal.name] = priority
         self._failure_counts[goal.name] = 0
         self._cycle_history[goal.name] = deque(maxlen=20)
         self._load_goal_state(goal)
         log.info(
             f"[scheduler] Registrado: {goal.name} | "
+            f"prioridade={priority.name} | "
             f"intervalo={goal.interval_seconds}s | "
             f"budget=${goal.budget.max_daily_usd}/dia | "
             f"canais={[c.value for c in goal.channels]}"
@@ -292,10 +327,74 @@ class GoalScheduler:
             ],
         }
 
+    # ── Preemption & Priority Management (Sprint 7.2) ──────
+
+    async def _check_preemption_needed(self) -> bool:
+        """
+        Verifica se há goals CRITICAL que precisam executar.
+        Se sim, retorna True (indica que deve pausar goals NORMAL/LOW).
+        """
+        for name, priority in self._goal_priorities.items():
+            if priority == GoalPriority.CRITICAL and name not in self._running_goals:
+                # Goal CRITICAL está esperando executar
+                return True
+        return False
+
+    def _should_execute_goal(self, goal_name: str) -> bool:
+        """
+        Determina se um goal deve executar agora, levando em conta preemption.
+        """
+        priority = self._goal_priorities.get(goal_name, GoalPriority.NORMAL)
+
+        # Goals em pausa por preemption não executam
+        if goal_name in self._paused_by_preemption:
+            return False
+
+        # Se há CRITICAL em execução e este é NORMAL/LOW, pausar
+        if priority in [GoalPriority.NORMAL, GoalPriority.LOW]:
+            for other_name, other_priority in self._goal_priorities.items():
+                if (other_priority == GoalPriority.CRITICAL and
+                    other_name in self._running_goals):
+                    self._paused_by_preemption.add(goal_name)
+                    return False
+
+        return True
+
+    def _get_next_priority_goal(self) -> str | None:
+        """
+        Retorna o goal de maior prioridade que está aguardando executar.
+        Considera preemption e pool limits.
+        """
+        if len(self._running_goals) >= self.MAX_CONCURRENT_GOALS:
+            return None  # Pool cheio
+
+        # Ordena goals por prioridade
+        sorted_goals = sorted(
+            self._goal_priorities.items(),
+            key=lambda x: x[1].value  # Menor valor = maior prioridade
+        )
+
+        for goal_name, priority in sorted_goals:
+            if goal_name not in self._running_goals:
+                if self._should_execute_goal(goal_name):
+                    return goal_name
+
+        return None
+
     # ── Loop principal por goal ───────────────────────────
 
+    def _write_heartbeat(self) -> None:
+        """Escreve timestamp no arquivo de heartbeat para o watchdog monitorar."""
+        try:
+            import os, time
+            os.makedirs("logs", exist_ok=True)
+            with open("logs/bot_heartbeat.txt", "w") as f:
+                f.write(str(time.time()))
+        except Exception:
+            pass
+
     async def _run_goal_loop(self, goal: AutonomousGoal) -> None:
-        """Loop independente para um goal. Roda até stop()."""
+        """Loop independente para um goal. Roda até stop() com preemption support."""
         await asyncio.sleep(10)  # Respira pós-boot
 
         while self.running:
@@ -307,6 +406,12 @@ class GoalScheduler:
                 if self._budget_date != today:
                     self._global_spent_today = 0.0
                     self._budget_date = today
+
+                # ── Sprint 7.2: Check preemption ──────────────────────────
+                if not self._should_execute_goal(goal.name):
+                    # Goal foi pausado por preemption ou pool cheio
+                    await asyncio.sleep(5)  # Respira e tenta novamente
+                    continue
 
                 # Check budget per-goal
                 if goal.budget.exhausted:
@@ -336,10 +441,22 @@ class GoalScheduler:
                     self._failure_counts[goal.name] = 0
                     continue
 
-                # Executa ciclo
-                _cycle_start = time.monotonic()
-                result = await goal.run_cycle()
-                _cycle_latency = time.monotonic() - _cycle_start
+                # ── Sprint 7.2: Pool semaphore (limita concurrent goals) ────
+                async with self._pool_semaphore:
+                    self._running_goals.add(goal.name)
+                    if goal.name in self._paused_by_preemption:
+                        self._paused_by_preemption.discard(goal.name)
+
+                    try:
+                        # Heartbeat: atualiza timestamp para o watchdog
+                        self._write_heartbeat()
+
+                        # Executa ciclo
+                        _cycle_start = time.monotonic()
+                        result = await goal.run_cycle()
+                        _cycle_latency = time.monotonic() - _cycle_start
+                    finally:
+                        self._running_goals.discard(goal.name)
 
                 # Registra histórico
                 self._cycle_history[goal.name].append({
@@ -547,30 +664,85 @@ class GoalNotifier:
         def clean_html(raw_html: str) -> str:
             cleanr = re.compile('<.*?>')
             return re.sub(cleanr, '', raw_html)
-            
+
+        def sanitize_telegram_html(text: str) -> str:
+            """Remove <email@domain> patterns que o Telegram interpreta como tags invalidas."""
+            # Substitui <qualquer-coisa-com-@> por versao escapada
+            return re.sub(r'<([^>]*@[^>]*)>', r'&lt;\1&gt;', text)
+
         for uid in self.admin_chats:
             try:
                 # Se tiver PDF, doc longo ou bytes de foto
                 from aiogram.enums import ParseMode
+                from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
                 pdf_path = (data or {}).get("pdf_path", "")
                 photo_bytes = (data or {}).get("photo_bytes", None)
+                reply_markup = (data or {}).get("reply_markup", None)  # Inline keyboard (se houver)
+
+                # Sanitiza o conteudo HTML antes de qualquer envio
+                content = sanitize_telegram_html(content)
+
+                # Constrói reply_markup se data contém buttons (ex: de approval notifications)
+                if not reply_markup and (data or {}).get("buttons"):
+                    buttons_data = data.get("buttons", [])
+                    buttons = [[
+                        InlineKeyboardButton(text=btn["text"], callback_data=btn["callback_data"])
+                        for btn in row
+                    ] for row in buttons_data]
+                    reply_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
 
                 if pdf_path and os.path.exists(pdf_path):
                     from aiogram.types import FSInputFile
                     doc = FSInputFile(pdf_path)
-                    safe_caption = clean_html(content)[:1000] + "..." if len(content) > 1000 else clean_html(content)
-                    await self.bot.send_document(uid, doc, caption=safe_caption)
+                    if len(content) > 1000:
+                        # Envia o texto completo primeiro (suporta HTML)
+                        # Nota: se content > 4096, o Telegram limitará, mas dossiês costumam ter ~1500-2500
+                        try:
+                            await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                        except Exception as e:
+                            log.warning(f"Erro ao enviar mensagem longa (HTML): {e}. Tentando fallback sem HTML.")
+                            await self.bot.send_message(uid, clean_html(content)[:4000], reply_markup=reply_markup)
+                        
+                        # Envia o PDF logo em seguida
+                        await self.bot.send_document(uid, doc, caption="📄 Dossiê Anexo")
+                    else:
+                        await self.bot.send_document(uid, doc, caption=content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
                 elif photo_bytes:
                     from aiogram.types import BufferedInputFile
                     photo = BufferedInputFile(photo_bytes, filename="watch_alert.png")
                     safe_caption = clean_html(content)[:1000] + "..." if len(content) > 1000 else clean_html(content)
-                    await self.bot.send_photo(uid, photo, caption=safe_caption)
+                    await self.bot.send_photo(uid, photo, caption=safe_caption, reply_markup=reply_markup)
                 else:
                     if len(content) > 4000:
-                        content_safe = clean_html(content)[:4000] + "\n\n(Aviso: Mensagem longa truncada)"
-                        await self.bot.send_message(uid, content_safe)
+                        parts = []
+                        remaining = content
+                        while remaining:
+                            if len(remaining) <= 4000:
+                                parts.append(remaining)
+                                break
+                            # Try to split at double newline, or single newline
+                            cut = remaining.rfind("\n\n", 0, 4000)
+                            if cut == -1 or cut < 2000:
+                                cut = remaining.rfind("\n", 0, 4000)
+                            if cut == -1 or cut < 2000:
+                                cut = 4000
+                                
+                            parts.append(remaining[:cut].rstrip())
+                            remaining = remaining[cut:].lstrip()
+                            
+                        for i, part in enumerate(parts):
+                            markup = reply_markup if i == len(parts) - 1 else None
+                            try:
+                                await self.bot.send_message(uid, part, parse_mode=ParseMode.HTML, reply_markup=markup)
+                            except Exception as e:
+                                if "can't parse entities" in str(e).lower() or "html" in str(e).lower():
+                                    log.warning(f"Fallback to plain text for chunk {i} due to HTML parse error: {e}")
+                                    await self.bot.send_message(uid, clean_html(part), reply_markup=markup)
+                                else:
+                                    raise e
                     else:
-                        await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML)
+                        await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
             except Exception as e:
                 log.error(f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True)
 

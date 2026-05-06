@@ -1,240 +1,346 @@
-# 🌌 Seeker.Bot
-
 <div align="center">
-  <h3>O Agente Autônomo Self-Hosted da Era Telegram-First</h3>
-  <p><em>Autonomia de Nível 5 — Operação 24/7 — Gestão Dinâmica de Contexto (Zero VRAM Waste)</em></p>
-  <p><strong>Desenvolvido via Vibe Coding 🌊</strong></p>
+
+# 🤖 Seeker.Bot
+
+**Autonomous cognitive agent for Telegram with persistent memory, computer vision, and 14 modular skills.**
+
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python&logoColor=white)](https://python.org)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey)]()
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4?logo=telegram&logoColor=white)]()
+
+🇧🇷 [Leia em Português](README.pt-BR.md)
+
+<img src="docs/demo.png" width="380" alt="Seeker.Bot Demo">
+
 </div>
 
 ---
 
-## ⚡ What is Seeker.Bot?
+## ✨ What is Seeker?
 
-**Seeker.Bot** is an open-source, self-hosted autonomous AI agent that operates as a persistent background process. Unlike traditional chat assistants that wait for prompts in browser tabs, Seeker.Bot lives on your local machine or VPS, communicates directly via Telegram, and proactively executes complex workflows (like web mining, API orchestration, and code review) using a cascaded multi-LLM routing system.
+Seeker.Bot is not a chatbot — it's an **autonomous cognitive agent** that lives in your Telegram. It decides how to think about each message (reflexive, deliberate, or deep analysis), searches the web, remembers everything you've discussed, and runs 14 independent skills in the background — from daily news curation to knowledge management.
 
-Construído em **Python 3.12+**, ele foi desenhado para contornar a "Barreira do Claw", atuando não apenas como um executor de scripts, mas como um sistema auto-adaptável com Memória Reflexiva e resiliência a falhas incorporada.
+What makes it different: a **multi-provider API cascade** that never stops working, a **Reinforcement Learning bandit** that learns which AI model works best for each task, and **Evidence Arbitrage** — triangulating responses from multiple AI providers to catch hallucinations.
 
-## 🚀 Por que escolher o Seeker.Bot? (Diferenciais)
-
-A arquitetura do Seeker.Bot quebra o modelo tradicional de "Copilot", substituindo-o pelo paradigma de "Autonomous Operation".
-
-| Tradicional (Ex: ChatGPT/Claude) | Seeker.Bot (Autonomous Framework) |
-| :--- | :--- |
-| **Reativo**: Fica aguardando sua tela ou aba aberta. | **Proativo**: Roda 24/7 silenciosamente no background. |
-| **Modelo Único**: Usa o modelo principal para todas as tarefas. | **Motor Multi-LLM**: Usa Groq (gratuito/rápido) para triagem e Gemini/DeepSeek para cognição, economizando 90% dos custos. |
-| **Amnésia**: O contexto reseta em novas sessões. | **Motor de Decaimento de Memória**: O SQLite armazena fatos, diminui a confiança no que envelhece, mas blinda "Regras Reflexivas" do usuário. |
-| **Caixa Preta**: Falha silenciosamente ou responde com erro. | **S.A.R.A (Auto-Cura)**: Tenta corrigir seu próprio código, injeta correções na sua IDE via protocolo MCP e envia o "Porquê" via Raciocínio Aberto no seu Telegram. |
-| **Cloud Dependente**: Seus dados vão para servidores remotos. | **Privacidade Local**: Roda integralmente no seu hardware — banco de dados SQLite local, zero sincronização cloud, seus dados nunca saem da máquina. |
-| **Extensibilidade Limitada**: Plugins pré-aprovados apenas. | **Skills Creator Dinâmico**: Crie novas capacidades em linguagem natural — Seeker escreve, testa e registra o código autonomamente. |
-| **Vendor Lock-in**: Preso a uma plataforma ou API. | **Multi-Provider + Fallback**: NVIDIA NIM → Groq → Gemini → DeepSeek → Local (Ollama). Mude providers quando quiser, sem reescrever nada. |
+You can run it entirely in the cloud with free API tiers, or **100% locally** on your GPU with no internet needed.
 
 ---
 
-## 💎 Power Skills Hub (Módulos Autônomos)
+## 🆕 What's New in v2.0-stable
 
-O Seeker.Bot não é um script linear; é um ecossistema de **Capabilities** que operam em paralelo via `GoalScheduler`.
-
-| Skill | Emoji | Função Técnica | Output Principal |
-| :--- | :--: | :--- | :--- |
-| **Revenue Hunter** | 🎯 | Mineração B2B/B2G em 3 fases (Discovery, Enrich, Dossier) com BANT Scoring. | Dossiê Comercial completo + PDF. |
-| **S.A.R.A (Auto-Cura)** | 🛠️ | *Systematic Automatic Retrospective Analysis*. Monitora logs e corrige bugs via patches automáticos. | Relatórios de "Raciocínio Aberto" + Auto-Fix. |
-| **SenseNews** | 📰 | Curadoria diária (10:00 AM) em nichos escolhidos com análise cruzada de impacto. | Relatório de Inteligência em PDF. |
-| **Vision (AFK)** | 👁️ | Monitoramento visual do desktop e protocolo de presença inteligente. | Contexto visual para decisões. |
-| **Skill Creator** | 🧬 | Meta-capacidade de programar, testar e registrar novos Goals autonomamente. | Expansão orgânica do sistema. |
-| **Git & OS Automator** | 💻 | Gestão de repositórios, deploy e monitoramento de saúde do sistema (HealthCheck). | Sistema 100% íntegro e atualizado. |
+- **S.A.R.A. Auto-Healing Resiliency:** When the self-improvement loop patches a file, the bot now automatically commands the Watchdog to soft-restart and reload the new code, ensuring zero-downtime hot fixes.
+- **Vision Watch Refactor:** The `/watch` and `/watchoff` commands were completely decoupled from the goal engine into standalone async tasks, making desktop monitoring bulletproof and extremely responsive.
+- **Enhanced Data Handling:** The Daily Briefing module was upgraded from 1,500 to 4,096 tokens to easily handle 15+ emails without HTML truncation, plus multiple core engine stability fixes (like goal dict iteration fallbacks).
 
 ---
 
-## 🚀 Quick Start
-
-### Pré-requisitos
-- **Python 3.10+**
-- **Telegram Bot** (crie em @BotFather)
-- **API Keys** de pelo menos um LLM provider (Groq é gratuito)
-
-### Instalação (5 minutos)
+## ⚡ Quick Start
 
 ```bash
-# 1. Clone
-git clone https://github.com/4pixeltech/Seeker.Bot.git
+git clone https://github.com/4pixeltechBR/Seeker.Bot
 cd Seeker.Bot
-
-# 2. Ambiente virtual
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# 3. Dependências
-pip install -e ".[dev]"
-
-# 4. Configure .env
-cp .env.example .env
-# Edite .env com suas chaves de API:
-#   - TELEGRAM_BOT_TOKEN (obrigatório)
-#   - GEMINI_API_KEY (para embeddings)
-#   - GROQ_API_KEY ou NVIDIA_NIM_API_KEY (para respostas)
-
-# 5. Rode!
-python -m src
+install.bat
 ```
 
-### Primeiros Comandos
-
-Abra seu Telegram e mande mensagens para seu bot:
-
-**Operação:**
-```
-/start                # Menu de ajuda e primeiros passos
-/search Python        # Busca 5 resultados na web
-/god                  # Força análise profunda na próxima mensagem
-/print                # Screenshot rápido da tela (sem análise)
-/watch                # Ativa vigilância visual (AFK Protocol — 2 min)
-/watchoff             # Desativa vigilância de tela
-```
-
-**Sistema & Inteligência:**
-```
-/status               # Painel de providers, memória e performance
-/saude                # Dashboard detalhado de saúde dos goals
-/memory               # Fatos aprendidos sobre você (semântica)
-/rate                 # Status dos rate limiters de API
-/decay                # Roda limpeza manual de confiança (decay)
-/habits               # Padrões de decisão aprendidos
-/scout                # Dispara campanha B2B Scout (leads qualificados)
-/crm                  # Histórico dos últimos 5 leads qualificados
-/configure_news       # Personaliza nichos do SenseNews
-```
+The installer will guide you through everything: naming your assistant, choosing cloud or local mode, and selecting which skills to activate.
 
 ---
 
-## 🏗️ Arquitetura Técnica (Lumen & Arq)
+## 🔑 API Providers & Models
 
-O Seeker foi desenhado sob princípios de **Cognitividade Eficiente** e **Resiliência Extrema**.
+Seeker uses a **multi-provider cascade** — you can use as few as **1 API key** or as many as 6+ providers for maximum resilience.
+
+### Providers
+
+| Provider | Model | Role in Seeker | Free Tier | Get Key |
+|---|---|---|---|---|
+| **Google Gemini** | `gemini-3.1-flash-lite` | ⚡ FAST (high frequency) | ✅ 15 RPM, 500/day | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| **Google Gemini** | `gemini-3-flash` | 🧠 DEEP + ⚖️ JUDGE | ✅ 5 RPM, 20/day | same key |
+| **Google Gemini** | `gemini-embedding-001` | 💾 Embeddings (memory) | ✅ 100 RPM | same key |
+| **Google Gemini** | `gemini-2.5-flash` | 👁️ Cloud VLM (vision) | ✅ 5 RPM | same key |
+| **Groq** | `llama-4-scout-17b` | ⚡ FAST (ultra-fast) | ✅ 30 RPM, 14.4K/day | [console.groq.com](https://console.groq.com/keys) |
+| **NVIDIA NIM** | `deepseek-v3.2` | 🧠 DEEP + 📝 SYNTHESIS | ✅ 40 RPM, unlimited | [build.nvidia.com](https://build.nvidia.com/) |
+| **NVIDIA NIM** | `nemotron-ultra-253b` | 🧠 DEEP (heavy fallback) | ✅ 40 RPM | same key |
+| **NVIDIA NIM** | `qwq-32b` | 🔴 ADVERSARIAL (reasoning) | ✅ 40 RPM | same key |
+| **NVIDIA NIM** | `gemma-4-31b-it` | ⚖️ JUDGE + 🔴 ADVERSARIAL | ✅ 40 RPM | same key |
+| **DeepSeek** | `deepseek-chat` | 🧠 DEEP (paid backup) | ❌ ~$0.28/1M tok | [platform.deepseek.com](https://platform.deepseek.com/) |
+| **DeepSeek** | `deepseek-reasoner` | 🔴 ADVERSARIAL (paid) | ❌ ~$0.28/1M tok | same key |
+| **Mistral** | `mistral-small-latest` | ⚖️ JUDGE (fallback) | ✅ 2 RPM | [console.mistral.ai](https://console.mistral.ai/) |
+| **Ollama** | `qwen3.5:4b` | 👁️ Local VLM (offline vision) | ✅ 100% local | [ollama.com](https://ollama.com/) |
+
+### Configuration Scenarios
+
+| Scenario | Keys Needed | Result | Monthly Cost |
+|---|---|---|---|
+| 🟢 **Minimum** | 1× Gemini | Functional, slower at peak | $0 |
+| 🟡 **Recommended** | Gemini + Groq + NVIDIA | Fast & resilient. 3 free providers | $0 |
+| 🔵 **Full Power** | All 5+ providers | Max speed. Zero downtime. RL Bandit optimizes | ~$2-5 (DeepSeek) |
+| 🏠 **100% Local** | None (Ollama only) | Offline, private, no cost | $0 + GPU |
+
+> **Note:** You can run with a SINGLE key (Gemini). Seeker adapts and uses what's available. More providers = more resilience.
+
+---
+
+## 🧠 How the Cascade Works
+
+When Seeker needs to call an AI model, it doesn't rely on a single provider. Instead, it uses a **6-tier cascade with automatic fallback**:
 
 ```mermaid
-graph TD
-    A[Telegram Bridge] -->|Input/Command| B(Cognitive Load Router)
-    B -->|Fast Task| C[Groq/Llama-Scout]
-    B -->|Reasoning/Vision| D[Gemini 1.5 Pro / Flash]
-    B -->|High Precision| E[DeepSeek-V3]
-    
-    F(Goal Scheduler) -->|Loop 24/7| G[Autonomous Goals]
-    G -->|Revenue Hunter| H[Web Mining Engine]
-    G -->|S.A.R.A| I[Log Audit & Self-Heal]
-    
-    H & I -->|Result| J[Memory Store / SQLite]
-    J -->|Reflexive Context| B
-    
-    G -->|Notification| A
+flowchart TD
+    A[📨 New Request] --> B{Tier 1: Gemini Flash Lite}
+    B -->|✅ Success| Z[📤 Response]
+    B -->|❌ Failed/Rate Limited| C{Tier 2: Groq Llama 4}
+    C -->|✅ Success| Z
+    C -->|❌ Failed| D{Tier 3: NVIDIA NIM}
+    D -->|✅ Success| Z
+    D -->|❌ Failed| E{Tier 4: DeepSeek}
+    E -->|✅ Success| Z
+    E -->|❌ Failed| F{Tier 5: Mistral}
+    F -->|✅ Success| Z
+    F -->|❌ Failed| G[📦 Local Cache]
+    G --> Z
+
+    style A fill:#1a1a2e,color:#fff
+    style Z fill:#16213e,color:#0f0
+    style G fill:#0f3460,color:#ff0
 ```
 
-### 🧠 O Motor de Decisão (Cognitive Load Router)
-Para evitar o desperdício de tokens e VRAM, o Seeker avalia a **entropia** da tarefa antes de selecionar o provedor:
-- **Fast Role**: Extração de entidades, JSON parsing e roteamento básico (Groq).
-- **Synthesis Role**: Geração de relatórios, escrita de código e análise de mercado (DeepSeek/Gemini).
-- **Vision Role**: Leitura de tela e interface com o OS (Gemini).
-
-### 💾 Memória Reflexiva
-Utilizamos um sistema de **DecayEngine** no SQLite:
-1.  **Episódica**: Eventos recentes.
-2.  **Semântica**: Fatos persistentes.
-3.  **Reflexive Rules**: Fricções de usuário que se tornam leis de comportamento, ignoradas pelo decaimento temporal.
+A **Reinforcement Learning Bandit** continuously learns which provider is fastest and most reliable for each cognitive role (FAST, DEEP, JUDGE, etc.) and reorders the cascade in real-time.
 
 ---
 
-## 🧬 Skills Creator — Extensibilidade Dinâmica
+## 🏠 100% Local Mode (No Internet)
 
-O **Skills Creator** é uma meta-skill do Seeker que permite criar **novas capacidades autonomamente** — sem reescrever código, sem restartar o bot.
+Seeker can run entirely on your computer with **no API keys and no internet**.
 
-### Como Funciona
+### Requirements
+- [Ollama](https://ollama.com/) installed
+- GPU with sufficient VRAM
 
-1. **Você descreve** o que quer em linguagem natural
-2. **Seeker analisa** o pedido e gera código Python
-3. **Sistema testa** a nova skill em sandbox
-4. **Auto-registra** a skill no goal engine
-5. **Executa** no próximo ciclo
+### VRAM Profiles
 
-### Exemplos de Skills que Você Pode Criar
+| Your VRAM | FAST Model | DEEP Model | Vision (VLM) | Embeddings |
+|---|---|---|---|---|
+| **8 GB** | Qwen 3.5 4B | Qwen 3.5 4B | Qwen 3.5 4B | nomic-embed-text |
+| **16 GB** | Qwen 3.5 4B | Gemma 4 12B | Qwen 3.5 4B | nomic-embed-text |
+| **24 GB+** | Qwen 3.5 4B | Qwen 3.5 27B | Gemma 4 E4B | mxbai-embed-large |
 
-| Skill | Descrição | Exemplo de Solicitação |
-| :--- | :--- | :--- |
-| **Notificações Customizadas** | Monitore eventos e receba alertas | "Monitore a fila de imprimir e me avise se tiver mais de 10 documentos" |
-| **Monitores de Website** | Rastreie mudanças em sites | "Acompanhe o preço deste produto no Shopee e me notifique se cair mais de 10%" |
-| **Integrações Web** | Conecte a APIs externas | "Sincronize meus leads do CRM com uma planilha Google diária" |
-| **Análise de Documentos** | Processe relatórios e PDFs | "Extraia faturas de um email e organize as datas em um banco de dados" |
-| **Automações Repetitivas** | Reduza tarefas manuais | "Todos os dias às 9am, envie um email com o status do portfolio de criptos" |
+### Setup
+```bash
+# In your .env:
+SEEKER_MODE=local
+LOCAL_VRAM_GB=8    # your available VRAM
 
-### Exemplo Técnico
+# Pull models:
+ollama pull qwen3.5:4b
+ollama pull nomic-embed-text
 
-```python
-# Novo goal criado dinamicamente pelo Seeker:
-class MeuMonitorCustomizado(AutonomousGoal):
-    """
-    Meta-skill: Monitora eventos custom sem re-deploy.
-    Código gerado via Language Model + injeção no pipeline.
-    """
-    async def run_cycle(self) -> GoalResult:
-        # Lógica auto-gerada
-        event = await self.check_event()
-        if event.meets_criteria():
-            return GoalResult(success=True, notification=f"Alerta: {event}")
-        return GoalResult(success=True, summary="Aguardando...")
+# Start:
+start_watchdog.bat
 ```
 
-### Por Que Isso é Revolucionário
+---
 
-- 🚀 **Sem redeploy**: Skill ativa no próximo ciclo de 6h
-- 🔒 **Seguro**: Sandbox execution + approval checks
-- 📝 **Sem código**: Descreva em português, Seeker implementa
-- ♻️ **Reutilizável**: Skills compartilháveis via Git
-- 🧠 **Inteligente**: Seeker refina baseado em feedback
+## 👁️ Computer Vision
+
+Seeker can see your screen, read text from images, and understand visual content.
+
+- **Without GPU:** Set `GEMINI_VLM_FALLBACK=true` in `.env`. Uses Gemini Flash as cloud VLM.
+- **With GPU (4GB+ VRAM):** Install [Ollama](https://ollama.com/) + `ollama pull qwen3.5:4b`. 100% free and offline.
 
 ---
 
-## 🛡️ Segurança (Extreme Trust)
+## 🛠️ Modular Skills
 
-Sempre avalie o código que você fornece autonomia total.
-A IA adota um modelo de **Segurança baseada em Fricção**. A classe do motor garante que ações destrutivas pareiem localmente no seu computador, impedindo que "Agentes Independentes" quebrem a estrutura. Todo o dossiê que é abortado gera um LOG analítico JSON te informando o motivo real da exclusão ("Painel de Confiança Extrema e Raciocínio Aberto").
+Skills are autonomous agents that run in the background on a schedule. You choose which ones to activate during installation.
 
----
+### 🟢 Core (Always Active)
+| Skill | Description |
+|---|---|
+| **Health Monitor** | System health dashboard with real-time metrics |
+| **Self-Improvement** | S.A.R.A. — self-healing loop every 6 hours |
+| **Daily Briefing** | Morning briefing at 7am with your schedule and priorities |
 
----
+### 🟡 Recommended
+| Skill | Description |
+|---|---|
+| **Knowledge Vault** | Second Brain — save facts to Obsidian with one tap |
+| **Scheduler** | Natural language task scheduling via chat wizard |
+| **SenseNews** | AI ecosystem news curation by niche |
+| **Sherlock News** | Monitor tech launches and model releases |
+| **Bug Analyzer** | Send a traceback, get a root cause analysis |
+| **Skill Creator** | Auto-generates new skills from recurring patterns |
 
-## 📚 Documentação
-
-- **[CLAUDE.md](CLAUDE.md)** — Diretrizes de desenvolvimento (para Claude Code)
-- **[CONTRIBUTING.md](CONTRIBUTING.md)** — Como contribuir
-- **[LICENSE](LICENSE)** — MIT License
-
----
-
-## 🤝 Contribuições
-
-Seeker.Bot é open-source! Se quer ajudar:
-1. Fork este repositório
-2. Crie uma branch (`git checkout -b feature/sua-feature`)
-3. Commit suas mudanças
-4. Abra um Pull Request
-
-Veja [CONTRIBUTING.md](CONTRIBUTING.md) para detalhes.
-
----
-
-## 🐛 Reportar Bugs / Sugerir Features
-
-- **Bugs**: [GitHub Issues](https://github.com/4pixeltech/Seeker.Bot/issues)
-- **Discussões**: [GitHub Discussions](https://github.com/4pixeltech/Seeker.Bot/discussions)
+### 🔵 Specialist
+| Skill | Description | Requires |
+|---|---|---|
+| **Email Monitor** | Inbox monitoring with smart filtering | IMAP |
+| **Desktop Watch** | AFK screen surveillance with pattern detection | VLM |
+| **Remote Executor** | Execute complex plans with approval workflow | — |
+| **OS Control** | Operating system file and app control | — |
+| **Git Automation** | Auto-backup to private GitHub repository | GitHub Token |
 
 ---
 
-## 📊 Status do Projeto
+## 🏗️ Architecture
 
-- ✅ **v2.1**: Audited, hardened, production-ready
-- ✅ **54+ unit tests** (100% passing)
-- ✅ **Health dashboard** para monitoramento em tempo real
-- 🚀 **v3.0**: Planned — Web dashboard, mais providers, integração com mais canais
+```mermaid
+flowchart TB
+    subgraph Telegram["📱 Telegram"]
+        User[User Message]
+    end
+
+    subgraph Core["🧠 Cognitive Core"]
+        Router[CognitiveLoadRouter<br/>Regex-based, 0ms, 0 LLM calls]
+        Reflex[⚡ REFLEX<br/>Direct response]
+        Deliberate[🤔 DELIBERATE<br/>Memory + Web search]
+        Deep[🧠 DEEP<br/>Evidence Arbitrage<br/>+ Triangulation]
+    end
+
+    subgraph Providers["☁️ AI Providers"]
+        Cascade[6-Tier Cascade<br/>Gemini → Groq → NVIDIA<br/>→ DeepSeek → Mistral → Cache]
+        Bandit[RL Bandit<br/>Learns best provider]
+    end
+
+    subgraph Skills["🛠️ Autonomous Skills"]
+        S1[17 Background Skills]
+        S2[Goal Scheduler]
+    end
+
+    subgraph Memory["💾 Persistent Memory"]
+        Embed[Embeddings<br/>Gemini / nomic-embed]
+        Store[Semantic Search]
+        Obsidian[Obsidian Vault]
+    end
+
+    User --> Router
+    Router -->|Simple| Reflex
+    Router -->|Medium| Deliberate
+    Router -->|Complex| Deep
+    Reflex --> Cascade
+    Deliberate --> Cascade
+    Deep --> Cascade
+    Cascade --> Bandit
+    Deep --> Memory
+    Deliberate --> Memory
+    S2 --> S1
+    S1 --> Cascade
+```
 
 ---
 
-*”Um assistente espera no seu navegador. Um partner acorda e reporta ganhos e problemas no seu Telegram antes de você perguntar.”* 
+## 📋 Full Installation Guide
 
-**Criado por Vibe Coding — By 4PixelTech**
+### Step 1: Create a Telegram Bot
+1. Open Telegram and search for **@BotFather**
+2. Send `/newbot`
+3. Choose a name (e.g., "My Seeker")
+4. Copy the **TOKEN** — you'll need it for `.env`
+5. To find your **User ID**: send `/start` to **@userinfobot**
+
+### Step 2: Get API Keys
+At minimum, you need **1 key** (Gemini). For best results, get 3 (all free):
+
+| Provider | Steps | Link |
+|---|---|---|
+| **Google Gemini** | 1. Sign in with Google → 2. Click "Create API Key" | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| **Groq** | 1. Create account → 2. Go to API Keys → 3. Create key | [console.groq.com/keys](https://console.groq.com/keys) |
+| **NVIDIA NIM** | 1. Create account → 2. Go to any model → 3. Click "Get API Key" | [build.nvidia.com](https://build.nvidia.com/) |
+
+### Step 3: Clone & Install
+```bash
+git clone https://github.com/4pixeltechBR/Seeker.Bot
+cd Seeker.Bot
+install.bat
+```
+
+### Step 4: Configure `.env`
+The installer opens your `.env` file. Fill in at minimum:
+```env
+ASSISTANT_NAME=YourAssistantName
+TELEGRAM_BOT_TOKEN=your_token_from_botfather
+TELEGRAM_ALLOWED_USERS=your_telegram_user_id
+GEMINI_API_KEY=your_gemini_key
+```
+
+### Step 5: Start
+```bash
+start_watchdog.bat
+```
+
+### Step 6 (Optional): Obsidian Integration
+1. Install [Obsidian](https://obsidian.md/)
+2. Create a vault
+3. Set `OBSIDIAN_VAULT_PATH=C:\Users\You\Obsidian\Vault` in `.env`
+
+### Step 7 (Optional): Git Auto-Backup
+1. Create a **private** repository on GitHub
+2. Generate a [Personal Access Token](https://github.com/settings/tokens) (repo scope)
+3. Set `GITHUB_TOKEN` and `GITHUB_REPO` in `.env`
+
+### Step 8 (Optional): Email Monitoring
+1. Go to [Google Account Security](https://myaccount.google.com/security)
+2. Enable 2-Factor Authentication
+3. Generate an [App Password](https://myaccount.google.com/apppasswords)
+4. Fill in SMTP/IMAP fields in `.env`
+
+---
+
+## 🛠️ Built With
+
+- **[Google Antigravity](https://blog.google/technology/google-deepmind/)** — AI-powered development environment
+- **[Claude Code](https://claude.ai/)** — Advanced AI pair programming
+- **[Python 3.10+](https://python.org)** — Core runtime
+- **[aiogram 3](https://aiogram.dev/)** — Async Telegram Bot framework
+- **[Ollama](https://ollama.com/)** — Local LLM inference engine
+
+---
+
+## 🙏 Acknowledgments
+
+Seeker.Bot was co-created with AI — and we're proud of it.
+
+| Partner | Contribution |
+|---|---|
+| **[Google DeepMind](https://deepmind.google/)** | Antigravity (Gemini) — primary development environment and cognitive architecture co-designer |
+| **[Anthropic](https://anthropic.com/)** | Claude Code — advanced pair programming, architecture reviews, and code generation |
+| **[Ollama](https://ollama.com/)** | Local inference engine enabling 100% offline operation |
+| **[Groq](https://groq.com/)** | Ultra-fast inference infrastructure |
+| **[NVIDIA](https://nvidia.com/)** | NIM API platform and GPU ecosystem |
+| **[DeepSeek](https://deepseek.com/)** | Cost-effective deep reasoning models |
+| **[Mistral AI](https://mistral.ai/)** | Resilient fallback provider |
+
+> This project is a testament to what happens when a human creator works alongside AI tools as true partners — not as replacements, but as cognitive amplifiers.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📜 License
+
+This project is licensed under the **Apache License 2.0** — see the [LICENSE](LICENSE) file for details.
+
+```
+Copyright 2026 4pixeltech / Victor Machado Mendonça
+```
+
+---
+
+<div align="center">
+
+**Built with 🧠 by [4pixeltech](https://github.com/4pixeltechBR)**
+
+*If Seeker helped you, consider giving it a ⭐ on GitHub!*
+
+</div>

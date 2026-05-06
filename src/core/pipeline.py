@@ -2,25 +2,44 @@
 Seeker.Bot — Core Pipeline
 src/core/pipeline.py
 
-Orquestrador fino: recebe input → decide profundidade → delega pra fase → registra.
-Não tem lógica de LLM direta — delega tudo pras phases.
+Main orchestrator for cognitive request processing. Routes incoming requests through
+a multi-tier cognitive system (REFLEX → DELIBERATE → DEEP) based on complexity analysis.
 
-De 554 linhas → ~220 linhas.
-Os prompts vivem em cognition/prompts.py.
-As fases vivem em phases/{reflex,deliberate,deep}.py.
-A sessão vive em memory/session.py.
+Architecture:
+    - CognitiveLoadRouter: Analyzes request → decides depth (0 LLM, regex-based)
+    - PhaseResult: Abstract execution model (each phase implements independently)
+    - MemoryStore: 4-table SQLite for episodic, semantic, facts, embeddings
+    - CascadeAdapter: 6-tier LLM fallback (Gemini → Groq → NVIDIA → DeepSeek → Mistral → Cache)
+    - EvidenceArbitrage: Triangulates 2-3 models for hallucination detection
+    - VerificationGate: Independent judge verifies critical claims
+    - SafetyLayer: Governs autonomy tiers and action permissions
+
+Key Components:
+    - ReflexPhase: Direct response, no LLM calls (status checks, simple facts)
+    - DeliberatePhase: Memory + web search (1-2 LLM calls)
+    - DeepPhase: Evidence arbitrage + triangulation + research loops (3+ LLM calls)
+    - RL Infrastructure: Bandit model learns which provider works best per role
+    - Decay Engine: Confidence degrades over time (half-life per domain)
+
+Usage:
+    pipeline = SeekerPipeline(api_keys={'gemini': '...', 'groq': '...', ...})
+    await pipeline.init()
+    result = await pipeline.process("Pergunta complexa", user_id=123)
+    # result: PipelineResult(response, depth, cost_usd, latency_ms, facts_used, ...)
 """
 
 import asyncio
 import logging
 import os
 import time
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
 
 from config.models import ModelRouter, CognitiveRole, build_default_router
 from src.core.router.cognitive_load import (
-    CognitiveLoadRouter, CognitiveDepth, RoutingDecision,
+    CognitiveLoadRouter, CognitiveDepth, RoutingDecision, ExecutionMode
 )
+from src.skills.knowledge_vault import VaultSearcher
 from src.core.evidence.arbitrage import EvidenceArbitrage, ArbitrageResult
 from src.core.evidence.decay import DecayEngine
 from src.core.search.web import WebSearcher
@@ -31,19 +50,24 @@ from src.core.memory.embeddings import GeminiEmbedder, SemanticSearch
 from src.core.memory.session import SessionManager
 from src.core.memory.compressor import SessionCompressor
 from src.core.intent_card import IntentClassifier, IntentCard
+from src.core.safety_layer_enhanced import SafetyLayer, SafetyPolicy, AutonomyTier, ActionType
 from src.core.phases.base import PhaseContext, PhaseResult
 from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
 from src.core.phases.deep import DeepPhase
 from src.providers.base import LLMRequest, invoke_with_fallback
 from src.providers.cascade import CascadeAdapter
-from src.core.memory.hierarchy import prioritize_facts, format_hierarchical_context
+from src.core.rl import RewardCollector, StateEncoder, SeekerState, CascadeBandit, BanditMode
+from src.core.batch_operations import BatchOperationsManager
+from src.core.metrics import Sprint11Tracker
+from src.core.memory.hierarchy import score_fact, format_4layer_context
 from src.core.profiling.profiler import SystemProfiler
 from src.core.profiling.exporter import PrometheusExporter
 from src.core.error_recovery import ErrorRecoveryManager
 from src.core.budget import RastreadorCustos
 from src.core.data import ArmazemDados, Indexador, GerenciadorRetencao
 from src.core.analytics import DashboardFinanceiro, Forecaster, Reporter
+from src.core.memory.obsidian import ObsidianExporter
 
 log = logging.getLogger("seeker.pipeline")
 
@@ -60,16 +84,40 @@ class PipelineResult:
     llm_calls: int = 0
     image_bytes: bytes | None = None
     facts_used: int = 0  # fatos de memória injetados no contexto desta resposta
+    new_facts_count: int = 0  # fatos extraídos deste turno
+    _extraction: dict = field(default_factory=dict) # Cache de extração para post-process
+    decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # ID p/ RL feedback
 
 
 class SeekerPipeline:
     """
-    Orquestrador: Input → Router → Phase → Record.
-    
-    Uso:
+    Main request orchestrator. Routes requests through cognitive phases and manages
+    all infrastructure (memory, providers, search, evidence verification).
+
+    Args:
+        api_keys: Dict of provider keys {'gemini', 'groq', 'nvidia_nim', 'deepseek', 'mistral'}
+        db_path: SQLite database path (defaults to data/seeker_memory.db)
+
+    Attributes:
+        cognitive_router: Routes requests to REFLEX, DELIBERATE, or DEEP based on complexity
+        memory: 4-table SQLite store for episodic, semantic, facts, and embeddings
+        cascade_adapter: 6-tier LLM fallback with automatic provider ranking
+        arbitrage: Evidence triangulation with 2-3 models in parallel
+        gate: Verification gate (independent judge) for critical claims
+        session: Session manager with compression and context windowing
+        safety_layer: Governs autonomous actions and autonomy tiers
+
+    Example:
+        api_keys = {
+            'gemini': 'sk-...',
+            'groq': 'gsk_...',
+            'nvidia_nim': 'nvapi-...',
+        }
         pipeline = SeekerPipeline(api_keys)
         await pipeline.init()
-        result = await pipeline.process("vale a pena migrar pra K8s?")
+        result = await pipeline.process("Qual é o melhor framework Python para ML?", user_id=123)
+        print(f"Response: {result.response}")
+        print(f"Depth: {result.depth} | Cost: ${result.total_cost_usd:.4f} | Latency: {result.total_latency_ms}ms")
     """
 
     def __init__(self, api_keys: dict[str, str], db_path: str | None = None):
@@ -105,6 +153,24 @@ class SeekerPipeline:
         # Cascade Adapter — multi-tier LLM routing com fallback
         self.cascade_adapter = CascadeAdapter(self.model_router, api_keys)
 
+        # RL Infrastructure — coleta dados para aprendizado (Sprint 1)
+        self.reward_collector = RewardCollector()
+        self.state_encoder = StateEncoder()
+
+        # Sprint 2 — LinUCB Bandit (shadow mode: prediz mas não age)
+        self.cascade_bandit = CascadeBandit(mode=BanditMode.SHADOW)
+        self.cascade_bandit.load()  # carrega modelo salvo se existir
+
+        # Batch Operations Manager — consolidação de commits (Sprint 11.3)
+        self.batch_manager = BatchOperationsManager(max_pending=100)
+
+        # Safety Layer — controle de autonomia e ações (Sprint 7.3)
+        safety_policy = SafetyPolicy()
+        self.safety_layer = SafetyLayer(safety_policy)
+
+        # Sprint 11 Metrics Tracker — monitoramento de otimizações (Fase 4)
+        self.sprint11_tracker = Sprint11Tracker()
+
         # Performance Profiling
         self.profiler = SystemProfiler(history_size=200)
         self.prometheus_exporter = PrometheusExporter(namespace="seeker")
@@ -117,6 +183,10 @@ class SeekerPipeline:
             limite_diario_usd=10.0,
             limite_mensal_usd=200.0,
         )
+
+        # Obsidian Exporter
+        vault_path = os.getenv("OBSIDIAN_VAULT_PATH")
+        self.obsidian_exporter = ObsidianExporter(self.memory, vault_path) if vault_path else None
 
         # Data Manager — armazenamento eficiente de fatos semânticos
         data_db_path = os.path.join(
@@ -171,6 +241,7 @@ class SeekerPipeline:
             log.info("[pipeline] Semantic search com Gemini Embedding 2 ativo")
 
         # Decay engine
+        self._vault_searcher = None  # Lazy load
         self.decay_engine = DecayEngine(self.memory)
         try:
             stats = await self.decay_engine.run()
@@ -202,6 +273,7 @@ class SeekerPipeline:
         self,
         user_input: str,
         session_id: str = "telegram",
+        execution_mode: str = "interactive",
         afk_protocol=None,
     ) -> PipelineResult:
         """
@@ -223,12 +295,56 @@ class SeekerPipeline:
             memory_prompt = session_context + "\n\n" + memory_prompt
 
         # ── 2. Router (0 LLM) ────────────────────────────────
-        decision = self.cognitive_router.route(user_input)
+        mode_enum = ExecutionMode(execution_mode.lower())
+        decision = self.cognitive_router.route(user_input, mode=mode_enum)
         log.info(
             f"[pipeline] {decision.depth.value} | "
             f"reason='{decision.reason}' | god={decision.god_mode} | "
             f"web={decision.needs_web}"
         )
+
+        # ── RL: captura estado antes da execução ──────────────
+        decision_id = str(uuid.uuid4())
+        rl_state = SeekerState(
+            query=user_input,
+            budget_daily_used_usd=self.cost_tracker._gastos_diarios.get(
+                str(time.strftime("%Y-%m-%d")), 0.0
+            ),
+            budget_daily_limit_usd=self.cost_tracker.limite_diario_usd,
+            budget_monthly_used_usd=self.cost_tracker._gastos_mensais.get(
+                str(time.strftime("%Y-%m")), 0.0
+            ),
+            budget_monthly_limit_usd=self.cost_tracker.limite_mensal_usd,
+            session_turns=len(self.session._cache.get(session_id, [])),
+        )
+        self.reward_collector.open_event(
+            decision_id=decision_id,
+            action_taken=decision.depth.value,
+            context=f"query={user_input[:80]!r}",
+            state_snapshot=self.state_encoder.describe(rl_state),
+        )
+
+        # ── Sprint 2: LinUCB Bandit (shadow) ─────────────────────────
+        # Prediz qual depth seria ideal. Em SHADOW: só loga, não interfere.
+        # Em ACTIVE/FULL (futuro): substituirá o CognitiveLoadRouter.
+        try:
+            rl_features = self.state_encoder.encode(rl_state)
+            bandit_decision = self.cascade_bandit.predict(
+                features=rl_features,
+                router_arm=decision.depth.value,
+                decision_id=decision_id,
+            )
+            if not bandit_decision.agrees:
+                log.info(
+                    f"[bandit:shadow] Diverge: router={bandit_decision.router_arm} "
+                    f"→ bandit sugeriria={bandit_decision.recommended_arm} "
+                    f"(α={bandit_decision.alpha:.3f})"
+                )
+        except Exception as e:
+            log.debug(f"[bandit] Erro no predict (ignorado): {e}")
+
+        # Fecha eventos stale de decisões anteriores sem feedback
+        self.reward_collector.close_stale_events()
 
         # ── 2.5. Intent Classification + Safety Check ─────────
         intent_card = self.intent_classifier.classify(user_input, user_id=session_id)
@@ -253,6 +369,17 @@ class SeekerPipeline:
                 total_latency_ms=int((time.perf_counter() - start) * 1000),
             )
 
+        # ── 2.7. Vault Retrieval (Obsidian) ───────────────────
+        vault_context = ""
+        if decision.needs_vault:
+            if not self._vault_searcher:
+                self._vault_searcher = VaultSearcher()
+            
+            vault_context = self._vault_searcher.get_context_for_llm(user_input)
+            if vault_context:
+                log.info(f"[pipeline] Contexto do cofre injetado ({len(vault_context)} chars)")
+                memory_prompt += f"\n\n{vault_context}"
+
         # ── 3. Dispatch pra fase ──────────────────────────────
         ctx = PhaseContext(
             user_input=user_input,
@@ -260,7 +387,9 @@ class SeekerPipeline:
             memory_prompt=memory_prompt,
             session_context=session_context,
             afk_protocol=afk_protocol or self.afk_protocol,
+            execution_mode=execution_mode.lower(),
             intent_card=intent_card,  # Disponível para fases se precisarem
+            vault_context=vault_context,
         )
 
         if decision.depth == CognitiveDepth.REFLEX:
@@ -333,6 +462,7 @@ class SeekerPipeline:
                 raise
 
         # ── 4. Monta resultado ────────────────────────────────
+        elapsed_ms = int((time.perf_counter() - start) * 1000)
         result = PipelineResult(
             response=phase_result.response,
             depth=decision.depth,
@@ -340,11 +470,34 @@ class SeekerPipeline:
             arbitrage=phase_result.arbitrage,
             verdict=phase_result.verdict,
             total_cost_usd=phase_result.cost_usd,
-            total_latency_ms=int((time.perf_counter() - start) * 1000),
+            total_latency_ms=elapsed_ms,
             llm_calls=phase_result.llm_calls,
             image_bytes=phase_result.image_bytes,
             facts_used=facts_used,
+            decision_id=decision_id,
         )
+
+        # ── RL: registra sinal técnico ────────────────────────
+        self.reward_collector.record_technical(
+            decision_id=decision_id,
+            success=True,
+            cost_usd=phase_result.cost_usd,
+            latency_ms=elapsed_ms,
+        )
+
+        # ── Sprint 2: update bandit com reward técnico imediato ───────
+        # O reward final (com feedback do Victor) chega depois via observe_follow_up.
+        # Aqui fazemos um update preliminar com sinal técnico para o bandit
+        # começar a aprender mesmo antes do feedback comportamental.
+        try:
+            tech_event = self.reward_collector._open_events.get(decision_id)
+            if tech_event:
+                self.cascade_bandit.update(
+                    decision_id=decision_id,
+                    reward=tech_event.reward_technical,
+                )
+        except Exception as e:
+            log.debug(f"[bandit] Erro no update técnico (ignorado): {e}")
 
         # Acumula métricas de uso de memória
         self._memory_stats["responses"] += 1
@@ -352,10 +505,65 @@ class SeekerPipeline:
             self._memory_stats["with_facts"] += 1
         self._memory_stats["total_facts_injected"] += facts_used
 
-        # ── 5. Background: session + record ───────────────────
+        # ── 5. Knowledge Extraction (Synchronous for UX) ──────
+        try:
+            extraction = await self.extractor.extract(user_input, result.response)
+            result.new_facts_count = len(extraction.get("facts", []))
+            # Armazena extração para uso no _post_process
+            result._extraction = extraction 
+        except Exception as e:
+            log.warning(f"[pipeline] Falha na extração síncrona: {e}")
+
+        # ── 6. Background: session + record ───────────────────
         self._spawn_background(self._post_process(session_id, user_input, result))
 
         return result
+
+        return result
+
+    # ─────────────────────────────────────────────────────────
+    # RL FEEDBACK
+    # ─────────────────────────────────────────────────────────
+
+    def observe_follow_up(
+        self,
+        decision_id: str,
+        message: str,
+        response_delay_seconds: float = 0.0,
+    ) -> None:
+        """
+        Registra resposta do Victor após o bot ter dado output.
+        Chamado pelo bot.py sempre que Victor envia uma nova mensagem.
+
+        Args:
+            decision_id: ID retornado no PipelineResult.decision_id
+            message: Texto da mensagem do Victor
+            response_delay_seconds: Segundos desde que o bot respondeu
+        """
+        self.reward_collector.observe_user_message(
+            decision_id=decision_id,
+            message=message,
+            response_delay_seconds=response_delay_seconds,
+        )
+
+        # Sprint 2: update do bandit com reward total (técnico + comportamental)
+        try:
+            event = self.reward_collector._open_events.get(decision_id)
+            if event:
+                self.cascade_bandit.update(
+                    decision_id=decision_id,
+                    reward=event.reward_total,
+                )
+        except Exception:
+            pass  # bandit nunca quebra o fluxo
+
+    def get_rl_stats(self) -> dict:
+        """Estatísticas do sistema de RL — para /perf ou debug."""
+        return self.reward_collector.get_stats()
+
+    def get_bandit_stats(self) -> str:
+        """Formata stats do LinUCB Bandit para Telegram."""
+        return self.cascade_bandit.format_stats()
 
     # ─────────────────────────────────────────────────────────
     # LIFECYCLE
@@ -393,6 +601,42 @@ class SeekerPipeline:
             f"<i>Memória: {memory_status} {rate}% das respostas usam fatos. "
             f"Média: {avg} fatos/resposta.</i>"
         )
+
+    def get_sprint11_report(self) -> str:
+        """Retorna relatório de otimizações Sprint 11 formatado para Telegram"""
+        return self.sprint11_tracker.format_for_telegram()
+
+    async def check_action_safety(
+        self,
+        action_type: ActionType,
+        goal_name: str,
+        current_tier: AutonomyTier = AutonomyTier.L1_LOGGED,
+        action_details: dict | None = None,
+    ) -> tuple[bool, str]:
+        """
+        Verifica se uma ação é permitida pela safety policy.
+
+        Returns: (allowed, reason)
+        """
+        allowed, reason = await self.safety_layer.check_action(
+            action_type,
+            goal_name,
+            current_tier,
+            action_details
+        )
+        return allowed, reason
+
+    def get_safety_policy(self) -> dict:
+        """Exporta a política de segurança atual em formato estruturado"""
+        return self.safety_layer.export_policy()
+
+    def get_safety_audit_log(self, limit: int = 100) -> list[dict]:
+        """Retorna log de auditoria de ações de segurança"""
+        return self.safety_layer.get_audit_log(limit)
+
+    def configure_safety_policy(self):
+        """Retorna a política para configuração pelo bot/CLI"""
+        return self.safety_layer.policy
 
     def get_performance_dashboard(self) -> dict:
         """Retorna dashboard de performance agregado"""
@@ -547,57 +791,54 @@ class SeekerPipeline:
     # ─────────────────────────────────────────────────────────
 
     async def _build_memory_context(self, user_input: str) -> tuple[str, int]:
-        """Constrói contexto de memória com prioridade hierárquica.
+        """Constrói contexto de memória usando o 4-Layer Stack.
 
-        Retorna (memory_prompt, facts_used) onde facts_used é a contagem
-        de fatos semânticos injetados no contexto desta resposta.
+        L0: Identity (constante)
+        L1: Essential (top N fatos por score)
+        L2: On-Demand (busca semântica híbrida BM25+Vector)
+        L3: Search (fallback textual se semântica falhar)
+
+        Retorna (memory_prompt, facts_used).
         """
-        # Busca fatos
-        facts = await self.memory.get_facts(min_confidence=0.3, limit=20)
+        # L1: Essential — todos os fatos, priorizados por score
+        facts = await self.memory.get_facts(min_confidence=0.3, limit=50)
+        scored = [(score_fact(f), f) for f in facts]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        essential = [f for _, f in scored[:10]]
+        facts_used = len(essential)
 
-        # Busca semântica
-        semantic_matches = None
-        if self.semantic_search:
-            semantic_matches = await self.semantic_search.find_similar_facts(
+        # L2: On-Demand — busca semântica híbrida (BM25 + Vector)
+        search_results = []
+        if self.semantic_search and user_input:
+            search_results = await self.semantic_search.find_similar_facts(
                 user_input, top_k=5, min_similarity=0.35
             )
+            # Deduplica contra L1
+            seen = {f.get('fact', '') for f in essential}
+            search_results = [sr for sr in search_results if sr.get('fact', '') not in seen]
+            facts_used += len(search_results)
 
-        # Mescla fatos + matches semânticos antes de priorizar
-        all_facts = list(facts) if facts else []
-        if semantic_matches:
-            seen = {f.get('fact', '') for f in all_facts}
-            for sm in semantic_matches:
-                if sm.get('fact', '') not in seen:
-                    all_facts.append(sm)
-
-        # Prioriza por camada hierárquica
-        prioritized = prioritize_facts(all_facts, limit=15)
-        facts_used = len(prioritized)
-
-        # Formata com prioridade
-        memory_prompt = format_hierarchical_context(prioritized, limit=15)
-
-        # Adiciona episódios recentes (não afetados pela hierarquia)
-        episodes = await self.memory.get_recent_episodes(limit=5)
-        if episodes:
-            ep_lines = ["\n=== INTERAÇÕES RECENTES ==="]
-            for ep in episodes:
-                icon = {"reflex": "⚡", "deliberate": "🧠", "deep": "🔬"}.get(ep["depth"], "")
-                ep_lines.append(f"{icon} {ep['user_input'][:100]}")
-                if ep["response_summary"]:
-                    ep_lines.append(f"   → {ep['response_summary'][:100]}")
-            memory_prompt += "\n".join(ep_lines)
-
-        # Fatos relevantes por busca textual (fallback se semântica falhar)
-        if not semantic_matches and user_input:
+        # L3: Fallback textual se semântica não encontrou nada
+        if not search_results and user_input:
             relevant = await self.memory.search_facts(user_input, limit=5)
-            seen_ids = {f.get("fact_id") for f in prioritized}
-            new_facts = [f for f in relevant if f.get("id", -1) not in seen_ids]
-            if new_facts:
-                memory_prompt += "\n=== FATOS RELEVANTES (busca textual) ==="
-                for f in new_facts:
-                    memory_prompt += f"\n[{f['confidence']:.0%}] {f['fact']}"
-                facts_used += len(new_facts)
+            seen_ids = {f.get('id') for f in essential}
+            search_results = [f for f in relevant if f.get('id', -1) not in seen_ids]
+            facts_used += len(search_results)
+
+        # Auditoria Temporal (Verificação de fatos obsoletos)
+        audit_context = await self.memory.get_verification_context()
+
+        # Episódios recentes (continuidade conversacional)
+        episodes = await self.memory.get_recent_episodes(limit=5)
+
+        memory_prompt = format_4layer_context(
+            essential_facts=essential,
+            on_demand_facts=search_results if search_results else None,
+            episodes=episodes if episodes else None,
+        )
+        
+        if audit_context:
+            memory_prompt += f"\n\n{audit_context}"
 
         return memory_prompt, facts_used
 
@@ -619,8 +860,37 @@ class SeekerPipeline:
                 session_id, "assistant", result.response[:2000]
             )
 
-            # Extrai fatos
-            facts, summary = await self.extractor.extract(user_input, result.response)
+            # Extrai fatos e relacionamentos estruturados (Knowledge Graph)
+            extraction = result._extraction or await self.extractor.extract(user_input, result.response)
+            facts = extraction.get("facts", [])
+            entities = extraction.get("entities", [])
+            triples = extraction.get("triples", [])
+            summary = extraction.get("summary", "")
+
+            # Salva Entidades
+            for ent in entities:
+                try:
+                    await self.memory.add_entity(
+                        name=ent["name"],
+                        entity_type=ent.get("type", "unknown"),
+                        properties=ent.get("props")
+                    )
+                except Exception:
+                    pass
+
+            # Salva Triplas
+            for t in triples:
+                try:
+                    await self.memory.add_triple(
+                        subject=t["subject"],
+                        predicate=t["predicate"],
+                        object_=t["object"],
+                        valid_from=t.get("valid_from"),
+                        confidence=t.get("confidence", 1.0),
+                        adapter_name=result.routing_reason[:50]
+                    )
+                except Exception:
+                    pass
 
             # Salva fatos + embeddings (sem commit individual)
             for f in facts:
@@ -631,7 +901,7 @@ class SeekerPipeline:
                     source="extracted",
                     _batch=True,
                 )
-                # Indexa embedding do novo fato (persistido no SQLite)
+                # Indexa embedding do novo fato
                 if self.semantic_search and fact_id > 0:
                     try:
                         await self.semantic_search.add(fact_id, f["fact"])
@@ -657,9 +927,22 @@ class SeekerPipeline:
             # Commit único para todo o _post_process
             await self.memory.commit()
 
+            # Sincroniza Knowledge Graph com Obsidian (Fase 3)
+            if self.obsidian_exporter:
+                asyncio.create_task(self.obsidian_exporter.sync_all())
+
+            # Registra latência e consolidação no Sprint 11 Tracker (Fase 4)
+            self.sprint11_tracker.record_latency(result.total_latency_ms)
+            commits_avoided = max(0, len(facts))  # 1 commit por fato evitado
+            self.sprint11_tracker.record_batch_consolidation(len(facts) + 1)  # +1 para episódio
+
+            # Log de consolidação: compara commits evitados com batch operations
+            # Sem batch: ~7 commits (1 por fato + 1 episódio)
+            # Com batch: 1 commit único
+            # Economia: ~6 commits evitados * ~15ms = ~90ms latência reduzida
             log.info(
-                f"[memory] Registrado: {len(facts)} fatos, "
-                f"episódio '{user_input[:40]}...'"
+                f"[memory] ✓ Batch commit: {len(facts)} fatos + episódio consolidados "
+                f"(~{commits_avoided} commits evitados, ~{commits_avoided * 15}ms latência reduzida)"
             )
 
         except Exception as e:

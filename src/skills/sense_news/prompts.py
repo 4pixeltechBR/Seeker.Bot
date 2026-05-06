@@ -5,8 +5,11 @@ src/skills/sense_news/prompts.py
 
 import json
 import logging
+import os
 
 log = logging.getLogger("seeker.sensenews")
+
+ASSISTANT_NAME = os.getenv("ASSISTANT_NAME", "Seeker")
 
 NICHES = {
     "MODELOS & OPEN-WEIGHT": {
@@ -59,7 +62,7 @@ NICHES = {
     },
 }
 
-ANALYSIS_PROMPT = """Você é um analista experiente preparando dados para o "SenseNews — Sexta-feira 2.0+".
+ANALYSIS_PROMPT = """Você é um analista experiente preparando dados para o "SenseNews — """ + ASSISTANT_NAME + """".
 
 NICHO DE BUSCA: {niche_name}
 OBJETIVO DESTE NICHO: {niche_objective}
@@ -83,7 +86,7 @@ Responda APENAS neste JSON válido:
 }}
 """
 
-REPORT_PROMPT = """Você é o “SenseNews — Sexta-feira 2.0+”, meu analista diário do ecossistema de IA.
+REPORT_PROMPT = """Você é o “SenseNews — """ + ASSISTANT_NAME + """”, meu analista diário do ecossistema de IA.
 
 OBJETIVO
 Fazer uma única pesquisa diária e entregar um único relatório, curto e útil, cobrindo:
@@ -120,10 +123,10 @@ Direto, técnico sem pedantismo, resumido, didático e sem repetição.
 **Estado do ecossistema hoje:** [1 frase sobre a vibe do ecossistema hoje]
 
 ## 2) NOTÍCIAS DO ECOSSISTEMA
-[Agrupe em: Modelos, Infra, Vídeo/Áudio, Agentes, e Mercado/Segurança. Para cada:]
-**[Título Curto]**
-*Resumo:* [1 a 3 linhas]
-*Por que importa:* [1 linha]
+[Agrupe em: Modelos, Infra, Vídeo/Áudio, Agentes, e Mercado/Segurança. Para cada item:]
+**[Título Curto e Impactante]**
+*Contexto & Relevância:* [Descreva com detalhes técnicos o que aconteceu e por que isso importa. Use de 3 a 6 linhas. Evite resumos telegráficos; desenvolva o raciocínio e a implicação tecnológica.]
+*Mecânica / Under the hood:* [Explique brevemente como a tecnologia funciona ou o que mudou na arquitetura/paradigmas.]
 *Tags:* [Ex: [LLM] [VLM] [APLICÁVEL AGORA]]
 *Fontes:* [URLs]
 

@@ -1,0 +1,20 @@
+97ab2f8 docs: update documentation
+c3b580a chore: auto-backup do sistema em 2026-04-20 00:18
+414e0db chore: auto-backup do sistema em 2026-04-20 00:04
+3ecaa00 chore: auto-backup do sistema em 2026-04-19 22:25
+f435521 chore: auto-backup do sistema em 2026-04-19 16:25
+4efa145 chore: auto-backup do sistema em 2026-04-19 10:24
+61482bf chore: auto-backup do sistema em 2026-04-19 04:24
+12970fe chore: auto-backup do sistema em 2026-04-18 22:24
+d1e7eba chore: auto-backup do sistema em 2026-04-18 16:24
+b209b04 chore: auto-backup do sistema em 2026-04-18 10:24
+1057004 chore: auto-backup do sistema em 2026-04-18 04:24
+907594c chore: auto-backup do sistema em 2026-04-17 22:24
+5257819 chore: auto-backup do sistema em 2026-04-17 16:24
+81882ea chore: auto-backup do sistema em 2026-04-17 09:59
+1030646 Fix UnboundLocalError: Remove redundant 'import os' inside main()
+7ae7c67 Fix watchdog: Reset heartbeat file before starting bot
+9e4dc43 Fix watchdog crash loop: Clear stale heartbeat on bot startup
+924053e Fix: Use cascade_advanced instead of cascade to provide stop_health_checks method
+228a37f docs: add comprehensive code review and pipeline review report
+956a92a fix: sherlock_news goal — use searcher API instead of non-existent pipeline.execute

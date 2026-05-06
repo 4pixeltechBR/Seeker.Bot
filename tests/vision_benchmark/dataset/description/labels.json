@@ -1,0 +1,14 @@
+{
+  "_placeholder_page_1.png": {
+    "keywords": ["button", "form", "title"],
+    "_metadata": {
+      "url": "example.com"
+    }
+  },
+  "_placeholder_page_2.png": {
+    "keywords": ["chat", "message", "input"],
+    "_metadata": {
+      "url": "chat.example.com"
+    }
+  }
+}

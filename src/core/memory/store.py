@@ -99,6 +99,38 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 
 CREATE INDEX IF NOT EXISTS idx_user_preferences_telegram ON user_preferences(telegram_id);
 
+-- ─── ENTIDADES ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS entities (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'unknown',
+    properties TEXT DEFAULT '{}',
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ─── KNOWLEDGE GRAPH (TRIPLES) ──────────────────────────────
+CREATE TABLE IF NOT EXISTS knowledge_triples (
+    id TEXT PRIMARY KEY,
+    subject TEXT NOT NULL,
+    predicate TEXT NOT NULL,
+    object TEXT NOT NULL,
+    valid_from TEXT,
+    valid_to TEXT,
+    confidence REAL DEFAULT 1.0,
+    source_closet TEXT,
+    source_file TEXT,
+    source_drawer_id TEXT,
+    adapter_name TEXT,
+    extracted_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (subject) REFERENCES entities(id),
+    FOREIGN KEY (object) REFERENCES entities(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_triples_subject ON knowledge_triples(subject);
+CREATE INDEX IF NOT EXISTS idx_triples_object ON knowledge_triples(object);
+CREATE INDEX IF NOT EXISTS idx_triples_predicate ON knowledge_triples(predicate);
+CREATE INDEX IF NOT EXISTS idx_triples_valid ON knowledge_triples(valid_from, valid_to);
+
 -- ─── GOAL CYCLE HISTORY ─────────────────────────────────────
 -- Rastreia saúde dos goals (últimas 20 execuções por goal)
 CREATE TABLE IF NOT EXISTS goal_cycles (
@@ -434,72 +466,204 @@ class MemoryStore:
             log.info(f"[memory] Sessões: {removed} turns antigas removidas")
         return removed
 
+    # ─── KNOWLEDGE GRAPH ──────────────────────────────────────
+
+    def _entity_id(self, name: str) -> str:
+        """Gera um ID normalizado para uma entidade."""
+        return name.lower().strip().replace(" ", "_").replace("'", "").replace('"', "")
+
+    async def add_entity(self, name: str, entity_type: str = "unknown", properties: dict | None = None) -> str:
+        eid = self._entity_id(name)
+        props_json = json.dumps(properties or {})
+        await self._db.execute(
+            "INSERT OR REPLACE INTO entities (id, name, type, properties) VALUES (?, ?, ?, ?)",
+            (eid, name, entity_type, props_json)
+        )
+        await self._db.commit()
+        return eid
+
+    async def add_triple(
+        self,
+        *,
+        subject: str,
+        predicate: str,
+        object_: str,
+        valid_from: str | None = None,
+        valid_to: str | None = None,
+        confidence: float = 1.0,
+        source_file: str | None = None,
+        source_drawer_id: str | None = None,
+        adapter_name: str | None = None,
+    ) -> str:
+        sub_id = self._entity_id(subject)
+        obj_id = self._entity_id(object_)
+        pred = predicate.lower().strip().replace(" ", "_")
+
+        # Garante que entidades existem
+        await self._db.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (sub_id, subject))
+        await self._db.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (obj_id, object_))
+
+        # Check se já existe idêntico e válido
+        async with self._db.execute(
+            "SELECT id FROM knowledge_triples WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
+            (sub_id, pred, obj_id)
+        ) as cur:
+            row = await cur.fetchone()
+            if row:
+                return row["id"]
+
+        import hashlib
+        triple_id = f"t_{sub_id}_{pred}_{obj_id}_{hashlib.sha256(f'{valid_from}{time.time()}'.encode()).hexdigest()[:12]}"
+
+        await self._db.execute(
+            """INSERT INTO knowledge_triples (
+                id, subject, predicate, object,
+                valid_from, valid_to, confidence,
+                source_file, source_drawer_id, adapter_name
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (triple_id, sub_id, pred, obj_id, valid_from, valid_to, confidence, source_file, source_drawer_id, adapter_name)
+        )
+        await self._db.commit()
+        return triple_id
+
+    async def invalidate_triple(self, subject: str, predicate: str, object_: str, ended: str | None = None) -> None:
+        sub_id = self._entity_id(subject)
+        obj_id = self._entity_id(object_)
+        pred = predicate.lower().strip().replace(" ", "_")
+        ended = ended or time.strftime("%Y-%m-%d")
+
+        await self._db.execute(
+            "UPDATE knowledge_triples SET valid_to=? WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
+            (ended, sub_id, pred, obj_id)
+        )
+        await self._db.commit()
+
+    async def query_knowledge(self, entity_name: str, as_of: str | None = None, direction: str = "outgoing") -> list[dict]:
+        eid = self._entity_id(entity_name)
+        results = []
+
+        if direction in ("outgoing", "both"):
+            query = "SELECT t.*, e.name as obj_name FROM knowledge_triples t JOIN entities e ON t.object = e.id WHERE t.subject = ?"
+            params = [eid]
+            if as_of:
+                query += " AND (t.valid_from IS NULL OR t.valid_from <= ?) AND (t.valid_to IS NULL OR t.valid_to >= ?)"
+                params.extend([as_of, as_of])
+            async with self._db.execute(query, params) as cur:
+                for row in await cur.fetchall():
+                    d = dict(row)
+                    d["direction"] = "outgoing"
+                    results.append(d)
+
+        if direction in ("incoming", "both"):
+            query = "SELECT t.*, e.name as sub_name FROM knowledge_triples t JOIN entities e ON t.subject = e.id WHERE t.object = ?"
+            params = [eid]
+            if as_of:
+                query += " AND (t.valid_from IS NULL OR t.valid_from <= ?) AND (t.valid_to IS NULL OR t.valid_to >= ?)"
+                params.extend([as_of, as_of])
+            async with self._db.execute(query, params) as cur:
+                for row in await cur.fetchall():
+                    d = dict(row)
+                    d["direction"] = "incoming"
+                    results.append(d)
+        return results
+
+    async def get_knowledge_timeline(self, entity_name: str | None = None, limit: int = 100) -> list[dict]:
+        query = """
+            SELECT t.*, s.name as sub_name, o.name as obj_name
+            FROM knowledge_triples t
+            JOIN entities s ON t.subject = s.id
+            JOIN entities o ON t.object = o.id
+        """
+        params = []
+        if entity_name:
+            eid = self._entity_id(entity_name)
+            query += " WHERE t.subject = ? OR t.object = ?"
+            params = [eid, eid]
+        
+        query += " ORDER BY t.valid_from ASC NULLS LAST LIMIT ?"
+        params.append(limit)
+        
+        async with self._db.execute(query, params) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def find_temporal_anomalies(self, limit: int = 5) -> list[dict]:
+        """
+        Encontra fatos que podem estar obsoletos ou que precisam de confirmação.
+        Prioriza triplas antigas (> 60 dias) ou com baixa confiança.
+        """
+        cutoff = time.strftime("%Y-%m-%d", time.gmtime(time.time() - (60 * 86400)))
+        query = """
+            SELECT t.*, s.name as sub_name, o.name as obj_name
+            FROM knowledge_triples t
+            JOIN entities s ON t.subject = s.id
+            JOIN entities o ON t.object = o.id
+            WHERE (t.valid_from < ? OR t.confidence < 0.6)
+            AND t.valid_to IS NULL
+            ORDER BY t.confidence ASC, t.extracted_at ASC
+            LIMIT ?
+        """
+        async with self._db.execute(query, (cutoff, limit)) as cur:
+            return [dict(row) for row in await cur.fetchall()]
+
+    async def get_verification_context(self) -> str:
+        """Gera um bloco de texto para o LLM pedindo confirmação de fatos antigos."""
+        anomalies = await self.find_temporal_anomalies(limit=3)
+        if not anomalies:
+            return ""
+        
+        lines = ["=== AUDITORIA TEMPORAL (Verificar com usuário se ainda é verdade) ==="]
+        for a in anomalies:
+            lines.append(f"• {a['sub_name']} {a['predicate']} {a['obj_name']} (Registrado em: {a['extracted_at'][:10]})")
+        return "\n".join(lines)
+
     # ─── CONTEXTO PARA O LLM ─────────────────────────────────
 
-    async def format_context(self, query: str = "", limit: int = 10) -> str:
+    async def format_context(
+        self,
+        query: str = "",
+        limit: int = 10,
+        identity: str = "",
+        on_demand_category: str | None = None,
+    ) -> str:
         """
-        Formata memória semântica + episódios recentes como contexto textual
-        para injetar no system prompt do LLM.
+        Formata o contexto usando o 4-Layer Stack (L0-L3).
         """
-        lines = []
-
-        facts = await self.get_facts(min_confidence=0.4, limit=limit)
+        from src.core.memory.hierarchy import format_4layer_context, score_fact
         
-        # Filtra Memory Reflexiva pra destaque
-        reflexive = [f for f in facts if f.get("category") == "reflexive_rule"]
-        others = [f for f in facts if f.get("category") != "reflexive_rule"]
+        # L1: Essential
+        all_facts = await self.get_facts(min_confidence=0.3, limit=100)
+        scored = [(score_fact(f), f) for f in all_facts]
+        scored.sort(key=lambda x: x[0], reverse=True)
+        essential = [f for _, f in scored[:limit]]
         
-        if reflexive:
-            lines.append("=== REGRAS DE COMPORTAMENTO EXIGIDAS PELO USUÁRIO ===")
-            for f in reflexive:
-                lines.append(f"-> OBRIGATÓRIO: {f['fact']}")
-            lines.append("")
-
-        if others:
-            lines.append("=== MEMÓRIA SEMÂNTICA ===")
-            for f in others:
-                lines.append(f"[{f['confidence']:.0%}] {f['fact']} ({f['category']})")
-            lines.append("")
-
-        episodes = await self.get_recent_episodes(limit=5)
-        if episodes:
-            lines.append("=== INTERAÇÕES RECENTES ===")
-            for ep in episodes:
-                icon = {"reflex": "⚡", "deliberate": "🧠", "deep": "🔬"}.get(ep["depth"], "")
-                lines.append(f"{icon} {ep['user_input'][:100]}")
-                if ep["response_summary"]:
-                    lines.append(f"   → {ep['response_summary'][:100]}")
-            lines.append("")
-
+        # L2: On-Demand
+        on_demand = []
+        if on_demand_category:
+            on_demand = await self.get_facts(category=on_demand_category, limit=5)
+            
+        # L3: Search
+        search_results = []
         if query:
-            relevant = await self.search_facts(query, limit=5)
-            if relevant:
-                seen_ids = {f["id"] for f in facts}
-                new_facts = [f for f in relevant if f["id"] not in seen_ids]
-                if new_facts:
-                    lines.append("=== FATOS RELEVANTES PARA ESTA QUERY ===")
-                    for f in new_facts:
-                        lines.append(f"[{f['confidence']:.0%}] {f['fact']}")
+            search_results = await self.search_facts(query, limit=5)
 
-        return "\n".join(lines) if lines else ""
+        return format_4layer_context(
+            identity=identity,
+            essential_facts=essential,
+            on_demand_facts=on_demand,
+            search_results=search_results
+        )
 
     # ─── USER PREFERENCES ──────────────────────────────────────
 
     async def get_user_niches(self, user_id: int | str) -> list[str] | None:
-        """
-        Retorna lista de nichos escolhidos pelo usuário para SenseNews.
-        Se o usuário não tem preferências registradas, retorna None.
-        """
+        """Retorna lista de nichos escolhidos pelo usuário para SenseNews."""
         if not self._db:
             return None
-
-        # Se user_id é uma string (Telegram ID), converte para int se possível
         if isinstance(user_id, str):
             try:
                 user_id = int(user_id)
             except ValueError:
                 return None
-
         async with self._db.execute(
             "SELECT niches FROM user_preferences WHERE user_id = ? OR telegram_id = ?",
             (user_id, str(user_id))
@@ -507,7 +671,6 @@ class MemoryStore:
             row = await cur.fetchone()
             if not row:
                 return None
-
             try:
                 niches = json.loads(row['niches'])
                 return niches if isinstance(niches, list) else None
@@ -515,21 +678,14 @@ class MemoryStore:
                 return None
 
     async def set_user_niches(self, user_id: int, telegram_id: str, niches: list[str]) -> bool:
-        """
-        Salva nichos escolhidos pelo usuário.
-        """
+        """Salva nichos escolhidos pelo usuário."""
         if not self._db:
             return False
-
         try:
             await self._db.execute(
-                """
-                INSERT INTO user_preferences (user_id, telegram_id, niches, updated_at)
+                """INSERT INTO user_preferences (user_id, telegram_id, niches, updated_at)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    niches = excluded.niches,
-                    updated_at = excluded.updated_at
-                """,
+                ON CONFLICT(user_id) DO UPDATE SET niches = excluded.niches, updated_at = excluded.updated_at""",
                 (user_id, telegram_id, json.dumps(niches), time.time())
             )
             await self._db.commit()
@@ -537,20 +693,3 @@ class MemoryStore:
         except Exception as e:
             log.error(f"Falha ao salvar preferências do usuário {user_id}: {e}")
             return False
-
-    # ─── LEGACY COMPAT ────────────────────────────────────────
-    # Método antigo mantido pra não quebrar nada durante a transição.
-    # Será removido quando todos os módulos usarem o Protocol.
-
-    async def decay_old_facts(self, max_age_days: int = 90, decay_rate: float = 0.1):
-        """DEPRECATED: Use DecayEngine com update_fact_confidence/delete_fact."""
-        cutoff = time.time() - (max_age_days * 86400)
-        await self._db.execute(
-            "UPDATE semantic SET confidence = MAX(0.1, confidence - ?) "
-            "WHERE last_seen < ? AND confidence > 0.1",
-            (decay_rate, cutoff),
-        )
-        await self._db.execute(
-            "DELETE FROM semantic WHERE confidence <= 0.1 AND last_seen < ?", (cutoff,),
-        )
-        await self._db.commit()

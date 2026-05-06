@@ -1,6 +1,49 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+ENV/
+
+# Seeker Config & Data
 .env
+config/.env
 data/
-*.log
+logs/
+scratch/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+.claudeignore
+
+# Credentials & Sensitive Data
+Credenciais/
+credentials.json
+gcp-oauth.keys.json
+*token*.json
+
+# Ferramentas Comerciais & Scripts Temporarios
+src/skills/seeker_sales/
+src/skills/sherlock_news/targets.json
+src/skills/cortex/
+src/skills/revenue_hunter/
+*.bak
+temp_*.py
+check_*.py
+push_*.py
+extract_*.py
+search_*.py
+audit*.py
+matches*.txt
+download_*.py
+refactor_*.py
+validate_*.py
+drive_decompiled.py
