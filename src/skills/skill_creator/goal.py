@@ -47,6 +47,12 @@ class AutoSkillCreatorGoal(AutonomousGoal):
     def get_status(self) -> GoalStatus:
         return self._status
 
+    def serialize_state(self) -> dict:
+        return {}
+
+    def load_state(self, state: dict) -> None:
+        pass
+
     async def run_cycle(self) -> GoalResult:
         self._status = GoalStatus.RUNNING
         cycle_cost = 0.0
