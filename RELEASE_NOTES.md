@@ -1,3 +1,31 @@
+# Seeker.Bot v3.2 — "Resilience & Export" 🛠️
+
+Esta release foca na recuperação de desastres (database repair), expansão da infraestrutura de exportação e estabilização de fases críticas de raciocínio.
+
+## 🚀 Novidades
+
+### 1. Sistema de Reparo de Memória (MemRepair)
+Implementação de um motor de recuperação para o banco de dados SQLite (`seeker_memory.db`). 
+- **Recuperação de Corrupção:** Script especializado capaz de iterar sobre tabelas e recuperar dados de arquivos "malformed" sem perda total de histórico.
+- **Integrity Check:** Validação formal via `PRAGMA integrity_check` integrada ao pipeline de inicialização.
+
+### 2. Google Drive Exporter ☁️
+Integração nativa do `GoogleDriveExporter` no `SeekerPipeline`.
+- **Sincronização de Relatórios:** O Radar de Eventos e os Dossiês agora são automaticamente exportados para o Google Drive (Service Account).
+- **NotebookLM Ready:** Garante que as fontes de dados estejam sempre acessíveis para análise externa via LLMs multimodais.
+
+## 🔧 Correções e Melhorias
+
+### 1. Estabilização da Fase Deep (DeepPhase)
+- **Aumento de Timeout:** O Verification Gate teve seu timeout estendido de **20s para 40s**, mitigando falhas prematuras em consultas complexas que exigem múltiplos loops de arbitragem.
+
+### 2. Correção de Injeção de Dependência (Event Radar)
+- Resolvido o erro `AttributeError: 'SeekerPipeline' object has no attribute 'drive_exporter'` que impedia a exportação de relatórios PDF.
+
+### 3. Alinhamento de Papéis Cognitivos (SAI Patch)
+- Reconfiguração do papel `FAST` no `config/models.py` para garantir que o **Gemini 3.1 Flash Lite** atue como motor principal de extração e propostas de skills, prevenindo falhas de geração.
+
+---
 # Seeker.Bot v3.1 — "Cognitive Integrity" 🛡️
 
 Esta release foca na robustez operacional, integridade cognitiva e observabilidade avançada do pipeline.
