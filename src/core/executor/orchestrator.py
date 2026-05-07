@@ -1,9 +1,11 @@
 """ActionOrchestrator — LLM-based Planning for Remote Executor (Track B3)"""
+
 import logging
 import json
 from src.core.executor.models import ExecutionPlan, ActionStep, ActionType, ApprovalTier
 
 log = logging.getLogger("executor.orchestrator")
+
 
 class ActionOrchestrator:
     """Orquestra intenção do usuário em plano de execução estruturado via LLM"""
@@ -11,7 +13,9 @@ class ActionOrchestrator:
     def __init__(self, cascade_adapter):
         self.cascade = cascade_adapter
 
-    async def plan_actions(self, user_intention: str, context: dict = None) -> ExecutionPlan:
+    async def plan_actions(
+        self, user_intention: str, context: dict = None
+    ) -> ExecutionPlan:
         """
         Converte intenção em plano estruturado de execução.
 
@@ -33,7 +37,9 @@ class ActionOrchestrator:
             )
 
             plan = self._parse_plan(response.get("content", "{}"), user_intention)
-            log.info(f"[orchestrator] Plano criado: {len(plan.steps)} steps, cost=${plan.estimated_total_cost_usd:.2f}")
+            log.info(
+                f"[orchestrator] Plano criado: {len(plan.steps)} steps, cost=${plan.estimated_total_cost_usd:.2f}"
+            )
             return plan
 
         except Exception as e:
@@ -79,7 +85,9 @@ Retorne APENAS um JSON válido com estrutura:
                     type=ActionType(step_data.get("type", "bash")),
                     command=step_data.get("command", ""),
                     timeout_seconds=int(step_data.get("timeout", 30)),
-                    approval_tier=ApprovalTier(step_data.get("approval_tier", "l1_logged")),
+                    approval_tier=ApprovalTier(
+                        step_data.get("approval_tier", "l1_logged")
+                    ),
                     estimated_cost_usd=float(step_data.get("cost", 0.0)),
                     depends_on=step_data.get("depends_on", []),
                     description=step_data.get("description"),

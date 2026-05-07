@@ -12,7 +12,7 @@ Responsabilidades:
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from .models import (
     ActionStep,
@@ -60,7 +60,9 @@ class ActionExecutor:
             Dict[step_id] → ExecutionResult
             Inclui status de cada step (success, failed, rolled_back, etc)
         """
-        logger.info(f"[executor] Executing plan {plan.plan_id}: {len(plan.steps)} steps")
+        logger.info(
+            f"[executor] Executing plan {plan.plan_id}: {len(plan.steps)} steps"
+        )
 
         results: Dict[str, ExecutionResult] = {}
         executed_order: List[str] = []
@@ -92,26 +94,27 @@ class ActionExecutor:
                     continue
 
                 # Executa step
-                logger.info(f"[executor] Executing step {step_id}: {step.description[:60]}")
+                logger.info(
+                    f"[executor] Executing step {step_id}: {step.description[:60]}"
+                )
                 result = await self._execute_step(step, context)
                 results[step_id] = result
                 executed_order.append(step_id)
 
                 # Log execution
-                self.execution_log.append({
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "plan_id": plan.plan_id,
-                    "step_id": step_id,
-                    "status": result.status.value,
-                    "cost_usd": result.cost_usd,
-                    "duration_ms": result.duration_ms,
-                })
+                self.execution_log.append(
+                    {
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "plan_id": plan.plan_id,
+                        "step_id": step_id,
+                        "status": result.status.value,
+                        "cost_usd": result.cost_usd,
+                        "duration_ms": result.duration_ms,
+                    }
+                )
 
                 # Se step falhou e tem rollback instruction, tenta rollback
-                if (
-                    result.status == ActionStatus.FAILED
-                    and step.rollback_instruction
-                ):
+                if result.status == ActionStatus.FAILED and step.rollback_instruction:
                     logger.warning(
                         f"[executor] Step {step_id} failed, attempting rollback"
                     )
@@ -156,7 +159,9 @@ class ActionExecutor:
             return result
 
         except asyncio.TimeoutError:
-            logger.error(f"[executor] Step {step.id} timeout after {step.timeout_seconds}s")
+            logger.error(
+                f"[executor] Step {step.id} timeout after {step.timeout_seconds}s"
+            )
             return ExecutionResult(
                 step_id=step.id,
                 status=ActionStatus.FAILED,
@@ -171,14 +176,14 @@ class ActionExecutor:
                 error=str(e),
             )
 
-    async def _rollback_step(
-        self, step: ActionStep, result: ExecutionResult
-    ) -> bool:
+    async def _rollback_step(self, step: ActionStep, result: ExecutionResult) -> bool:
         """Tenta fazer rollback de um step."""
         try:
             handler = get_handler(step.type.value)
             if not handler:
-                logger.error(f"[executor] Handler não encontrado para rollback {step.id}")
+                logger.error(
+                    f"[executor] Handler não encontrado para rollback {step.id}"
+                )
                 return False
 
             # Chama rollback do handler
@@ -264,9 +269,7 @@ class ActionExecutor:
         """Limpa log de execução."""
         self.execution_log = []
 
-    def summarize_results(
-        self, results: Dict[str, ExecutionResult]
-    ) -> Dict:
+    def summarize_results(self, results: Dict[str, ExecutionResult]) -> Dict:
         """Sumário dos resultados de execução."""
         total_cost = sum(r.cost_usd for r in results.values())
         total_duration_ms = sum(r.duration_ms for r in results.values())
@@ -287,7 +290,5 @@ class ActionExecutor:
             "rolled_back": rollback_count,
             "total_cost_usd": total_cost,
             "total_duration_ms": total_duration_ms,
-            "success_rate": (
-                success_count / len(results) if results else 0
-            ),
+            "success_rate": (success_count / len(results) if results else 0),
         }

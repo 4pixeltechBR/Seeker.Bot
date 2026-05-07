@@ -15,21 +15,22 @@ from datetime import datetime
 from typing import Optional, Dict, Any, List
 import uuid
 
+
 @dataclass
 class EvidenceEntry:
     """Registro de uma decisão importante no Seeker"""
 
     # O que foi decidido (OBRIGATÓRIOS - SEM DEFAULTS)
-    feature: str                    # "vision_routing" | "executor_action" | "scout_qualification"
-    decision: str                   # Descrição da decisão ("routed_to_glm_ocr", "approved_L1_LOGGED", "fit_score_78")
+    feature: str  # "vision_routing" | "executor_action" | "scout_qualification"
+    decision: str  # Descrição da decisão ("routed_to_glm_ocr", "approved_L1_LOGGED", "fit_score_78")
 
     # Entrada/Saída (OBRIGATÓRIOS)
-    inputs: Dict[str, Any]          # O que alimentou a decisão
-    output: Dict[str, Any]          # O resultado da decisão
+    inputs: Dict[str, Any]  # O que alimentou a decisão
+    output: Dict[str, Any]  # O resultado da decisão
 
     # Confiança e Modelo (OBRIGATÓRIOS)
-    confidence: float               # 0.0-1.0 (quão certo estamos?)
-    model_used: str                 # Qual modelo/classifier/LLM usou?
+    confidence: float  # 0.0-1.0 (quão certo estamos?)
+    model_used: str  # Qual modelo/classifier/LLM usou?
 
     # Identificação (COM DEFAULTS)
     evidence_id: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
@@ -42,17 +43,19 @@ class EvidenceEntry:
 
     # Rastreabilidade
     parent_evidence_id: Optional[str] = None  # Qual decisão anterior causou esta?
-    reasoning: str = ""             # Por quê essa decisão?
+    reasoning: str = ""  # Por quê essa decisão?
 
     # Execução/Resultado
-    executed: bool = False          # Foi executada?
-    execution_status: str = "pending"  # "pending" | "success" | "failed" | "rolled_back"
+    executed: bool = False  # Foi executada?
+    execution_status: str = (
+        "pending"  # "pending" | "success" | "failed" | "rolled_back"
+    )
     execution_error: Optional[str] = None
 
     # Metadata
     user_id: str = "system"
     session_id: Optional[str] = None
-    feature_version: str = "v1"     # Controle de versão da feature que gerou evidence
+    feature_version: str = "v1"  # Controle de versão da feature que gerou evidence
 
     def __repr__(self) -> str:
         return (
@@ -62,9 +65,11 @@ class EvidenceEntry:
             f"| {self.latency_ms}ms)"
         )
 
+
 @dataclass
 class ProvenanceNode:
     """Nó no grafo de provenance"""
+
     evidence_id: str
     feature: str
     decision: str
@@ -73,11 +78,15 @@ class ProvenanceNode:
     def __repr__(self) -> str:
         return f"{self.feature}:{self.decision}"
 
+
 @dataclass
 class DecisionTrace:
     """Traço completo de uma decisão e seus ancestrais"""
+
     root_evidence: EvidenceEntry
-    ancestors: List[EvidenceEntry] = field(default_factory=list)  # Decisões que causaram a raiz
+    ancestors: List[EvidenceEntry] = field(
+        default_factory=list
+    )  # Decisões que causaram a raiz
 
     def chain(self) -> str:
         """Retorna trace em formato legível"""

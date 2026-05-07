@@ -5,7 +5,6 @@ Interface conversacional via Telegram para criar e gerenciar tarefas agendadas.
 """
 
 import logging
-from typing import Optional
 
 from src.skills.scheduler_conversacional.store import SchedulerStore
 from src.skills.scheduler_conversacional.wizard import SchedulerWizard
@@ -74,7 +73,7 @@ class SchedulerTelegramInterface:
         if task.next_run_at:
             msg += f"⏳ Próxima execução: {task.next_run_at.isoformat()}\n"
 
-        msg += f"\n💡 Você pode /pausar ou /editar esta tarefa."
+        msg += "\n💡 Você pode /pausar ou /editar esta tarefa."
         return msg
 
     async def cmd_pausar(self, chat_id: int, task_id: str) -> str:
@@ -126,8 +125,7 @@ class SchedulerTelegramInterface:
             return "❌ Tarefa não encontrada."
 
         return (
-            f"▶️ Executando **{task.title}**...\n\n"
-            f"Resultado será notificado em breve."
+            f"▶️ Executando **{task.title}**...\n\nResultado será notificado em breve."
         )
 
     async def cmd_cancelar_wizard(self, chat_id: int) -> str:
@@ -164,11 +162,15 @@ class SchedulerTelegramInterface:
                 return msg
 
             # Coletar input normal
-            success, msg, updated_session = await self.wizard.collect_input(chat_id, text)
+            success, msg, updated_session = await self.wizard.collect_input(
+                chat_id, text
+            )
 
             # Se completou, processar tarefa
             if updated_session and updated_session.state == WizardState.COMPLETED:
-                task_creation_msg = await self._create_task_from_wizard(chat_id, updated_session)
+                task_creation_msg = await self._create_task_from_wizard(
+                    chat_id, updated_session
+                )
                 await self.store.delete_wizard_session(chat_id)
                 return task_creation_msg
 
@@ -178,9 +180,7 @@ class SchedulerTelegramInterface:
         if text.startswith("/"):
             return await self._handle_command(chat_id, user_id, text)
 
-        return (
-            "ℹ️ Nenhum comando ativo. Digite /help para listar comandos ou /agendar para criar uma tarefa."
-        )
+        return "ℹ️ Nenhum comando ativo. Digite /help para listar comandos ou /agendar para criar uma tarefa."
 
     async def _handle_command(self, chat_id: int, user_id: str, text: str) -> str:
         """Processa comando"""
@@ -226,7 +226,10 @@ class SchedulerTelegramInterface:
     async def _create_task_from_wizard(self, chat_id: int, session) -> str:
         """Cria tarefa a partir de dados do wizard"""
         try:
-            from src.skills.scheduler_conversacional.models import ScheduleType, ScheduledTask
+            from src.skills.scheduler_conversacional.models import (
+                ScheduleType,
+                ScheduledTask,
+            )
             from src.skills.scheduler_conversacional.calculator import NextRunCalculator
 
             title = session.get_collected_value("title")

@@ -151,7 +151,9 @@ class IntentClassifier:
             return IntentType.ACTION
 
         # Analysis verbs
-        if any(verb in text_lower for verb in ["analise", "compare", "análise", "versus"]):
+        if any(
+            verb in text_lower for verb in ["analise", "compare", "análise", "versus"]
+        ):
             return IntentType.ANALYSIS
 
         # Questions → Information
@@ -174,7 +176,11 @@ class IntentClassifier:
         if intent_type == IntentType.ACTION:
             return RiskLevel.MEDIUM
 
-        if intent_type in [IntentType.INFORMATION, IntentType.ANALYSIS, IntentType.LEARNING]:
+        if intent_type in [
+            IntentType.INFORMATION,
+            IntentType.ANALYSIS,
+            IntentType.LEARNING,
+        ]:
             return RiskLevel.LOW
 
         return RiskLevel.MEDIUM
@@ -211,7 +217,9 @@ class IntentClassifier:
 
         return 0.7
 
-    def _generate_reasoning(self, intent_type: IntentType, risk_level: RiskLevel) -> str:
+    def _generate_reasoning(
+        self, intent_type: IntentType, risk_level: RiskLevel
+    ) -> str:
         """Gera explicação textual da classificação."""
         base = f"Intent: {intent_type.name}, Risk: {risk_level.name}"
 

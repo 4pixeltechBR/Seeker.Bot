@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any
 
 class ScheduleType(str, Enum):
     """Tipos de periodicidade suportadas"""
+
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -20,6 +21,7 @@ class ScheduleType(str, Enum):
 
 class TaskStatus(str, Enum):
     """Status de uma tarefa agendada"""
+
     ENABLED = "enabled"
     PAUSED = "paused"
     DISABLED = "disabled"
@@ -28,6 +30,7 @@ class TaskStatus(str, Enum):
 
 class WizardState(str, Enum):
     """Estados do wizard de criação"""
+
     IDLE = "idle"
     COLLECTING_TITLE = "collecting_title"
     COLLECTING_SCHEDULE_TYPE = "collecting_schedule_type"
@@ -44,6 +47,7 @@ class WizardState(str, Enum):
 @dataclass
 class ScheduledTask:
     """Tarefa agendada"""
+
     id: str
     title: str
     schedule_type: ScheduleType
@@ -82,6 +86,7 @@ class ScheduledTask:
 @dataclass
 class ScheduledTaskRun:
     """Registro de execução de uma tarefa agendada"""
+
     id: str
     task_id: str
 
@@ -106,6 +111,7 @@ class ScheduledTaskRun:
 @dataclass
 class WizardSession:
     """Sessão ativa do wizard de criação"""
+
     id: str
     chat_id: int
     user_id: str

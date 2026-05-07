@@ -15,7 +15,6 @@ Benefícios:
 import logging
 import math
 from collections import Counter
-from typing import Optional
 
 log = logging.getLogger("seeker.memory.tfidf")
 
@@ -94,7 +93,9 @@ class TFIDFSearch:
 
         return tfidf
 
-    def _cosine_similarity(self, vec1: dict[str, float], vec2: dict[str, float]) -> float:
+    def _cosine_similarity(
+        self, vec1: dict[str, float], vec2: dict[str, float]
+    ) -> float:
         """Calcula similaridade de cosseno entre dois vetores TF-IDF."""
         # Produto escalar
         dot_product = 0

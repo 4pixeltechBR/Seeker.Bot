@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 from collections import defaultdict, deque
 
 log = logging.getLogger("seeker.error_telemetry")
@@ -12,14 +12,16 @@ log = logging.getLogger("seeker.error_telemetry")
 
 class ErrorSeverity(Enum):
     """Error severity levels"""
-    LOW = 1          # Recoverable, no impact
-    MEDIUM = 2       # Degraded service
-    HIGH = 3         # Service down
-    CRITICAL = 4     # System failure
+
+    LOW = 1  # Recoverable, no impact
+    MEDIUM = 2  # Degraded service
+    HIGH = 3  # Service down
+    CRITICAL = 4  # System failure
 
 
 class ErrorCategory(Enum):
     """Error categories"""
+
     TIMEOUT = "timeout"
     RATE_LIMIT = "rate_limit"
     AUTH = "auth"
@@ -32,6 +34,7 @@ class ErrorCategory(Enum):
 @dataclass
 class ErrorEvent:
     """Single error event"""
+
     timestamp: datetime = field(default_factory=datetime.utcnow)
     category: ErrorCategory = ErrorCategory.UNKNOWN
     severity: ErrorSeverity = ErrorSeverity.MEDIUM
@@ -57,6 +60,7 @@ class ErrorEvent:
 @dataclass
 class ErrorAlert:
     """Alert triggered by error threshold"""
+
     timestamp: datetime = field(default_factory=datetime.utcnow)
     alert_type: str = ""  # "threshold_exceeded", "circuit_open", etc
     provider: str = ""
@@ -140,9 +144,7 @@ class ErrorTelemetry:
 
         # Count recent errors
         recent_count = sum(
-            1
-            for event in self._provider_errors[provider]
-            if event.timestamp > cutoff
+            1 for event in self._provider_errors[provider] if event.timestamp > cutoff
         )
 
         if recent_count >= self.alert_threshold:
@@ -186,7 +188,9 @@ class ErrorTelemetry:
     def get_all_stats(self) -> Dict:
         """Get aggregated error statistics"""
         total_errors = len(self._events)
-        critical_count = sum(1 for e in self._events if e.severity == ErrorSeverity.CRITICAL)
+        critical_count = sum(
+            1 for e in self._events if e.severity == ErrorSeverity.CRITICAL
+        )
 
         provider_stats = {}
         for provider in self._provider_errors.keys():

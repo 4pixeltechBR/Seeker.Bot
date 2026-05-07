@@ -10,7 +10,6 @@ Responsabilidades:
 import logging
 import re
 from dataclasses import dataclass
-from typing import Optional
 from enum import Enum
 
 from src.core.executor import ApprovalTier
@@ -20,6 +19,7 @@ log = logging.getLogger("seeker.remote_executor")
 
 class ActionCategory(Enum):
     """Categorias de ações detectadas"""
+
     BASH = "bash"
     FILE_OPS = "file_ops"
     DESKTOP = "desktop"
@@ -30,13 +30,14 @@ class ActionCategory(Enum):
 @dataclass
 class ActionDetectionResult:
     """Resultado da detecção de intenção"""
-    detected: bool                 # True se intenção foi detectada
-    category: ActionCategory       # Tipo de ação
-    autonomy_tier: ApprovalTier   # Nível de autonomia
-    intent_text: str              # Intenção original do usuário
-    commands: list[str]           # Comandos detectados (se bash)
-    confidence: float             # 0.0-1.0 (confiança na detecção)
-    reasoning: str                # Explicação breve
+
+    detected: bool  # True se intenção foi detectada
+    category: ActionCategory  # Tipo de ação
+    autonomy_tier: ApprovalTier  # Nível de autonomia
+    intent_text: str  # Intenção original do usuário
+    commands: list[str]  # Comandos detectados (se bash)
+    confidence: float  # 0.0-1.0 (confiança na detecção)
+    reasoning: str  # Explicação breve
 
 
 class RemoteExecutorMiner:
@@ -53,7 +54,7 @@ class RemoteExecutorMiner:
     # Regex patterns para detecção
     BASH_KEYWORDS = [
         r"(execute|run|exec)\s+(bash|shell|cmd|command)",
-        r"execute\s+(.+)",                    # catch-all para "execute XYZ"
+        r"execute\s+(.+)",  # catch-all para "execute XYZ"
         r"(git|npm|pip|python|node)\s+\w+",  # language commands
         r"(mkdir|touch|cp|mv|rm|ls|grep|cat|head|tail)",
     ]
@@ -76,22 +77,45 @@ class RemoteExecutorMiner:
 
     # Comandos perigosos que requerem L0_MANUAL
     DANGEROUS_BASH_COMMANDS = [
-        "rm", "rmdir", "dd", "chmod", "chown", "sudo", "passwd",
-        "mkfs", "fdisk", "delpart", "format",
+        "rm",
+        "rmdir",
+        "dd",
+        "chmod",
+        "chown",
+        "sudo",
+        "passwd",
+        "mkfs",
+        "fdisk",
+        "delpart",
+        "format",
     ]
 
     # Comandos seguros que permitem L2_SILENT
     SAFE_BASH_COMMANDS = [
-        "ls", "cat", "grep", "find", "head", "tail", "wc", "echo",
-        "git status", "git log",
+        "ls",
+        "cat",
+        "grep",
+        "find",
+        "head",
+        "tail",
+        "wc",
+        "echo",
+        "git status",
+        "git log",
     ]
 
     def __init__(self):
         """Inicializa miner com padrões compilados."""
         self.bash_patterns = [re.compile(p, re.IGNORECASE) for p in self.BASH_KEYWORDS]
-        self.file_patterns = [re.compile(p, re.IGNORECASE) for p in self.FILE_OPS_KEYWORDS]
-        self.desktop_patterns = [re.compile(p, re.IGNORECASE) for p in self.DESKTOP_KEYWORDS]
-        self.delegation_patterns = [re.compile(p, re.IGNORECASE) for p in self.DELEGATION_KEYWORDS]
+        self.file_patterns = [
+            re.compile(p, re.IGNORECASE) for p in self.FILE_OPS_KEYWORDS
+        ]
+        self.desktop_patterns = [
+            re.compile(p, re.IGNORECASE) for p in self.DESKTOP_KEYWORDS
+        ]
+        self.delegation_patterns = [
+            re.compile(p, re.IGNORECASE) for p in self.DELEGATION_KEYWORDS
+        ]
 
     def detect(self, intent: str) -> ActionDetectionResult:
         """

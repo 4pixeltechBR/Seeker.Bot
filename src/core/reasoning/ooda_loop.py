@@ -168,7 +168,7 @@ class OODALoop:
             iteration.observation = await observe_fn(user_input, context or {})
             observe_latency = time.time() - start
             log.debug(
-                f"[{iteration.iteration_id}] OBSERVE completed in {observe_latency*1000:.1f}ms"
+                f"[{iteration.iteration_id}] OBSERVE completed in {observe_latency * 1000:.1f}ms"
             )
 
             # ORIENT: Processar com modelos mentais
@@ -176,7 +176,7 @@ class OODALoop:
             iteration.orientation = await orient_fn(iteration.observation)
             orient_latency = time.time() - start
             log.debug(
-                f"[{iteration.iteration_id}] ORIENT completed in {orient_latency*1000:.1f}ms"
+                f"[{iteration.iteration_id}] ORIENT completed in {orient_latency * 1000:.1f}ms"
             )
 
             # Verificar se requer approval
@@ -196,7 +196,7 @@ class OODALoop:
             iteration.decision = await decide_fn(iteration.orientation)
             decide_latency = time.time() - start
             log.debug(
-                f"[{iteration.iteration_id}] DECIDE completed in {decide_latency*1000:.1f}ms"
+                f"[{iteration.iteration_id}] DECIDE completed in {decide_latency * 1000:.1f}ms"
             )
 
             # Verificação pré-commit se necessário
@@ -217,7 +217,7 @@ class OODALoop:
                 iteration.result = LoopResult.SUCCESS
                 log.info(
                     f"[{iteration.iteration_id}] SUCCESS: ação executada "
-                    f"em {act_latency*1000:.1f}ms"
+                    f"em {act_latency * 1000:.1f}ms"
                 )
             else:
                 iteration.result = LoopResult.FAILED
@@ -225,7 +225,7 @@ class OODALoop:
                     f"[{iteration.iteration_id}] FAILED: {iteration.action_result.error}"
                 )
 
-        except Exception as e:
+        except Exception:
             iteration.result = LoopResult.FAILED
             log.exception(f"[{iteration.iteration_id}] Erro não capturado no loop OODA")
 
@@ -280,7 +280,9 @@ class OODALoop:
         total = len(self.history)
         success = sum(1 for i in self.history if i.result == LoopResult.SUCCESS)
         blocked = sum(1 for i in self.history if i.result == LoopResult.BLOCKED)
-        avg_latency = sum(i.total_latency_ms for i in self.history) / total if total else 0
+        avg_latency = (
+            sum(i.total_latency_ms for i in self.history) / total if total else 0
+        )
 
         return {
             "total_iterations": total,
@@ -327,16 +329,20 @@ class StreamingOODALoop(OODALoop):
             # OBSERVE
             start = time.time()
             iteration.observation = await observe_fn(user_input, context or {})
-            observe_latency = time.time() - start
+            time.time() - start
             if self.on_phase_complete:
-                await self.on_phase_complete(DecisionPhase.OBSERVE, iteration.observation)
+                await self.on_phase_complete(
+                    DecisionPhase.OBSERVE, iteration.observation
+                )
 
             # ORIENT
             start = time.time()
             iteration.orientation = await orient_fn(iteration.observation)
-            orient_latency = time.time() - start
+            time.time() - start
             if self.on_phase_complete:
-                await self.on_phase_complete(DecisionPhase.ORIENT, iteration.orientation)
+                await self.on_phase_complete(
+                    DecisionPhase.ORIENT, iteration.orientation
+                )
 
             if (
                 iteration.orientation.intent_card
@@ -348,7 +354,7 @@ class StreamingOODALoop(OODALoop):
             # DECIDE
             start = time.time()
             iteration.decision = await decide_fn(iteration.orientation)
-            decide_latency = time.time() - start
+            time.time() - start
             if self.on_phase_complete:
                 await self.on_phase_complete(DecisionPhase.DECIDE, iteration.decision)
 
@@ -360,15 +366,17 @@ class StreamingOODALoop(OODALoop):
             # ACT
             start = time.time()
             iteration.action_result = await act_fn(iteration.decision)
-            act_latency = time.time() - start
+            time.time() - start
             if self.on_phase_complete:
                 await self.on_phase_complete(DecisionPhase.ACT, iteration.action_result)
 
             iteration.result = (
-                LoopResult.SUCCESS if iteration.action_result.success else LoopResult.FAILED
+                LoopResult.SUCCESS
+                if iteration.action_result.success
+                else LoopResult.FAILED
             )
 
-        except Exception as e:
+        except Exception:
             iteration.result = LoopResult.FAILED
             log.exception(f"[{iteration.iteration_id}] Erro em StreamingOODALoop")
 

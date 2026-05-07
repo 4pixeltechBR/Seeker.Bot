@@ -54,7 +54,9 @@ class NextRunCalculator:
     def _next_daily(task: ScheduledTask, from_time_tz, tz) -> datetime:
         """Próxima execução diária"""
         # Cria datetime com a hora especificada TODAY
-        next_run_tz = from_time_tz.replace(hour=task.hour, minute=0, second=0, microsecond=0)
+        next_run_tz = from_time_tz.replace(
+            hour=task.hour, minute=0, second=0, microsecond=0
+        )
 
         # Se já passou, vai pro próximo dia
         if next_run_tz <= from_time_tz:
@@ -73,12 +75,16 @@ class NextRunCalculator:
 
         # Se é hoje e já passou a hora, vai próxima semana
         if days_ahead == 0:
-            next_run_tz = from_time_tz.replace(hour=task.hour, minute=0, second=0, microsecond=0)
+            next_run_tz = from_time_tz.replace(
+                hour=task.hour, minute=0, second=0, microsecond=0
+            )
             if next_run_tz <= from_time_tz:
                 days_ahead = 7
 
         next_run_tz = from_time_tz + timedelta(days=days_ahead)
-        next_run_tz = next_run_tz.replace(hour=task.hour, minute=0, second=0, microsecond=0)
+        next_run_tz = next_run_tz.replace(
+            hour=task.hour, minute=0, second=0, microsecond=0
+        )
 
         # Converter de volta para UTC
         return next_run_tz.astimezone(pytz.UTC).replace(tzinfo=None)
@@ -119,7 +125,9 @@ class NextRunCalculator:
                     day=target_day, hour=task.hour, minute=0, second=0, microsecond=0
                 )
             except ValueError:
-                last_day = (next_month + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+                last_day = (next_month + timedelta(days=32)).replace(day=1) - timedelta(
+                    days=1
+                )
                 next_run_tz = next_month.replace(
                     day=min(target_day, last_day.day),
                     hour=task.hour,

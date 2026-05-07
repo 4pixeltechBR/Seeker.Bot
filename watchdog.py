@@ -11,23 +11,21 @@ Uso: python watchdog.py
      (sempre rodar esse, nunca o bot diretamente em produção)
 """
 
-import asyncio
 import logging
 import os
 import subprocess
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 # ── Config ──────────────────────────────────────────────────────────────
-MAX_RESTARTS_PER_HOUR = 5       # Se reiniciar mais que isso em 1h, para (loop de crash)
-RESTART_DELAY_SECONDS = 5       # Espera antes de reiniciar (deixa SO liberar portas)
-CRASH_LOOP_COOLDOWN   = 300     # 5 min de pausa se atingir MAX_RESTARTS
-LOG_FILE              = "logs/watchdog.log"
-BOT_LOG_FILE          = "logs/seeker.log"
-HEARTBEAT_FILE        = "logs/bot_heartbeat.txt"  # Bot escreve aqui periodicamente
-HEARTBEAT_TIMEOUT     = 900     # 15 min sem heartbeat = bot travado (aumentado de 600 para dar tempo de inicialização)
+MAX_RESTARTS_PER_HOUR = 5  # Se reiniciar mais que isso em 1h, para (loop de crash)
+RESTART_DELAY_SECONDS = 5  # Espera antes de reiniciar (deixa SO liberar portas)
+CRASH_LOOP_COOLDOWN = 300  # 5 min de pausa se atingir MAX_RESTARTS
+LOG_FILE = "logs/watchdog.log"
+BOT_LOG_FILE = "logs/seeker.log"
+HEARTBEAT_FILE = "logs/bot_heartbeat.txt"  # Bot escreve aqui periodicamente
+HEARTBEAT_TIMEOUT = 900  # 15 min sem heartbeat = bot travado (aumentado de 600 para dar tempo de inicialização)
 
 # ── Logging ─────────────────────────────────────────────────────────────
 os.makedirs("logs", exist_ok=True)
@@ -62,7 +60,9 @@ def is_bot_frozen() -> bool:
         last_beat = hb_path.stat().st_mtime
         elapsed = time.time() - last_beat
         if elapsed > HEARTBEAT_TIMEOUT:
-            log.warning(f"Bot heartbeat ausente há {elapsed:.0f}s (limite: {HEARTBEAT_TIMEOUT}s)")
+            log.warning(
+                f"Bot heartbeat ausente há {elapsed:.0f}s (limite: {HEARTBEAT_TIMEOUT}s)"
+            )
             return True
     except Exception:
         pass
@@ -90,7 +90,7 @@ def reset_heartbeat() -> None:
     if hb_path.exists():
         try:
             hb_path.unlink()
-            log.info(f"Heartbeat file resetado antes de iniciar bot")
+            log.info("Heartbeat file resetado antes de iniciar bot")
         except Exception as e:
             log.warning(f"Erro ao resetar heartbeat: {e}")
 
@@ -133,7 +133,7 @@ def main():
 
     restart_times: list[float] = []
     total_restarts = 0
-    start_time = time.time()
+    time.time()
 
     while True:
         # ── Limpa restarts com mais de 1h ──────────────────────────────
@@ -156,6 +156,7 @@ def main():
 
         # ── Thread separada para logar output ─────────────────────────
         import threading
+
         output_thread = threading.Thread(target=watch_output, args=(proc,), daemon=True)
         output_thread.start()
 

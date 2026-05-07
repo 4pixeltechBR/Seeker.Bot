@@ -3,12 +3,12 @@
 from dataclasses import dataclass, field
 from typing import Dict
 from datetime import datetime
-import asyncio
 
 
 @dataclass
 class PerformanceMetrics:
     """Métricas de performance agregadas"""
+
     timestamp: datetime = field(default_factory=datetime.utcnow)
     goal_id: str = ""
     phase_name: str = ""  # "Reflex", "Deliberate", "Deep"
@@ -66,6 +66,7 @@ class PerformanceMetrics:
 @dataclass
 class GoalMetrics:
     """Agregação de métricas por goal"""
+
     goal_id: str
     goal_name: str = ""
 
@@ -79,7 +80,7 @@ class GoalMetrics:
     total_latency_ms: float = 0.0
     avg_latency_ms: float = 0.0
     max_latency_ms: float = 0.0
-    min_latency_ms: float = float('inf')
+    min_latency_ms: float = float("inf")
 
     total_tokens: int = 0
     total_memory_mb: float = 0.0
@@ -89,7 +90,9 @@ class GoalMetrics:
     provider_calls: Dict[str, int] = field(default_factory=dict)
 
     # Phase breakdown
-    phase_latencies: Dict[str, float] = field(default_factory=dict)  # "Reflex", "Deliberate", "Deep"
+    phase_latencies: Dict[str, float] = field(
+        default_factory=dict
+    )  # "Reflex", "Deliberate", "Deep"
 
     @property
     def success_rate(self) -> float:

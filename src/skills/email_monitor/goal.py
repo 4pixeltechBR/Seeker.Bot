@@ -11,10 +11,12 @@ import os
 from datetime import datetime, timedelta
 
 from src.core.pipeline import SeekerPipeline
-from src.core.utils import parse_llm_json
 from src.providers.base import LLMRequest, invoke_with_fallback
 from src.core.goals.protocol import (
-    AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
+    GoalBudget,
+    GoalResult,
+    GoalStatus,
+    NotificationChannel,
 )
 from src.channels.email.imap_reader import IMAPReader
 from config.models import CognitiveRole
@@ -23,9 +25,22 @@ log = logging.getLogger("seeker.email_monitor")
 
 # Remetentes/assuntos que indicam email automático (skip)
 _DEFAULT_SKIP_SUBJECTS = [
-    "unsubscribe", "noreply", "no-reply", "newsletter", "notification",
-    "alert", "automated", "do not reply", "confirmação", "confirmation",
-    "verify", "verificar", "invoice", "fatura", "recibo", "receipt",
+    "unsubscribe",
+    "noreply",
+    "no-reply",
+    "newsletter",
+    "notification",
+    "alert",
+    "automated",
+    "do not reply",
+    "confirmação",
+    "confirmation",
+    "verify",
+    "verificar",
+    "invoice",
+    "fatura",
+    "recibo",
+    "receipt",
 ]
 
 SUMMARIZE_PROMPT = """\
@@ -52,6 +67,7 @@ Retorne APENAS o briefing formatado em HTML/Markdown do Telegram, usando estrita
 ⚪ <b>RUÍDO & NEWSLETTERS</b>
 [Resumo ninja agregado]
 """
+
 
 class EmailMonitorGoal:
     """
@@ -88,8 +104,10 @@ class EmailMonitorGoal:
     def interval_seconds(self) -> int:
         now = datetime.now()
         target = now.replace(
-            hour=self.target_hour, minute=self.target_minute,
-            second=0, microsecond=0,
+            hour=self.target_hour,
+            minute=self.target_minute,
+            second=0,
+            microsecond=0,
         )
         if now >= target:
             target += timedelta(days=1)
@@ -117,7 +135,9 @@ class EmailMonitorGoal:
     def load_state(self, state: dict) -> None:
         self._seen_ids = set(state.get("seen_ids", []))
         self._last_run_date = state.get("last_run_date", "")
-        log.info(f"[email_monitor] Estado carregado. Última execução: {self._last_run_date}")
+        log.info(
+            f"[email_monitor] Estado carregado. Última execução: {self._last_run_date}"
+        )
 
     # ── Ciclo principal ────────────────────────────────────────
 
@@ -127,11 +147,15 @@ class EmailMonitorGoal:
 
         if self._last_run_date == today_str:
             self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="Inbox Digest já executado hoje.", cost_usd=0.0)
+            return GoalResult(
+                success=True, summary="Inbox Digest já executado hoje.", cost_usd=0.0
+            )
 
         target_today = now.replace(
-            hour=self.target_hour, minute=self.target_minute,
-            second=0, microsecond=0,
+            hour=self.target_hour,
+            minute=self.target_minute,
+            second=0,
+            microsecond=0,
         )
         if now < target_today:
             self._status = GoalStatus.IDLE
@@ -153,7 +177,9 @@ class EmailMonitorGoal:
                 reader = IMAPReader.from_env()
                 if not reader:
                     self._status = GoalStatus.IDLE
-                    log.warning("[email_monitor] Gmail API e IMAP não configurados — skipping.")
+                    log.warning(
+                        "[email_monitor] Gmail API e IMAP não configurados — skipping."
+                    )
                     return GoalResult(
                         success=True,
                         summary="Gmail API e IMAP não configurados — skipping.",
@@ -206,9 +232,14 @@ class EmailMonitorGoal:
             response = await invoke_with_fallback(
                 CognitiveRole.FAST,  # Gemini Flash
                 LLMRequest(
-                    messages=[{"role": "user", "content": SUMMARIZE_PROMPT.format(
-                        emails_block=emails_block
-                    )}],
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": SUMMARIZE_PROMPT.format(
+                                emails_block=emails_block
+                            ),
+                        }
+                    ],
                     system="Você é um assistente executivo implacável. Aplique a Matriz de Triagem rigorosamente.",
                     max_tokens=800,
                     temperature=0.1,
@@ -229,7 +260,7 @@ class EmailMonitorGoal:
             # Registra sucesso e hoje como rodado
             self._last_run_date = today_str
             self._status = GoalStatus.IDLE
-            
+
             return GoalResult(
                 success=True,
                 summary=f"Inbox Digest entregue para {count} emails",
@@ -260,7 +291,7 @@ class EmailMonitorGoal:
     def _format_for_llm(self, emails: list[dict]) -> str:
         lines = []
         for i, e in enumerate(emails, 1):
-            body_trunc = e['body'][:1000]
+            body_trunc = e["body"][:1000]
             lines.append(
                 f"--- [EMAIL {i}] ---\n"
                 f"De: {e['sender']}\n"
@@ -269,6 +300,7 @@ class EmailMonitorGoal:
                 f"Preview: {body_trunc}\n"
             )
         return "\n".join(lines)
+
 
 def create_goal(pipeline: SeekerPipeline) -> EmailMonitorGoal:
     return EmailMonitorGoal(pipeline)

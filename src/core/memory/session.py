@@ -27,13 +27,16 @@ from src.core.memory.compressor import SessionCompressor
 if TYPE_CHECKING:
     from src.core.memory.protocol import MemoryProtocol
 
+
 # Dynamic import para evitar circular dependency
 def _get_chat_message_class():
     try:
         from src.skills.bug_analyzer.models import ChatMessage
+
         return ChatMessage
     except ImportError:
         return None
+
 
 log = logging.getLogger("seeker.memory.session")
 
@@ -45,12 +48,12 @@ class SessionManager:
     Uso:
         session = SessionManager(memory)
         await session.load_session("telegram")
-        
+
         # Quando recebe mensagem:
         await session.add_turn("telegram", "user", "como funciona o arbitrage?")
         context = session.format_context("telegram")
         # → injeta no system prompt
-        
+
         # Depois de responder:
         await session.add_turn("telegram", "assistant", "O Evidence Arbitrage...")
     """
@@ -105,11 +108,13 @@ class SessionManager:
         if session_id not in self._cache:
             self._cache[session_id] = []
 
-        self._cache[session_id].append({
-            "role": role,
-            "content": content[:2000],
-            "timestamp": datetime.now().isoformat(),
-        })
+        self._cache[session_id].append(
+            {
+                "role": role,
+                "content": content[:2000],
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         # Trim — mantém janela deslizante
         max_turns = self.window_size * 2
@@ -117,7 +122,10 @@ class SessionManager:
             self._cache[session_id] = self._cache[session_id][-max_turns:]
 
         # Comprime se cache ficou grande
-        if self.compressor and len(self._cache[session_id]) > self.compressor.compress_after_turns:
+        if (
+            self.compressor
+            and len(self._cache[session_id]) > self.compressor.compress_after_turns
+        ):
             try:
                 self._cache[session_id] = await self.compressor.maybe_compress(
                     session_id, self._cache[session_id]
@@ -132,7 +140,7 @@ class SessionManager:
         Não despeja tudo — resumo inteligente:
         - Últimas 3 trocas: conteúdo completo (truncado a 300 chars)
         - Trocas anteriores: apenas o input do usuário (contexto mínimo)
-        
+
         Isso mantém o contexto relevante sem explodir o prompt.
         """
         turns = self._cache.get(session_id, [])
@@ -173,7 +181,9 @@ class SessionManager:
         turns = self._cache.get(session_id, [])
         return len(turns) > 0
 
-    def get_recent_messages(self, session_id: str, user_id: str = "unknown", limit: int = 5) -> list[dict]:
+    def get_recent_messages(
+        self, session_id: str, user_id: str = "unknown", limit: int = 5
+    ) -> list[dict]:
         """
         Retorna últimas mensagens da sessão em formato ChatMessage.
 
@@ -195,12 +205,14 @@ class SessionManager:
 
         messages = []
         for turn in recent_turns:
-            messages.append({
-                "timestamp": turn.get("timestamp", datetime.now().isoformat()),
-                "user_id": user_id,
-                "text": turn.get("content", ""),
-                "is_user": turn.get("role") == "user",
-            })
+            messages.append(
+                {
+                    "timestamp": turn.get("timestamp", datetime.now().isoformat()),
+                    "user_id": user_id,
+                    "text": turn.get("content", ""),
+                    "is_user": turn.get("role") == "user",
+                }
+            )
 
         return messages
 

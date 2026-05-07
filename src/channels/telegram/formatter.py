@@ -47,6 +47,7 @@ def _sanitize_html(text: str) -> str:
     Remove/escapa tags HTML que o Telegram não suporta.
     Mantém apenas: b, i, s, u, code, pre, a.
     """
+
     def _replace_tag(match):
         closing = match.group(1)
         tag = match.group(2).lower()
@@ -57,7 +58,7 @@ def _sanitize_html(text: str) -> str:
             return f"<{closing}{tag}>"
         # Tag não suportada → escapa
         return html_module.escape(match.group(0))
-    
+
     return _TAG_RE.sub(_replace_tag, text)
 
 
@@ -82,18 +83,18 @@ def _balance_tags(text: str) -> str:
                 if stack[i] == tag:
                     stack.pop(i)
                     break
-    
+
     # Fecha tags restantes na ordem inversa
     for tag in reversed(stack):
         text += f"</{tag}>"
-    
+
     return text
 
 
 def md_to_telegram_html(text: str) -> str:
     """
     Converte Markdown → HTML compatível com Telegram.
-    
+
     Processa nesta ordem (importa pra evitar conflitos):
     1. Protege blocos de código (não processa dentro deles)
     2. Escapa caracteres HTML especiais
@@ -104,10 +105,10 @@ def md_to_telegram_html(text: str) -> str:
     """
     # ── 1. Extrai e protege blocos de código ──────────────
     code_blocks = []
-    
+
     def protect_code_block(match):
         idx = len(code_blocks)
-        lang = match.group(1) or ""
+        match.group(1) or ""
         code = match.group(2)
         code_blocks.append(f"<pre>{html_module.escape(code.strip())}</pre>")
         return f"\x00CODEBLOCK{idx}\x00"
@@ -122,7 +123,7 @@ def md_to_telegram_html(text: str) -> str:
 
     # ── 2. Protege inline code ────────────────────────────
     inline_codes = []
-    
+
     def protect_inline(match):
         idx = len(inline_codes)
         inline_codes.append(f"<code>{html_module.escape(match.group(1))}</code>")
@@ -134,13 +135,13 @@ def md_to_telegram_html(text: str) -> str:
     text = html_module.escape(text)
 
     # ── 4. Converte Markdown → HTML ──────────────────────
-    
+
     # **bold** → <b>bold</b> (precisa vir antes de *italic*)
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
-    
+
     # *italic* → <i>italic</i> (mas não dentro de palavras como file*name)
     text = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"<i>\1</i>", text)
-    
+
     # ~~strikethrough~~ → <s>strikethrough</s>
     text = re.sub(r"~~(.+?)~~", r"<s>\1</s>", text)
 

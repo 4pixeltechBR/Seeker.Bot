@@ -1,11 +1,12 @@
 """Vision Cloud Fallback - Gemini 2.5 Flash"""
+
 import os
 import logging
-import asyncio
 from typing import Dict, Optional
 
 try:
     from google import genai
+
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False

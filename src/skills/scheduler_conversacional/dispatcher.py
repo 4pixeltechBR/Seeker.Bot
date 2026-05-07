@@ -7,12 +7,10 @@ Executa tarefas agendadas que venceram.
 import logging
 import uuid
 from datetime import datetime
-from typing import List, Optional
 
 from src.skills.scheduler_conversacional.models import (
     ScheduledTask,
     ScheduledTaskRun,
-    TaskStatus,
 )
 from src.skills.scheduler_conversacional.store import SchedulerStore
 from src.skills.scheduler_conversacional.calculator import NextRunCalculator
@@ -80,7 +78,9 @@ class TaskDispatcher:
         # Verificar idempotência
         idempotency_key = self._make_idempotency_key(task.id, task.next_run_at)
         if await self.store.check_idempotency(idempotency_key):
-            log.warning(f"[scheduler.dispatcher] Task {task.id} already executed (idempotency)")
+            log.warning(
+                f"[scheduler.dispatcher] Task {task.id} already executed (idempotency)"
+            )
             return {"success": False, "error": "Already executed (idempotency)"}
 
         # Criar record de execução
@@ -100,7 +100,7 @@ class TaskDispatcher:
             # Executar instrução (via Cascade)
             if self.cascade_adapter:
                 try:
-                    response = await self.cascade_adapter.call(
+                    await self.cascade_adapter.call(
                         role="FAST",
                         messages=[{"role": "user", "content": task.instruction_text}],
                         temperature=0.1,
@@ -120,7 +120,9 @@ class TaskDispatcher:
                 # Modo degradado (sem cascade)
                 run.status = "success"
                 run.execution_id = "degraded_mode"
-                log.warning(f"[scheduler.dispatcher] Task {task.id} executed in degraded mode")
+                log.warning(
+                    f"[scheduler.dispatcher] Task {task.id} executed in degraded mode"
+                )
 
             # Atualizar task
             task.last_run_at = datetime.utcnow()
@@ -156,7 +158,9 @@ class TaskDispatcher:
             try:
                 await self.store.update_run(run)
             except Exception as update_error:
-                log.error(f"[scheduler.dispatcher] Failed to update run: {update_error}")
+                log.error(
+                    f"[scheduler.dispatcher] Failed to update run: {update_error}"
+                )
 
             return {"success": False, "error": str(e)}
 

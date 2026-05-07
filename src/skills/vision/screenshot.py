@@ -7,6 +7,7 @@ JPEG comprimido (~200-400KB) vs PNG full-size (~3-5MB):
   - Menos VRAM consumida pelo VLM durante inferência
   - Upload mais rápido para Telegram
 """
+
 import io
 import mss
 from PIL import Image

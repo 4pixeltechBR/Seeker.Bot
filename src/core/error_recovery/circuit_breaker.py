@@ -4,7 +4,7 @@ import logging
 import time
 from enum import Enum
 from typing import Optional, Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import deque
 
 log = logging.getLogger("seeker.circuit_breaker")
@@ -12,8 +12,9 @@ log = logging.getLogger("seeker.circuit_breaker")
 
 class CircuitBreakerState(Enum):
     """States of circuit breaker"""
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Blocking requests
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Blocking requests
     HALF_OPEN = "half-open"  # Testing if service recovered
 
 
@@ -52,7 +53,9 @@ class CircuitBreaker:
         self._all_failures: deque = deque(maxlen=100)  # Last 100 failures
         self._state_changes: deque = deque(maxlen=20)  # State change history
 
-        log.info(f"[circuit-breaker] {name} initialized (threshold={failure_threshold})")
+        log.info(
+            f"[circuit-breaker] {name} initialized (threshold={failure_threshold})"
+        )
 
     @property
     def state(self) -> CircuitBreakerState:
@@ -75,7 +78,11 @@ class CircuitBreaker:
             )
 
         try:
-            result = await func(*args, **kwargs) if hasattr(func, "__await__") else func(*args, **kwargs)
+            result = (
+                await func(*args, **kwargs)
+                if hasattr(func, "__await__")
+                else func(*args, **kwargs)
+            )
             self._on_success()
             return result
         except self.expected_exception as e:

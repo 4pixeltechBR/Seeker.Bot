@@ -9,7 +9,7 @@ log = logging.getLogger("seeker.vision.browser")
 class StealthBrowser:
     """
     Camadas L1 e L2: Chromium headless blindado para scraping stealth.
-    
+
     v2:
     - Retry com backoff em navegação (prefeituras são lentas)
     - Context manager para cleanup garantido
@@ -23,9 +23,9 @@ class StealthBrowser:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
     ]
 
-    DEFAULT_TIMEOUT_MS = 45000      # 45s — sites de prefeitura são lentos
+    DEFAULT_TIMEOUT_MS = 45000  # 45s — sites de prefeitura são lentos
     DEFAULT_MAX_RETRIES = 2
-    THROTTLE_RANGE = (2.0, 5.0)     # Rate limiting entre requests
+    THROTTLE_RANGE = (2.0, 5.0)  # Rate limiting entre requests
 
     def __init__(self, headless: bool = True, timeout_ms: int = DEFAULT_TIMEOUT_MS):
         self.headless = headless
@@ -53,7 +53,9 @@ class StealthBrowser:
         await self.page.add_init_script(
             "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
         )
-        log.info(f"[browser] Chromium iniciado (headless={self.headless}, UA={ua[:40]}...)")
+        log.info(
+            f"[browser] Chromium iniciado (headless={self.headless}, UA={ua[:40]}...)"
+        )
 
     async def close(self):
         for resource, name in [
@@ -120,7 +122,10 @@ class StealthBrowser:
                     )
                     await asyncio.sleep(wait)
 
-        log.error(f"[browser] Todas as tentativas falharam para {url}: {last_error}", exc_info=True)
+        log.error(
+            f"[browser] Todas as tentativas falharam para {url}: {last_error}",
+            exc_info=True,
+        )
         raise last_error
 
     async def click_coordinate(self, x: int, y: int):

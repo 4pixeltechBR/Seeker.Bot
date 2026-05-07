@@ -49,7 +49,6 @@ import os
 import time
 from dataclasses import dataclass, field, asdict
 from enum import Enum
-from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -60,21 +59,21 @@ log = logging.getLogger("seeker.rl.bandit.cascade")
 # CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 
-STATE_DIM   = 26        # dimensão do StateEncoder
-ALPHA_INIT  = 1.0       # exploração inicial (alta)
-ALPHA_FLOOR = 0.3       # exploração mínima após muitos samples
-ALPHA_DECAY = 500       # samples até atingir ALPHA_FLOOR
-MODEL_PATH  = os.path.join(os.getcwd(), "data", "rl_bandit_cascade.npz")
-LOG_PATH    = os.path.join(os.getcwd(), "data", "rl_bandit_shadow.jsonl")
+STATE_DIM = 26  # dimensão do StateEncoder
+ALPHA_INIT = 1.0  # exploração inicial (alta)
+ALPHA_FLOOR = 0.3  # exploração mínima após muitos samples
+ALPHA_DECAY = 500  # samples até atingir ALPHA_FLOOR
+MODEL_PATH = os.path.join(os.getcwd(), "data", "rl_bandit_cascade.npz")
+LOG_PATH = os.path.join(os.getcwd(), "data", "rl_bandit_shadow.jsonl")
 
 # Arms disponíveis — mapeados para CognitiveDepth.value
 ARMS = ["reflex", "deliberate", "deep"]
 
 # Custo estimado por arm (usado para reward no modo shadow)
 ARM_COST_ESTIMATE = {
-    "reflex":     0.000,
+    "reflex": 0.000,
     "deliberate": 0.004,
-    "deep":       0.015,
+    "deep": 0.015,
 }
 
 
@@ -82,18 +81,20 @@ ARM_COST_ESTIMATE = {
 # TIPOS
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class BanditMode(str, Enum):
-    SHADOW = "shadow"   # prediz, não age — coleta dados
-    ACTIVE = "active"   # A/B test: age em 50% das queries
-    FULL   = "full"     # substitui router completamente
+    SHADOW = "shadow"  # prediz, não age — coleta dados
+    ACTIVE = "active"  # A/B test: age em 50% das queries
+    FULL = "full"  # substitui router completamente
 
 
 @dataclass
 class BanditDecision:
     """Resultado de uma predição do bandit."""
-    recommended_arm: str        # arm recomendado pelo bandit
-    router_arm: str             # arm escolhido pelo router atual
-    agrees: bool                # bandit == router?
+
+    recommended_arm: str  # arm recomendado pelo bandit
+    router_arm: str  # arm escolhido pelo router atual
+    agrees: bool  # bandit == router?
     ucb_scores: dict[str, float]
     alpha: float
     decision_id: str
@@ -101,7 +102,7 @@ class BanditDecision:
 
     # Preenchidos após receber reward
     reward: Optional[float] = None
-    actual_arm: str = ""        # arm que foi realmente executado
+    actual_arm: str = ""  # arm que foi realmente executado
     closed: bool = False
 
     def to_dict(self) -> dict:
@@ -111,6 +112,7 @@ class BanditDecision:
 # ─────────────────────────────────────────────────────────────────────────────
 # LinUCB DISJOINT
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class CascadeBandit:
     """
@@ -141,34 +143,28 @@ class CascadeBandit:
         model_path: str = MODEL_PATH,
         log_path: str = LOG_PATH,
     ):
-        self.mode       = mode
-        self._alpha     = alpha
+        self.mode = mode
+        self._alpha = alpha
         self.model_path = model_path
-        self.log_path   = log_path
+        self.log_path = log_path
 
         # Uma matriz A e vetor b por arm (LinUCB Disjoint)
-        self._A: dict[str, np.ndarray] = {
-            arm: np.identity(STATE_DIM) for arm in ARMS
-        }
-        self._b: dict[str, np.ndarray] = {
-            arm: np.zeros(STATE_DIM) for arm in ARMS
-        }
+        self._A: dict[str, np.ndarray] = {arm: np.identity(STATE_DIM) for arm in ARMS}
+        self._b: dict[str, np.ndarray] = {arm: np.zeros(STATE_DIM) for arm in ARMS}
 
         # Contadores
-        self._n_updates: dict[str, int]   = {arm: 0 for arm in ARMS}
-        self._n_predicts: int             = 0
-        self._agreements: int             = 0  # vezes que concordou com router
-        self._divergences: int            = 0  # vezes que discordou
+        self._n_updates: dict[str, int] = {arm: 0 for arm in ARMS}
+        self._n_predicts: int = 0
+        self._agreements: int = 0  # vezes que concordou com router
+        self._divergences: int = 0  # vezes que discordou
 
         # Pendentes: decision_id → (features, arm escolhido)
         self._pending: dict[str, dict] = {}
 
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
-        os.makedirs(os.path.dirname(log_path),   exist_ok=True)
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
-        log.info(
-            f"[bandit] CascadeBandit inicializado | mode={mode.value} α={alpha}"
-        )
+        log.info(f"[bandit] CascadeBandit inicializado | mode={mode.value} α={alpha}")
 
     # ── Propriedades ──────────────────────────────────────────────────
 
@@ -221,7 +217,7 @@ class CascadeBandit:
             ucb_scores[arm] = ucb
 
         best_arm = max(ucb_scores, key=ucb_scores.__getitem__)
-        agrees   = (best_arm == router_arm)
+        agrees = best_arm == router_arm
 
         self._n_predicts += 1
         if agrees:
@@ -278,7 +274,7 @@ class CascadeBandit:
         if pending is None:
             return False
 
-        x   = np.array(pending["features"], dtype=float)
+        x = np.array(pending["features"], dtype=float)
         arm = pending["router_arm"]  # atualiza o arm que foi executado
 
         # Normaliza reward para [0, 1] para estabilidade numérica do LinUCB
@@ -327,9 +323,9 @@ class CascadeBandit:
             # Salva contadores como array de 1 elemento
             for arm in ARMS:
                 arrays[f"n_{arm}"] = np.array([self._n_updates[arm]])
-            arrays["meta"] = np.array([
-                self._n_predicts, self._agreements, self._divergences
-            ])
+            arrays["meta"] = np.array(
+                [self._n_predicts, self._agreements, self._divergences]
+            )
             np.savez(self.model_path, **arrays)
             log.debug(
                 f"[bandit] Modelo salvo: {self.model_path} "
@@ -340,7 +336,11 @@ class CascadeBandit:
 
     def load(self) -> bool:
         """Carrega matrizes do disco. Retorna True se bem-sucedido."""
-        path = self.model_path + ".npz" if not self.model_path.endswith(".npz") else self.model_path
+        path = (
+            self.model_path + ".npz"
+            if not self.model_path.endswith(".npz")
+            else self.model_path
+        )
         if not os.path.exists(path):
             log.info(f"[bandit] Nenhum modelo encontrado em {path} — iniciando do zero")
             return False
@@ -354,9 +354,9 @@ class CascadeBandit:
                     self._n_updates[arm] = int(data[f"n_{arm}"][0])
             if "meta" in data:
                 meta = data["meta"]
-                self._n_predicts   = int(meta[0])
-                self._agreements   = int(meta[1])
-                self._divergences  = int(meta[2])
+                self._n_predicts = int(meta[0])
+                self._agreements = int(meta[1])
+                self._divergences = int(meta[2])
             log.info(
                 f"[bandit] Modelo carregado: total_updates={self.total_updates} "
                 f"α={self.alpha:.3f} agreement={self.agreement_rate:.0%}"
@@ -393,10 +393,13 @@ class CascadeBandit:
         """Formata stats para exibição no Telegram."""
         s = self.get_stats()
         arm_lines = "\n".join(
-            f"  {arm}: {n} updates"
-            for arm, n in s["updates_per_arm"].items()
+            f"  {arm}: {n} updates" for arm, n in s["updates_per_arm"].items()
         )
-        status = "PRONTO para A/B test" if s["ready_for_active"] else f"coletando ({s['total_updates']}/100 updates)"
+        status = (
+            "PRONTO para A/B test"
+            if s["ready_for_active"]
+            else f"coletando ({s['total_updates']}/100 updates)"
+        )
         return (
             f"<b>LinUCB Bandit</b> [{s['mode'].upper()}]\n"
             f"Predicoes: {s['total_predicts']} | Concorda: {s['agreement_rate']:.0%}\n"
@@ -411,6 +414,7 @@ class CascadeBandit:
         Útil para interpretar o que o bandit aprendeu.
         """
         from src.core.rl.state_encoder import StateEncoder
+
         names = StateEncoder().feature_names()
 
         result = {}

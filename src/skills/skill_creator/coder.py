@@ -5,6 +5,7 @@ Motor de codificação autônoma. Gera código via DeepSeek,
 pede aprovação humana via Telegram (AFK Protocol Tier 1),
 e escreve o arquivo no disco apenas se aprovado.
 """
+
 import os
 import json
 import logging
@@ -80,7 +81,10 @@ class SkillCreatorEngine:
             explicacao = payload["explicacao"]
             codigo = payload["code"]
         except Exception as e:
-            log.error(f"[coder] Falha estrutural JSON. Texto retornado:\n{res.text}", exc_info=True)
+            log.error(
+                f"[coder] Falha estrutural JSON. Texto retornado:\n{res.text}",
+                exc_info=True,
+            )
             return f"❌ Falha ao interpretar a estrutura do LLM: {e}"
 
         # Pede aprovação humana via Telegram (Tier 1 = irreversível)

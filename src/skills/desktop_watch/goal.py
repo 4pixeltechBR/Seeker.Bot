@@ -10,13 +10,14 @@ algo que exige intervenção humana (diálogos, erros, permissões).
 Desligado por padrão. Controlado por /watch e /watchoff.
 """
 
-import asyncio
 import logging
-import os
 import time
 
 from src.core.goals.protocol import (
-    AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
+    GoalBudget,
+    GoalResult,
+    GoalStatus,
+    NotificationChannel,
 )
 from src.core.pipeline import SeekerPipeline
 
@@ -24,20 +25,59 @@ log = logging.getLogger("seeker.desktop_watch")
 
 # Patterns que indicam necessidade de intervenção humana
 ALERT_KEYWORDS = [
-    "permission", "permissão", "permitir", "allow", "deny", "negar",
-    "error", "erro", "falha", "failed", "crash",
-    "update", "atualização", "restart", "reiniciar",
-    "install", "instalar", "uninstall",
-    "confirm", "confirmar", "confirmação",
-    "warning", "aviso", "alerta",
-    "accept", "aceitar", "decline", "recusar",
-    "save", "salvar", "discard", "descartar",
-    "yes", "no", "sim", "não", "ok", "cancel", "cancelar",
-    "dialog", "diálogo", "popup", "modal",
-    "sign in", "login", "entrar",
-    "expired", "expirado", "timeout",
-    "download", "baixar",
-    "blocked", "bloqueado",
+    "permission",
+    "permissão",
+    "permitir",
+    "allow",
+    "deny",
+    "negar",
+    "error",
+    "erro",
+    "falha",
+    "failed",
+    "crash",
+    "update",
+    "atualização",
+    "restart",
+    "reiniciar",
+    "install",
+    "instalar",
+    "uninstall",
+    "confirm",
+    "confirmar",
+    "confirmação",
+    "warning",
+    "aviso",
+    "alerta",
+    "accept",
+    "aceitar",
+    "decline",
+    "recusar",
+    "save",
+    "salvar",
+    "discard",
+    "descartar",
+    "yes",
+    "no",
+    "sim",
+    "não",
+    "ok",
+    "cancel",
+    "cancelar",
+    "dialog",
+    "diálogo",
+    "popup",
+    "modal",
+    "sign in",
+    "login",
+    "entrar",
+    "expired",
+    "expirado",
+    "timeout",
+    "download",
+    "baixar",
+    "blocked",
+    "bloqueado",
 ]
 
 # Prompt para o VLM analisar a tela em modo vigilância
@@ -152,6 +192,7 @@ class DesktopWatchGoal:
         try:
             # 1. Captura a tela silenciosamente (sem pedir permissão — já foi autorizado pelo /watch)
             from src.skills.vision.screenshot import capture_desktop
+
             screenshot_bytes = await capture_desktop()
 
             if not screenshot_bytes:
@@ -165,6 +206,7 @@ class DesktopWatchGoal:
             # 2. Análise rápida via VLM (singleton reutilizado)
             if self._vlm is None:
                 from src.skills.vision.vlm_client import VLMClient
+
                 self._vlm = VLMClient()
 
             if not await self._vlm.health_check():
@@ -180,7 +222,6 @@ class DesktopWatchGoal:
             )
 
             # 3. Parse do resultado
-            import json
             result_data = self._parse_vlm_response(analysis)
 
             if not result_data.get("needs_attention", False):
@@ -196,8 +237,10 @@ class DesktopWatchGoal:
             # Dedup por category+urgency (em vez de texto livre que varia entre scans)
             alert_hash = f"{result_data.get('category', 'unknown')}:{result_data.get('urgency', 'medium')}"
             now = time.time()
-            if (alert_hash == self._last_alert_hash and
-                    (now - self._last_alert_time) < self.ALERT_COOLDOWN):
+            if (
+                alert_hash == self._last_alert_hash
+                and (now - self._last_alert_time) < self.ALERT_COOLDOWN
+            ):
                 self._status = GoalStatus.IDLE
                 return GoalResult(
                     success=True,
@@ -272,6 +315,7 @@ class DesktopWatchGoal:
     def _parse_vlm_response(self, raw: str) -> dict:
         """Parse JSON do VLM com fallback robusto."""
         import json
+
         try:
             # Limpa markdown do VLM
             text = raw.strip()
@@ -283,7 +327,7 @@ class DesktopWatchGoal:
             start = text.find("{")
             end = text.rfind("}")
             if start != -1 and end != -1:
-                text = text[start:end + 1]
+                text = text[start : end + 1]
 
             return json.loads(text)
         except (json.JSONDecodeError, ValueError):

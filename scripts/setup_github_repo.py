@@ -18,9 +18,9 @@ Para gerar um token:
 """
 
 import sys
-import json
 import requests
 from typing import Optional
+
 
 class GitHubRepoConfigurer:
     def __init__(self, token: str, owner: str, repo: str):
@@ -31,7 +31,7 @@ class GitHubRepoConfigurer:
         self.headers = {
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json",
-            "X-GitHub-Api-Version": "2022-11-28"
+            "X-GitHub-Api-Version": "2022-11-28",
         }
 
     def _request(self, method: str, endpoint: str, data: Optional[dict] = None) -> dict:
@@ -56,11 +56,7 @@ class GitHubRepoConfigurer:
     def enable_features(self) -> bool:
         """Enable Discussions, Issues, Projects."""
         print("\n🔧 Ativando features...")
-        data = {
-            "has_discussions": True,
-            "has_issues": True,
-            "has_projects": True
-        }
+        data = {"has_discussions": True, "has_issues": True, "has_projects": True}
         result = self._request("PATCH", "", data)
         if result:
             print("✅ Features ativadas")
@@ -71,23 +67,22 @@ class GitHubRepoConfigurer:
         """Protect main branch with status checks."""
         print("\n🛡️ Protegendo branch main...")
         data = {
-            "required_status_checks": {
-                "strict": True,
-                "contexts": ["tests"]
-            },
+            "required_status_checks": {"strict": True, "contexts": ["tests"]},
             "required_pull_request_reviews": {
                 "dismiss_stale_reviews": True,
-                "require_code_owner_reviews": False
+                "require_code_owner_reviews": False,
             },
             "enforce_admins": True,
             "required_linear_history": False,
-            "restrictions": None
+            "restrictions": None,
         }
         result = self._request("PUT", "/branches/main/protection", data)
         if result:
             print("✅ Branch main protegido (requer PR + testes passando)")
             return True
-        print("⚠️ Não foi possível proteger a branch (pode precisar de permissões administrativas)")
+        print(
+            "⚠️ Não foi possível proteger a branch (pode precisar de permissões administrativas)"
+        )
         return False
 
     def enable_security_features(self) -> bool:
@@ -101,7 +96,9 @@ class GitHubRepoConfigurer:
             if response.status_code == 204:
                 print("✅ Dependabot alerts ativado")
         except:
-            print("⚠️ Dependabot não disponível (pode ser repositório privado ou plan insuficiente)")
+            print(
+                "⚠️ Dependabot não disponível (pode ser repositório privado ou plan insuficiente)"
+            )
 
         return True
 
@@ -113,7 +110,9 @@ class GitHubRepoConfigurer:
         try:
             resp = self._request("GET", "")
             if not resp:
-                print("❌ Não foi possível acessar o repositório. Verifique o token e permissões.")
+                print(
+                    "❌ Não foi possível acessar o repositório. Verifique o token e permissões."
+                )
                 return False
         except:
             print("❌ Erro ao conectar à API do GitHub")
@@ -128,7 +127,11 @@ class GitHubRepoConfigurer:
         if success:
             print("\n✅ Repositório configurado com sucesso!")
             print("\n📋 Próximos passos:")
-            print("  1. Vá para https://github.com/{}/{}/settings/branches".format(self.owner, self.repo))
+            print(
+                "  1. Vá para https://github.com/{}/{}/settings/branches".format(
+                    self.owner, self.repo
+                )
+            )
             print("  2. Verifique se a proteção da branch foi aplicada")
             print("  3. Crie categorias em Discussions (opcional)")
             print("  4. Configure Project Board para roadmap (opcional)")
@@ -138,6 +141,7 @@ class GitHubRepoConfigurer:
             print(f"   https://github.com/{self.owner}/{self.repo}/settings")
 
         return success
+
 
 def main():
     if len(sys.argv) < 4:
@@ -151,6 +155,7 @@ def main():
     configurer = GitHubRepoConfigurer(token, owner, repo)
     success = configurer.run()
     sys.exit(0 if success else 1)
+
 
 if __name__ == "__main__":
     main()

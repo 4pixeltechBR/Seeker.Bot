@@ -17,7 +17,6 @@ Interface matches VLMClient for easy swapping:
 
 import asyncio
 import base64
-import json
 import logging
 import os
 from typing import Dict, Optional
@@ -47,7 +46,9 @@ class GlmOcrClient:
         """
         self.mode = mode
         self.api_key = api_key or os.getenv("GLMOCR_API_KEY", "")
-        self.ollama_url = ollama_url or os.getenv("GLMOCR_OLLAMA_URL", "http://localhost:11434")
+        self.ollama_url = ollama_url or os.getenv(
+            "GLMOCR_OLLAMA_URL", "http://localhost:11434"
+        )
         self.fallback_vlm_client = fallback_vlm_client
 
         # Model names
@@ -92,6 +93,7 @@ class GlmOcrClient:
         try:
             # Lazy import: only load when needed
             import httpx
+
             self._client = httpx.AsyncClient(
                 timeout=30.0,
                 headers={
@@ -122,7 +124,12 @@ class GlmOcrClient:
         """
         if not self.enabled:
             log.warning("[glm_ocr] GLM-OCR not enabled, cannot extract text")
-            return {"text": "", "confidence": 0.0, "regions": [], "error": "glm_ocr_disabled"}
+            return {
+                "text": "",
+                "confidence": 0.0,
+                "regions": [],
+                "error": "glm_ocr_disabled",
+            }
 
         try:
             # Read image
@@ -309,7 +316,11 @@ class GlmOcrClient:
             else:
                 # Cloud health check
                 response = await self._client.head(self.endpoint, timeout=5.0)
-                return response.status_code in [200, 405, 404]  # 405/404 acceptable for HEAD
+                return response.status_code in [
+                    200,
+                    405,
+                    404,
+                ]  # 405/404 acceptable for HEAD
 
         except asyncio.TimeoutError:
             log.warning("[glm_ocr] Health check timeout")

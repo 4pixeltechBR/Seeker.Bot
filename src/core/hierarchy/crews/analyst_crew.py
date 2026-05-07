@@ -65,18 +65,20 @@ class AnalystCrew(BaseCrew):
             analysis_type=analysis_type,
             user_input=user_input,
             memory_context=memory_context,
-            cognitive_depth=request.cognitive_depth
+            cognitive_depth=request.cognitive_depth,
         )
 
         latency_ms = int((time.time() - start_time) * 1000)
 
         # Store in history
-        self._analysis_history.append({
-            "timestamp": time.time(),
-            "analysis_type": analysis_type,
-            "confidence": analysis_result["confidence"],
-            "summary": analysis_result["summary"][:100]
-        })
+        self._analysis_history.append(
+            {
+                "timestamp": time.time(),
+                "analysis_type": analysis_type,
+                "confidence": analysis_result["confidence"],
+                "summary": analysis_result["summary"][:100],
+            }
+        )
         if len(self._analysis_history) > 20:
             self._analysis_history.pop(0)
 
@@ -93,13 +95,32 @@ class AnalystCrew(BaseCrew):
 
     def _detect_analysis_type(self, user_input: str) -> Optional[str]:
         """Detect which type of analysis is requested"""
-        if any(kw in user_input for kw in ["briefing", "resumo", "summary", "diário", "daily"]):
+        if any(
+            kw in user_input
+            for kw in ["briefing", "resumo", "summary", "diário", "daily"]
+        ):
             return "briefing"
-        elif any(kw in user_input for kw in ["improvement", "improve", "otimizar", "optimization", "melhoria"]):
+        elif any(
+            kw in user_input
+            for kw in ["improvement", "improve", "otimizar", "optimization", "melhoria"]
+        ):
             return "improvement"
-        elif any(kw in user_input for kw in ["revenue", "receita", "faturamento", "metrics", "financeiro", "semanal"]):
+        elif any(
+            kw in user_input
+            for kw in [
+                "revenue",
+                "receita",
+                "faturamento",
+                "metrics",
+                "financeiro",
+                "semanal",
+            ]
+        ):
             return "revenue"
-        elif any(kw in user_input for kw in ["strategic", "strategy", "planning", "roadmap", "trimestral"]):
+        elif any(
+            kw in user_input
+            for kw in ["strategic", "strategy", "planning", "roadmap", "trimestral"]
+        ):
             return "strategic"
         elif any(kw in user_input for kw in ["risk", "risco", "threat", "assessment"]):
             return "risk"
@@ -110,7 +131,7 @@ class AnalystCrew(BaseCrew):
         analysis_type: str,
         user_input: str,
         memory_context: List[str],
-        cognitive_depth: Any
+        cognitive_depth: Any,
     ) -> Dict[str, Any]:
         """
         Generate structured analysis (in production, this calls cascade_adapter.invoke)
@@ -136,12 +157,14 @@ class AnalystCrew(BaseCrew):
                 "cost_usd": 0.0,
                 "llm_calls": 0,
                 "summary": "unknown",
-                "sources": []
+                "sources": [],
             }
 
     def _generate_briefing(self, memory_context: List[str]) -> Dict[str, Any]:
         """Generate daily briefing summary"""
-        context_summary = "\n".join(memory_context[:5]) if memory_context else "Sem contexto"
+        context_summary = (
+            "\n".join(memory_context[:5]) if memory_context else "Sem contexto"
+        )
 
         response = f"""📋 BRIEFING DIÁRIO
 
@@ -167,7 +190,7 @@ Status: OK (confiança: 0.85)"""
             "cost_usd": 0.01,
             "llm_calls": 1,
             "summary": "Briefing gerado com sucesso",
-            "sources": ["memory_store", "goal_status"]
+            "sources": ["memory_store", "goal_status"],
         }
 
     def _generate_improvement(self, memory_context: List[str]) -> Dict[str, Any]:
@@ -201,7 +224,7 @@ Esforço: 4-6 horas de desenvolvimento"""
             "cost_usd": 0.02,
             "llm_calls": 1,
             "summary": "Recomendações de melhoria geradas",
-            "sources": ["metrics_store", "performance_logs"]
+            "sources": ["metrics_store", "performance_logs"],
         }
 
     def _generate_revenue_analysis(self, memory_context: List[str]) -> Dict[str, Any]:
@@ -238,7 +261,7 @@ Confiança: 0.78"""
             "cost_usd": 0.02,
             "llm_calls": 1,
             "summary": "Análise financeira semanal concluída",
-            "sources": ["memory_store", "scout_leads", "transaction_log"]
+            "sources": ["memory_store", "scout_leads", "transaction_log"],
         }
 
     def _generate_strategic_plan(self, memory_context: List[str]) -> Dict[str, Any]:
@@ -289,7 +312,7 @@ Recursos:
             "cost_usd": 0.03,
             "llm_calls": 1,
             "summary": "Plano estratégico Q2 2026 gerado",
-            "sources": ["roadmap", "sprint_tracker", "goal_registry"]
+            "sources": ["roadmap", "sprint_tracker", "goal_registry"],
         }
 
     def _generate_risk_assessment(self, memory_context: List[str]) -> Dict[str, Any]:
@@ -339,16 +362,20 @@ Mitigation Coverage: 82%"""
             "cost_usd": 0.02,
             "llm_calls": 1,
             "summary": "Avaliação de riscos completada",
-            "sources": ["architecture", "logs", "sprint_tracker"]
+            "sources": ["architecture", "logs", "sprint_tracker"],
         }
 
     def get_status(self) -> dict:
         """Extended status with analysis history"""
         base_status = super().get_status()
-        base_status.update({
-            "analysis_count": len(self._analysis_history),
-            "recent_analyses": self._analysis_history[-3:] if self._analysis_history else [],
-        })
+        base_status.update(
+            {
+                "analysis_count": len(self._analysis_history),
+                "recent_analyses": self._analysis_history[-3:]
+                if self._analysis_history
+                else [],
+            }
+        )
         return base_status
 
 

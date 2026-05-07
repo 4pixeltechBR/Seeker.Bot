@@ -1,25 +1,28 @@
 import logging
+import asyncio
 import os
 from aiogram import Dispatcher, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message
 from aiogram.enums import ParseMode
 from src.core.pipeline import SeekerPipeline
-from src.skills.git_sync import trigger_git_sync
 
 log = logging.getLogger("seeker.telegram.development")
+
 
 def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_context):
     @dp.message(F.text == "/git_backup")
     async def cmd_git_backup(message: Message):
 
-        await message.answer("📦 Iniciando backup de código no GitHub...", parse_mode=ParseMode.HTML)
+        await message.answer(
+            "📦 Iniciando backup de código no GitHub...", parse_mode=ParseMode.HTML
+        )
 
         try:
             # Encontra o goal git_backup
             git_backup_goal = None
-            if hasattr(pipeline, '_goals'):
+            if hasattr(pipeline, "_goals"):
                 for goal in pipeline._goals:
-                    if hasattr(goal, 'name') and goal.name == 'git_backup':
+                    if hasattr(goal, "name") and goal.name == "git_backup":
                         git_backup_goal = goal
                         break
 
@@ -27,7 +30,7 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
                 await message.answer(
                     "❌ Git backup skill não foi encontrada ou não está ativa.\n"
                     "Execute `/saude` para verificar o status dos goals.",
-                    parse_mode=ParseMode.HTML
+                    parse_mode=ParseMode.HTML,
                 )
                 return
 
@@ -45,13 +48,15 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
 
             if result.data:
                 data = result.data
-                if data.get('status'):
+                if data.get("status"):
                     response_lines.append(f"🔄 Status: {data['status']}")
-                if data.get('pushed'):
+                if data.get("pushed"):
                     response_lines.append(f"📤 Pushed: {data['pushed']}")
-                if data.get('commit'):
-                    response_lines.append(f"🔗 Commit: <code>{data['commit'][:12]}</code>")
-                if data.get('repo'):
+                if data.get("commit"):
+                    response_lines.append(
+                        f"🔗 Commit: <code>{data['commit'][:12]}</code>"
+                    )
+                if data.get("repo"):
                     response_lines.append(f"📦 Repo: <code>{data['repo']}</code>")
 
             if cost:
@@ -64,54 +69,55 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
             log.error(
                 f"[git_backup] Git backup skill não configurado: {e}",
                 exc_info=True,
-                extra={"context": "git_backup", "error_type": type(e).__name__}
+                extra={"context": "git_backup", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Git backup skill não está disponível.\nExecute `/saude` para verificar.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except (FileNotFoundError, OSError) as e:
             log.error(
                 f"[git_backup] Erro de acesso ao repositório: {e}",
                 exc_info=True,
-                extra={"context": "git_backup", "error_type": type(e).__name__}
+                extra={"context": "git_backup", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro ao acessar repositório Git. Verifique credenciais.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except asyncio.TimeoutError:
             log.warning("[git_backup] Git backup timeout (>60s)")
             await message.answer(
                 "⏱️ Timeout: Backup no GitHub demorou muito. Tente novamente.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except (RuntimeError, ValueError) as e:
             log.error(
                 f"[git_backup] Erro de execução do backup: {e}",
                 exc_info=True,
-                extra={"context": "git_backup", "error_type": type(e).__name__}
+                extra={"context": "git_backup", "error_type": type(e).__name__},
             )
             await message.answer(
-                f"❌ Erro ao executar backup: {str(e)[:100]}",
-                parse_mode=ParseMode.HTML
+                f"❌ Erro ao executar backup: {str(e)[:100]}", parse_mode=ParseMode.HTML
             )
         except Exception as e:
             log.critical(
                 f"[git_backup] Erro inesperado: {e}",
                 exc_info=True,
-                extra={"context": "git_backup", "error_type": type(e).__name__}
+                extra={"context": "git_backup", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Backup falhou de forma inesperada",
-                parse_mode=ParseMode.HTML
+                "❌ Backup falhou de forma inesperada", parse_mode=ParseMode.HTML
             )
 
     @dp.message(F.text == "/bug")
     async def cmd_bug(message: Message):
 
         try:
-            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+            from src.skills.bug_analyzer import (
+                BugAnalyzer,
+                BugAnalyzerTelegramInterface,
+            )
 
             # Inicializa analisador
             bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
@@ -127,14 +133,17 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
             log.error(f"[bug_analyzer] Erro em /bug: {e}", exc_info=True)
             await message.answer(
                 f"❌ Erro ao iniciar bug analyzer: <code>{str(e)[:100]}</code>",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
 
     @dp.message(F.text == "/bug_cancel")
     async def cmd_bug_cancel(message: Message):
 
         try:
-            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+            from src.skills.bug_analyzer import (
+                BugAnalyzer,
+                BugAnalyzerTelegramInterface,
+            )
 
             bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
             bug_ui = BugAnalyzerTelegramInterface(bug_analyzer)
@@ -151,7 +160,10 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
     async def cmd_bug_approve(message: Message):
 
         try:
-            from src.skills.bug_analyzer import BugAnalyzer, BugAnalyzerTelegramInterface
+            from src.skills.bug_analyzer import (
+                BugAnalyzer,
+                BugAnalyzerTelegramInterface,
+            )
 
             bug_analyzer = BugAnalyzer(pipeline.cascade_adapter, pipeline.model_router)
             bug_ui = BugAnalyzerTelegramInterface(bug_analyzer)
@@ -162,9 +174,12 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
 
             # Auto-restart via watchdog se o patch foi aplicado
             if "PATCH APLICADO" in msg:
-                await message.answer("🔄 **Reiniciando Seeker.Bot para aplicar o patch em 3 segundos...**", parse_mode=ParseMode.MARKDOWN)
-                import asyncio
+                await message.answer(
+                    "🔄 **Reiniciando Seeker.Bot para aplicar o patch em 3 segundos...**",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
                 import signal
+
                 await asyncio.sleep(3)
                 os.kill(os.getpid(), signal.SIGTERM)
         except Exception as e:

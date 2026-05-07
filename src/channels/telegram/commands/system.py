@@ -11,6 +11,7 @@ from src.channels.telegram.formatter import split_message
 
 log = logging.getLogger("seeker.telegram.system")
 
+
 def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
     @dp.message(F.text == "/status")
     async def cmd_status(message: Message):
@@ -22,16 +23,16 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
                 lines.append(f"<b>{role.value}</b>: {model.display_name}")
             except ValueError:
                 lines.append(f"<b>{role.value}</b>: ⚠️ não configurado")
-        lines.append(f"\n<b>Providers na arbitragem:</b>")
+        lines.append("\n<b>Providers na arbitragem:</b>")
         for m in router.get_all_for_arbitrage():
             lines.append(f"  → {m.display_name} ({m.provider})")
         try:
             stats = await pipeline.memory.get_episode_stats()
             facts = await pipeline.memory.get_facts(limit=999)
-            lines.append(f"\n<b>Memória:</b>")
+            lines.append("\n<b>Memória:</b>")
             lines.append(f"  {stats['total_episodes']} episódios | {len(facts)} fatos")
             lines.append(f"  Custo acumulado: ${stats['total_cost_usd']:.4f}")
-            if stats['avg_latency_ms']:
+            if stats["avg_latency_ms"]:
                 lines.append(f"  Latência média: {stats['avg_latency_ms']}ms")
             # Métricas de uso de memória semântica
             mem_stats = pipeline.get_memory_stats()
@@ -45,7 +46,7 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             active = pipeline.session.active_sessions
             if active:
                 lines.append(f"  Sessões ativas: {len(active)}")
-            
+
             # Goal Engine status
             scheduler = dp.get("scheduler")
             if scheduler:
@@ -56,16 +57,18 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             if ooda_loop:
                 ooda_stats = ooda_loop.get_stats()
                 if ooda_stats["total_iterations"] > 0:
-                    lines.append(f"\n<b>🔄 OODA Loop:</b>")
+                    lines.append("\n<b>🔄 OODA Loop:</b>")
                     lines.append(f"  {ooda_stats['total_iterations']} iterações")
                     lines.append(
                         f"  Success rate: {ooda_stats['success_rate']:.0%} "
                         f"| Bloqueadas: {ooda_stats['blocked_count']}"
                     )
-                    lines.append(f"  Latência média: {ooda_stats['avg_latency_ms']:.0f}ms")
+                    lines.append(
+                        f"  Latência média: {ooda_stats['avg_latency_ms']:.0f}ms"
+                    )
 
         except Exception:
-            lines.append(f"\n<b>Memória:</b> inicializando...")
+            lines.append("\n<b>Memória:</b> inicializando...")
         await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
 
     @dp.message(F.text == "/saude")
@@ -73,14 +76,16 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
         try:
             scheduler = dp.get("scheduler")
             if not scheduler:
-                await message.answer("❌ Goal scheduler não inicializado.", parse_mode=ParseMode.HTML)
+                await message.answer(
+                    "❌ Goal scheduler não inicializado.", parse_mode=ParseMode.HTML
+                )
                 return
 
             dashboard = scheduler.get_health_dashboard()
             lines = ["<b>📊 Health Dashboard dos Goals</b>\n"]
 
             # Global summary
-            lines.append(f"<b>🌍 Global:</b>")
+            lines.append("<b>🌍 Global:</b>")
             lines.append(
                 f"  Total: {dashboard['summary']['total_goals']} goals | "
                 f"Taxa média: {dashboard['summary']['avg_success_rate']:.1f}% | "
@@ -92,10 +97,12 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             limit = dashboard["global_budget"]["limit"]
             pct = spent / limit * 100 if limit > 0 else 0
             emoji = "🔴" if pct > 80 else ("🟡" if pct > 50 else "🟢")
-            lines.append(f"\n<b>💰 Budget Global:</b> {emoji} ${spent:.4f}/${limit} ({pct:.0f}%)")
+            lines.append(
+                f"\n<b>💰 Budget Global:</b> {emoji} ${spent:.4f}/${limit} ({pct:.0f}%)"
+            )
 
             # Per-goal metrics
-            lines.append(f"\n<b>📈 Goals Detalhados:</b>")
+            lines.append("\n<b>📈 Goals Detalhados:</b>")
             for goal_name, metrics in sorted(dashboard["goals"].items()):
                 m = metrics["metrics"]
                 status_emoji = {
@@ -124,14 +131,22 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
 
                 # Budget per-goal
                 budget = metrics["budget"]
-                budget_pct = budget["spent_today"] / budget["limit"] * 100 if budget["limit"] > 0 else 0
-                budget_emoji = "🔴" if budget_pct > 80 else ("🟡" if budget_pct > 50 else "🟢")
-                lines.append(f"    {budget_emoji} Budget: ${budget['spent_today']:.4f}/${budget['limit']} ({budget_pct:.0f}%)")
+                budget_pct = (
+                    budget["spent_today"] / budget["limit"] * 100
+                    if budget["limit"] > 0
+                    else 0
+                )
+                budget_emoji = (
+                    "🔴" if budget_pct > 80 else ("🟡" if budget_pct > 50 else "🟢")
+                )
+                lines.append(
+                    f"    {budget_emoji} Budget: ${budget['spent_today']:.4f}/${budget['limit']} ({budget_pct:.0f}%)"
+                )
 
             # Friction metrics
             friction = dashboard["friction_metrics"]
             if sum(friction.values()) > 0:
-                lines.append(f"\n<b>🛡️ Fricção Controlada:</b>")
+                lines.append("\n<b>🛡️ Fricção Controlada:</b>")
                 if friction["rethinks_blocked"] > 0:
                     lines.append(f"  🛑 Rethinks: {friction['rethinks_blocked']}")
                 if friction["sara_edits"] > 0:
@@ -141,6 +156,7 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
 
             # Last update timestamp
             import datetime
+
             ts = datetime.datetime.fromtimestamp(dashboard["timestamp"])
             lines.append(f"\n<i>Atualizado em: {ts.strftime('%H:%M:%S')}</i>")
 
@@ -154,32 +170,40 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[saude] Goal scheduler not properly initialized: {e}",
                 exc_info=True,
-                extra={"context": "health_dashboard", "error_type": type(e).__name__}
+                extra={"context": "health_dashboard", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Goal scheduler não está disponível",
-                parse_mode=ParseMode.HTML
+                "❌ Goal scheduler não está disponível", parse_mode=ParseMode.HTML
             )
         except (KeyError, ValueError) as e:
             log.error(
                 f"[saude] Invalid health dashboard data: {e}",
                 exc_info=True,
-                extra={"context": "health_dashboard", "error_type": type(e).__name__}
+                extra={"context": "health_dashboard", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao processar dados de saúde",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao processar dados de saúde", parse_mode=ParseMode.HTML
             )
         except Exception as e:
             log.critical(
                 f"[saude] Unexpected error in health dashboard: {e}",
                 exc_info=True,
-                extra={"context": "health_dashboard", "error_type": type(e).__name__}
+                extra={"context": "health_dashboard", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro inesperado ao carregar dashboard de saúde",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
+
+    @dp.message(F.text == "/audit_sara")
+    async def cmd_audit_sara(message: Message):
+        """Dashboard de Integridade Operacional (Hallucinations + SARA + Budget)"""
+        try:
+            report = pipeline.get_integrity_report()
+            await message.answer(report, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            log.error(f"[audit_sara] Erro ao gerar relatório: {e}", exc_info=True)
+            await message.answer("❌ Erro ao gerar relatório de integridade.")
 
     @dp.message(F.text == "/perf")
     async def cmd_perf(message: Message):
@@ -191,31 +215,29 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[perf] Performance reporter not available: {e}",
                 exc_info=True,
-                extra={"context": "perf_report", "error_type": "AttributeError"}
+                extra={"context": "perf_report", "error_type": "AttributeError"},
             )
             await message.answer(
                 "❌ Sistema de performance não está disponível",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except (ValueError, KeyError) as e:
             log.error(
                 f"[perf] Invalid performance data: {e}",
                 exc_info=True,
-                extra={"context": "perf_report", "error_type": type(e).__name__}
+                extra={"context": "perf_report", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao gerar relatório de performance",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao gerar relatório de performance", parse_mode=ParseMode.HTML
             )
         except Exception as e:
             log.critical(
                 f"[perf] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "perf_report", "error_type": type(e).__name__}
+                extra={"context": "perf_report", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro inesperado ao gerar relatório",
-                parse_mode=ParseMode.HTML
+                "❌ Erro inesperado ao gerar relatório", parse_mode=ParseMode.HTML
             )
 
     @dp.message(F.text == "/perf_detailed")
@@ -251,31 +273,31 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[perf_detailed] Performance dashboard not available: {e}",
                 exc_info=True,
-                extra={"context": "perf_detailed", "error_type": type(e).__name__}
+                extra={"context": "perf_detailed", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Dashboard de performance não está disponível",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except (KeyError, ValueError) as e:
             log.error(
                 f"[perf_detailed] Invalid performance data: {e}",
                 exc_info=True,
-                extra={"context": "perf_detailed", "error_type": type(e).__name__}
+                extra={"context": "perf_detailed", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro ao processar métricas de performance",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except Exception as e:
             log.critical(
                 f"[perf_detailed] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "perf_detailed", "error_type": type(e).__name__}
+                extra={"context": "perf_detailed", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro inesperado ao carregar métricas detalhadas",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
 
     @dp.message(F.text == "/cascade_status")
@@ -308,7 +330,9 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             lines.append(f"Total Calls: {cost_analysis['total_calls']}\n")
             lines.append(f"Total Cost: ${cost_analysis['total_cost_usd']}\n")
             lines.append(f"Avg Cost/Call: ${cost_analysis['average_cost_per_call']}\n")
-            lines.append(f"Savings vs NIM: {cost_analysis['estimated_savings_vs_nim']}\n")
+            lines.append(
+                f"Savings vs NIM: {cost_analysis['estimated_savings_vs_nim']}\n"
+            )
 
             # Error breakdown
             if cost_analysis.get("error_breakdown"):
@@ -327,31 +351,29 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[cascade_status] Cascade adapter not available: {e}",
                 exc_info=True,
-                extra={"context": "cascade_status", "error_type": type(e).__name__}
+                extra={"context": "cascade_status", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Cascade adapter não está disponível",
-                parse_mode=ParseMode.HTML
+                "❌ Cascade adapter não está disponível", parse_mode=ParseMode.HTML
             )
         except (KeyError, ValueError) as e:
             log.error(
                 f"[cascade_status] Invalid cascade health data: {e}",
                 exc_info=True,
-                extra={"context": "cascade_status", "error_type": type(e).__name__}
+                extra={"context": "cascade_status", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao processar status da cascata",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao processar status da cascata", parse_mode=ParseMode.HTML
             )
         except Exception as e:
             log.critical(
                 f"[cascade_status] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "cascade_status", "error_type": type(e).__name__}
+                extra={"context": "cascade_status", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro inesperado ao gerar status da cascata",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
 
     @dp.message(F.text.in_({"/bandit", "/bandit_stats"}))
@@ -359,23 +381,27 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
         """Status do LinUCB Cascade Bandit e progresso de aprendizado"""
         try:
             bandit = pipeline.cascade_bandit
-            stats  = bandit.get_stats()
+            stats = bandit.get_stats()
             rl_stats = pipeline.get_rl_stats()
 
             # Progresso para ativar modo ACTIVE
             updates = stats["total_updates"]
-            needed  = 100
-            pct     = min(100, int(updates / needed * 100))
+            needed = 100
+            pct = min(100, int(updates / needed * 100))
             bar_filled = int(pct / 10)
             progress_bar = "█" * bar_filled + "░" * (10 - bar_filled)
 
             # Divergência: quando o bandit discordaria do router
             divergences = stats["divergences"]
-            predicts    = stats["total_predicts"]
-            div_pct     = round((divergences / predicts * 100) if predicts > 0 else 0, 1)
+            predicts = stats["total_predicts"]
+            div_pct = round((divergences / predicts * 100) if predicts > 0 else 0, 1)
 
             # Reward médio do collector
-            avg_reward = round(rl_stats.get("avg_reward", 0.0), 3) if rl_stats.get("total_events", 0) > 0 else 0.0
+            avg_reward = (
+                round(rl_stats.get("avg_reward", 0.0), 3)
+                if rl_stats.get("total_events", 0) > 0
+                else 0.0
+            )
 
             # Top features aprendidas (só se tiver updates suficientes)
             features_section = ""
@@ -386,7 +412,9 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
                     for arm, feats in top.items():
                         top2 = ", ".join(f"{n}={v:+.2f}" for n, v in feats[:2])
                         lines.append(f"  <b>{arm}</b>: {top2}")
-                    features_section = "\n\n<b>📐 Top features aprendidas:</b>\n" + "\n".join(lines)
+                    features_section = (
+                        "\n\n<b>📐 Top features aprendidas:</b>\n" + "\n".join(lines)
+                    )
                 except Exception:
                     pass
 
@@ -394,9 +422,13 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             if stats["ready_for_active"]:
                 status_line = "🟢 <b>PRONTO para modo ACTIVE</b> (A/B test 50%)"
             elif updates >= 50:
-                status_line = f"🟡 Coletando ({pct}% — faltam {needed - updates} updates)"
+                status_line = (
+                    f"🟡 Coletando ({pct}% — faltam {needed - updates} updates)"
+                )
             else:
-                status_line = f"🔵 Fase inicial ({pct}% — faltam {needed - updates} updates)"
+                status_line = (
+                    f"🔵 Fase inicial ({pct}% — faltam {needed - updates} updates)"
+                )
 
             msg = (
                 f"<b>🤖 LinUCB Cascade Bandit</b>\n"
@@ -423,7 +455,9 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
 
         except Exception as e:
             log.error(f"[bandit] Erro ao gerar status: {e}", exc_info=True)
-            await message.answer("❌ Erro ao gerar status do bandit", parse_mode=ParseMode.HTML)
+            await message.answer(
+                "❌ Erro ao gerar status do bandit", parse_mode=ParseMode.HTML
+            )
 
     @dp.message(F.text == "/recovery")
     async def cmd_recovery(message: Message):
@@ -438,62 +472,82 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[recovery] Error recovery system not configured: {e}",
                 exc_info=True,
-                extra={"context": "recovery_status", "error_type": "AttributeError"}
+                extra={"context": "recovery_status", "error_type": "AttributeError"},
             )
             await message.answer(
                 "❌ Sistema de recuperação não está disponível",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except ValueError as e:
             log.error(
                 f"[recovery] Invalid recovery data: {e}",
                 exc_info=True,
-                extra={"context": "recovery_status", "error_type": "ValueError"}
+                extra={"context": "recovery_status", "error_type": "ValueError"},
             )
             await message.answer(
                 "❌ Erro ao formatar relatório de recuperação",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except Exception as e:
             log.critical(
                 f"[recovery] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "recovery_status", "error_type": type(e).__name__}
+                extra={"context": "recovery_status", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro inesperado ao recuperar status",
-                parse_mode=ParseMode.HTML
+                "❌ Erro inesperado ao recuperar status", parse_mode=ParseMode.HTML
             )
+
     @dp.message(F.text == "/memory")
     async def cmd_memory(message: Message):
         try:
             facts = await pipeline.memory.get_facts(min_confidence=0.3, limit=20)
             if not facts:
-                await message.answer("Memória vazia — ainda estou aprendendo sobre você.")
+                await message.answer(
+                    "Memória vazia — ainda estou aprendendo sobre você."
+                )
                 return
             lines = ["<b>🧠 Memória Semântica</b>\n"]
             for f in facts:
-                bar = "█" * int(f['confidence'] * 10) + "░" * (10 - int(f['confidence'] * 10))
+                bar = "█" * int(f["confidence"] * 10) + "░" * (
+                    10 - int(f["confidence"] * 10)
+                )
                 lines.append(
                     f"[{bar}] {f['confidence']:.0%} <i>({f['category']})</i>\n"
                     f"  {html.escape(f['fact'][:100])}"
                 )
             await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
         except KeyError as e:
-            log.error(f"[memory] Missing expected key in fact data: {e}", exc_info=True,
-                      extra={"context": "memory_command", "error_type": "KeyError"})
-            await message.answer("❌ Erro ao recuperar memória: estrutura de dados inválida")
+            log.error(
+                f"[memory] Missing expected key in fact data: {e}",
+                exc_info=True,
+                extra={"context": "memory_command", "error_type": "KeyError"},
+            )
+            await message.answer(
+                "❌ Erro ao recuperar memória: estrutura de dados inválida"
+            )
         except (AttributeError, TypeError) as e:
-            log.error(f"[memory] Memory service not properly configured: {e}", exc_info=True,
-                      extra={"context": "memory_command", "error_type": type(e).__name__})
+            log.error(
+                f"[memory] Memory service not properly configured: {e}",
+                exc_info=True,
+                extra={"context": "memory_command", "error_type": type(e).__name__},
+            )
             await message.answer("❌ Sistema de memória não está disponível")
         except (OSError, IOError) as e:
-            log.error(f"[memory] Database error: {e}", exc_info=True,
-                      extra={"context": "memory_command", "error_type": type(e).__name__})
-            await message.answer("❌ Erro ao acessar memória (problema com banco de dados)")
+            log.error(
+                f"[memory] Database error: {e}",
+                exc_info=True,
+                extra={"context": "memory_command", "error_type": type(e).__name__},
+            )
+            await message.answer(
+                "❌ Erro ao acessar memória (problema com banco de dados)"
+            )
         except Exception as e:
-            log.critical(f"[memory] Unexpected error: {e}", exc_info=True,
-                         extra={"context": "memory_command", "error_type": type(e).__name__})
+            log.critical(
+                f"[memory] Unexpected error: {e}",
+                exc_info=True,
+                extra={"context": "memory_command", "error_type": type(e).__name__},
+            )
             await message.answer("❌ Erro inesperado ao recuperar memória")
 
     @dp.message(F.text == "/god")
@@ -543,25 +597,21 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[decay] Missing stats key: {e}",
                 exc_info=True,
-                extra={"context": "decay_cleanup", "error_type": "KeyError"}
+                extra={"context": "decay_cleanup", "error_type": "KeyError"},
             )
-            await message.answer(
-                "❌ Erro: Estatísticas de decay incompletas"
-            )
+            await message.answer("❌ Erro: Estatísticas de decay incompletas")
         except (RuntimeError, asyncio.TimeoutError) as e:
             log.error(
                 f"[decay] Decay execution error: {e}",
                 exc_info=True,
-                extra={"context": "decay_cleanup", "error_type": type(e).__name__}
+                extra={"context": "decay_cleanup", "error_type": type(e).__name__},
             )
-            await message.answer(
-                "❌ Erro ao executar decay. Tente novamente."
-            )
+            await message.answer("❌ Erro ao executar decay. Tente novamente.")
         except Exception as e:
             log.critical(
                 f"[decay] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "decay_cleanup", "error_type": type(e).__name__}
+                extra={"context": "decay_cleanup", "error_type": type(e).__name__},
             )
             await message.answer("❌ Erro inesperado ao executar decay")
 
@@ -575,31 +625,28 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[budget] Cost tracker not available: {e}",
                 exc_info=True,
-                extra={"context": "budget_report", "error_type": "AttributeError"}
+                extra={"context": "budget_report", "error_type": "AttributeError"},
             )
             await message.answer(
-                "❌ Sistema de custos não está disponível",
-                parse_mode=ParseMode.HTML
+                "❌ Sistema de custos não está disponível", parse_mode=ParseMode.HTML
             )
         except (KeyError, ValueError) as e:
             log.error(
                 f"[budget] Invalid cost data: {e}",
                 exc_info=True,
-                extra={"context": "budget_report", "error_type": type(e).__name__}
+                extra={"context": "budget_report", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao recuperar dados de custos",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao recuperar dados de custos", parse_mode=ParseMode.HTML
             )
         except Exception as e:
             log.critical(
                 f"[budget] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "budget_report", "error_type": type(e).__name__}
+                extra={"context": "budget_report", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro inesperado ao recuperar custos",
-                parse_mode=ParseMode.HTML
+                "❌ Erro inesperado ao recuperar custos", parse_mode=ParseMode.HTML
             )
 
     @dp.message(F.text == "/budget_monthly")
@@ -616,46 +663,39 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
 
             linhas.append("<b>Por Provedor:</b>")
             for prov, custo in sorted(
-                resumo['provedores'].items(),
-                key=lambda x: x[1],
-                reverse=True
+                resumo["provedores"].items(), key=lambda x: x[1], reverse=True
             ):
                 if custo > 0:
                     linhas.append(f"  {prov}: ${custo:.4f}")
 
-            await message.answer(
-                "\n".join(linhas),
-                parse_mode=ParseMode.HTML
-            )
+            await message.answer("\n".join(linhas), parse_mode=ParseMode.HTML)
         except AttributeError as e:
             log.error(
                 f"[budget_monthly] Cost tracker not available: {e}",
                 exc_info=True,
-                extra={"context": "budget_monthly", "error_type": "AttributeError"}
+                extra={"context": "budget_monthly", "error_type": "AttributeError"},
             )
             await message.answer(
-                "❌ Sistema de custos não está disponível",
-                parse_mode=ParseMode.HTML
+                "❌ Sistema de custos não está disponível", parse_mode=ParseMode.HTML
             )
         except (KeyError, ValueError) as e:
             log.error(
                 f"[budget_monthly] Invalid monthly data: {e}",
                 exc_info=True,
-                extra={"context": "budget_monthly", "error_type": type(e).__name__}
+                extra={"context": "budget_monthly", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao recuperar dados mensais",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao recuperar dados mensais", parse_mode=ParseMode.HTML
             )
         except Exception as e:
             log.critical(
                 f"[budget_monthly] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "budget_monthly", "error_type": type(e).__name__}
+                extra={"context": "budget_monthly", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro inesperado ao recuperar orçamento mensal",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
 
     @dp.message(F.text == "/data_stats")
@@ -670,48 +710,44 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             linhas.append(f"Categorias: {len(stats['categorias'])}\n")
 
             linhas.append("<b>Por Categoria:</b>")
-            for cat, qtd in stats['quantidade_por_categoria'].items():
+            for cat, qtd in stats["quantidade_por_categoria"].items():
                 linhas.append(f"  {cat}: {qtd}")
 
-            await message.answer(
-                "\n".join(linhas),
-                parse_mode=ParseMode.HTML
-            )
+            await message.answer("\n".join(linhas), parse_mode=ParseMode.HTML)
         except AttributeError as e:
             log.error(
                 f"[data_stats] Data store not available: {e}",
                 exc_info=True,
-                extra={"context": "data_stats", "error_type": "AttributeError"}
+                extra={"context": "data_stats", "error_type": "AttributeError"},
             )
             await message.answer(
                 "❌ Sistema de armazenamento não está disponível",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except (KeyError, TypeError) as e:
             log.error(
                 f"[data_stats] Invalid stats format: {e}",
                 exc_info=True,
-                extra={"context": "data_stats", "error_type": type(e).__name__}
+                extra={"context": "data_stats", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao recuperar estatísticas",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao recuperar estatísticas", parse_mode=ParseMode.HTML
             )
         except asyncio.TimeoutError:
             log.warning("[data_stats] Data stats query timeout")
             await message.answer(
                 "⏱️ Timeout ao recuperar estatísticas. Tente novamente.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except Exception as e:
             log.critical(
                 f"[data_stats] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "data_stats", "error_type": type(e).__name__}
+                extra={"context": "data_stats", "error_type": type(e).__name__},
             )
             await message.answer(
                 "❌ Erro inesperado ao recuperar estatísticas",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
 
     @dp.message(F.text == "/data_clean")
@@ -724,48 +760,47 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             linhas = ["<b>Limpeza de Dados Concluida</b>\n"]
             linhas.append(f"Total deletado: {resultado['total_deletados']}")
             linhas.append(f"  Idade maxima: {resultado['por_motivo']['idade_maxima']}")
-            linhas.append(f"  Confianca baixa: {resultado['por_motivo']['confianca_baixa']}")
-            linhas.append(f"  Nunca utilizado: {resultado['por_motivo']['nunca_utilizado']}")
-
-            await message.answer(
-                "\n".join(linhas),
-                parse_mode=ParseMode.HTML
+            linhas.append(
+                f"  Confianca baixa: {resultado['por_motivo']['confianca_baixa']}"
             )
+            linhas.append(
+                f"  Nunca utilizado: {resultado['por_motivo']['nunca_utilizado']}"
+            )
+
+            await message.answer("\n".join(linhas), parse_mode=ParseMode.HTML)
         except AttributeError as e:
             log.error(
                 f"[data_clean] Data manager not available: {e}",
                 exc_info=True,
-                extra={"context": "data_cleanup", "error_type": "AttributeError"}
+                extra={"context": "data_cleanup", "error_type": "AttributeError"},
             )
             await message.answer(
                 "❌ Sistema de gerenciamento não está disponível",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except (KeyError, TypeError) as e:
             log.error(
                 f"[data_clean] Invalid cleanup result: {e}",
                 exc_info=True,
-                extra={"context": "data_cleanup", "error_type": type(e).__name__}
+                extra={"context": "data_cleanup", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao processar resultados da limpeza",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao processar resultados da limpeza", parse_mode=ParseMode.HTML
             )
         except asyncio.TimeoutError:
             log.warning("[data_clean] Data cleanup timeout")
             await message.answer(
                 "⏱️ Limpeza de dados está demorando. Tente novamente.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except Exception as e:
             log.critical(
                 f"[data_clean] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "data_cleanup", "error_type": type(e).__name__}
+                extra={"context": "data_cleanup", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro inesperado na limpeza de dados",
-                parse_mode=ParseMode.HTML
+                "❌ Erro inesperado na limpeza de dados", parse_mode=ParseMode.HTML
             )
 
     @dp.message(F.text == "/dashboard")
@@ -778,37 +813,34 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             log.error(
                 f"[dashboard] Analytics reporter not available: {e}",
                 exc_info=True,
-                extra={"context": "dashboard", "error_type": "AttributeError"}
+                extra={"context": "dashboard", "error_type": "AttributeError"},
             )
             await message.answer(
-                "❌ Sistema de análise não está disponível",
-                parse_mode=ParseMode.HTML
+                "❌ Sistema de análise não está disponível", parse_mode=ParseMode.HTML
             )
         except (ValueError, KeyError) as e:
             log.error(
                 f"[dashboard] Invalid report data: {e}",
                 exc_info=True,
-                extra={"context": "dashboard", "error_type": type(e).__name__}
+                extra={"context": "dashboard", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao gerar dashboard",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao gerar dashboard", parse_mode=ParseMode.HTML
             )
         except asyncio.TimeoutError:
             log.warning("[dashboard] Dashboard generation timeout")
             await message.answer(
                 "⏱️ Geração de dashboard está demorando. Tente novamente.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except Exception as e:
             log.critical(
                 f"[dashboard] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "dashboard", "error_type": type(e).__name__}
+                extra={"context": "dashboard", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro inesperado ao carregar dashboard",
-                parse_mode=ParseMode.HTML
+                "❌ Erro inesperado ao carregar dashboard", parse_mode=ParseMode.HTML
             )
 
     @dp.message(F.text == "/forecast")
@@ -821,57 +853,57 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             linhas.append("<b>Proximos 7 Dias</b>")
             linhas.append(f"Total: ${previsoes['previsao_7d']['total']:.2f}")
             linhas.append(f"Media/Dia: ${previsoes['previsao_7d']['media_diaria']:.2f}")
-            linhas.append(f"Range: ${previsoes['previsao_7d']['min']:.2f} - ${previsoes['previsao_7d']['max']:.2f}\n")
+            linhas.append(
+                f"Range: ${previsoes['previsao_7d']['min']:.2f} - ${previsoes['previsao_7d']['max']:.2f}\n"
+            )
 
             linhas.append("<b>Proximos 30 Dias</b>")
             linhas.append(f"Total: ${previsoes['previsao_30d']['total']:.2f}")
-            linhas.append(f"Media/Dia: ${previsoes['previsao_30d']['media_diaria']:.2f}")
-            linhas.append(f"Range: ${previsoes['previsao_30d']['min']:.2f} - ${previsoes['previsao_30d']['max']:.2f}\n")
+            linhas.append(
+                f"Media/Dia: ${previsoes['previsao_30d']['media_diaria']:.2f}"
+            )
+            linhas.append(
+                f"Range: ${previsoes['previsao_30d']['min']:.2f} - ${previsoes['previsao_30d']['max']:.2f}\n"
+            )
 
-            if previsoes['data_alerta_mensal']:
+            if previsoes["data_alerta_mensal"]:
                 linhas.append("<b>Alerta de Limite</b>")
                 linhas.append(f"Previsto para: {previsoes['data_alerta_mensal']}")
                 linhas.append(f"Em {previsoes['dias_ate_alerta']} dias")
 
-            await message.answer(
-                "\n".join(linhas),
-                parse_mode=ParseMode.HTML
-            )
+            await message.answer("\n".join(linhas), parse_mode=ParseMode.HTML)
         except AttributeError as e:
             log.error(
                 f"[forecast] Analytics forecaster not available: {e}",
                 exc_info=True,
-                extra={"context": "forecast", "error_type": "AttributeError"}
+                extra={"context": "forecast", "error_type": "AttributeError"},
             )
             await message.answer(
-                "❌ Sistema de previsões não está disponível",
-                parse_mode=ParseMode.HTML
+                "❌ Sistema de previsões não está disponível", parse_mode=ParseMode.HTML
             )
         except (KeyError, ValueError, TypeError) as e:
             log.error(
                 f"[forecast] Invalid forecast data: {e}",
                 exc_info=True,
-                extra={"context": "forecast", "error_type": type(e).__name__}
+                extra={"context": "forecast", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro ao calcular previsões",
-                parse_mode=ParseMode.HTML
+                "❌ Erro ao calcular previsões", parse_mode=ParseMode.HTML
             )
         except asyncio.TimeoutError:
             log.warning("[forecast] Forecast calculation timeout")
             await message.answer(
                 "⏱️ Cálculo de previsões está demorando. Tente novamente.",
-                parse_mode=ParseMode.HTML
+                parse_mode=ParseMode.HTML,
             )
         except Exception as e:
             log.critical(
                 f"[forecast] Unexpected error: {e}",
                 exc_info=True,
-                extra={"context": "forecast", "error_type": type(e).__name__}
+                extra={"context": "forecast", "error_type": type(e).__name__},
             )
             await message.answer(
-                "❌ Erro inesperado ao calcular previsões",
-                parse_mode=ParseMode.HTML
+                "❌ Erro inesperado ao calcular previsões", parse_mode=ParseMode.HTML
             )
 
     @dp.message(F.text == "/habits")

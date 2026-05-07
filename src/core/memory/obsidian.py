@@ -53,12 +53,14 @@ class ObsidianExporter:
             if sub not in entities_data:
                 entities_data[sub] = {"type": "unknown", "triples": []}
 
-            entities_data[sub]["triples"].append({
-                "predicate": t["predicate"],
-                "target": obj,
-                "valid_from": t.get("valid_from"),
-                "valid_to": t.get("valid_to")
-            })
+            entities_data[sub]["triples"].append(
+                {
+                    "predicate": t["predicate"],
+                    "target": obj,
+                    "valid_from": t.get("valid_from"),
+                    "valid_to": t.get("valid_to"),
+                }
+            )
 
         exported = 0
         for name, data in entities_data.items():
@@ -69,7 +71,9 @@ class ObsidianExporter:
                 log.warning(f"[obsidian] Falha ao exportar '{name}': {e}")
 
         if exported:
-            log.info(f"[obsidian] Sync: {exported}/{len(entities_data)} entidades exportadas")
+            log.info(
+                f"[obsidian] Sync: {exported}/{len(entities_data)} entidades exportadas"
+            )
 
     def _export_entity(self, name: str, data: dict):
         filename = f"{self._safe_filename(name)}.md"
@@ -82,7 +86,7 @@ class ObsidianExporter:
             "tags: [seeker/entity]",
             "---",
             f"\n# {name}\n",
-            "## Relacionamentos\n"
+            "## Relacionamentos\n",
         ]
 
         for t in data["triples"]:

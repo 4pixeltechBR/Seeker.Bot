@@ -10,15 +10,17 @@ log = logging.getLogger("seeker.degradation")
 
 class DegradationLevel(Enum):
     """Degradation levels"""
-    NORMAL = 0        # Full functionality
-    REDUCED = 1       # Some features disabled
-    MINIMAL = 2       # Basic functionality only
-    OFFLINE = 3       # No service
+
+    NORMAL = 0  # Full functionality
+    REDUCED = 1  # Some features disabled
+    MINIMAL = 2  # Basic functionality only
+    OFFLINE = 3  # No service
 
 
 @dataclass
 class DegradationConfig:
     """Configuration for degradation behavior"""
+
     min_confidence: float = 0.5  # Min confidence to use data
     skip_expensive_ops: bool = False  # Skip expensive operations
     use_cache_only: bool = False  # Only use cached data
@@ -42,9 +44,7 @@ class GracefulDegradation:
         self._provider_degradation[provider] = level
 
         if level != old_level:
-            log.warning(
-                f"[degradation] {provider}: {old_level.name} → {level.name}"
-            )
+            log.warning(f"[degradation] {provider}: {old_level.name} → {level.name}")
 
     def get_provider_status(self, provider: str) -> DegradationLevel:
         """Get degradation level for provider"""
@@ -79,9 +79,7 @@ class GracefulDegradation:
 
         # If all degraded, return the least degraded
         best_provider = min(
-            providers,
-            key=lambda p: self.get_provider_status(p).value,
-            default=None
+            providers, key=lambda p: self.get_provider_status(p).value, default=None
         )
 
         if best_provider:
@@ -107,9 +105,7 @@ class GracefulDegradation:
         """Check if feature is enabled"""
         return self._feature_status.get(feature_name, True)
 
-    def get_degradation_config(
-        self, provider: str
-    ) -> DegradationConfig:
+    def get_degradation_config(self, provider: str) -> DegradationConfig:
         """Get configuration based on provider degradation level"""
         level = self.get_provider_status(provider)
 
@@ -140,7 +136,8 @@ class GracefulDegradation:
         report = "<b>🔻 DEGRADATION STATUS</b>\n"
 
         healthy_count = sum(
-            1 for level in self._provider_degradation.values()
+            1
+            for level in self._provider_degradation.values()
             if level == DegradationLevel.NORMAL
         )
         total_count = len(self._provider_degradation)

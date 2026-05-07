@@ -24,7 +24,6 @@ Dois mecanismos que nenhum agente implementa juntos:
 import logging
 import math
 import time
-from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -38,25 +37,27 @@ log = logging.getLogger("seeker.evidence.decay")
 # DOMÍNIOS E HALF-LIVES
 # ─────────────────────────────────────────────────────────────────────
 
+
 class Domain(str, Enum):
-    CRYPTO     = "crypto"
-    NEWS       = "news"
-    TECH_API   = "tech_api"
-    TECH_ARCH  = "tech_arch"
-    SCIENCE    = "science"
-    BUSINESS   = "business"
-    HISTORY    = "history"
-    GENERAL    = "general"
+    CRYPTO = "crypto"
+    NEWS = "news"
+    TECH_API = "tech_api"
+    TECH_ARCH = "tech_arch"
+    SCIENCE = "science"
+    BUSINESS = "business"
+    HISTORY = "history"
+    GENERAL = "general"
+
 
 DOMAIN_HALF_LIFE = {
-    Domain.CRYPTO:    1,
-    Domain.NEWS:      3,
-    Domain.TECH_API:  30,
-    Domain.BUSINESS:  60,
+    Domain.CRYPTO: 1,
+    Domain.NEWS: 3,
+    Domain.TECH_API: 30,
+    Domain.BUSINESS: 60,
     Domain.TECH_ARCH: 90,
-    Domain.SCIENCE:   180,
-    Domain.HISTORY:   999,
-    Domain.GENERAL:   60,
+    Domain.SCIENCE: 180,
+    Domain.HISTORY: 999,
+    Domain.GENERAL: 60,
 }
 
 VERIFICATION_MULTIPLIER = {
@@ -68,32 +69,78 @@ VERIFICATION_MULTIPLIER = {
 
 DOMAIN_KEYWORDS = {
     Domain.CRYPTO: [
-        "bitcoin", "ethereum", "crypto", "token", "defi", "nft",
-        "blockchain", "solana", "cotação", "preço",
+        "bitcoin",
+        "ethereum",
+        "crypto",
+        "token",
+        "defi",
+        "nft",
+        "blockchain",
+        "solana",
+        "cotação",
+        "preço",
     ],
     Domain.NEWS: [
-        "notícia", "hoje", "ontem", "breaking", "aconteceu",
-        "eleição", "eleito", "morreu", "faleceu",
+        "notícia",
+        "hoje",
+        "ontem",
+        "breaking",
+        "aconteceu",
+        "eleição",
+        "eleito",
+        "morreu",
+        "faleceu",
     ],
     Domain.TECH_API: [
-        "api", "sdk", "free tier", "rate limit", "endpoint",
-        "model id", "versão", "release", "deprecat", "pricing",
+        "api",
+        "sdk",
+        "free tier",
+        "rate limit",
+        "endpoint",
+        "model id",
+        "versão",
+        "release",
+        "deprecat",
+        "pricing",
     ],
     Domain.TECH_ARCH: [
-        "arquitetura", "padrão", "framework", "design pattern",
-        "microserviço", "monolito", "event driven",
+        "arquitetura",
+        "padrão",
+        "framework",
+        "design pattern",
+        "microserviço",
+        "monolito",
+        "event driven",
     ],
     Domain.SCIENCE: [
-        "paper", "arxiv", "estudo", "pesquisa", "peer review",
-        "experimento", "hipótese", "publicação",
+        "paper",
+        "arxiv",
+        "estudo",
+        "pesquisa",
+        "peer review",
+        "experimento",
+        "hipótese",
+        "publicação",
     ],
     Domain.BUSINESS: [
-        "ceo", "cto", "empresa", "startup", "funding",
-        "aquisição", "ipo", "receita", "revenue",
+        "ceo",
+        "cto",
+        "empresa",
+        "startup",
+        "funding",
+        "aquisição",
+        "ipo",
+        "receita",
+        "revenue",
     ],
     Domain.HISTORY: [
-        "história", "histórico", "inventou", "fundou",
-        "nasceu", "criado em", "origem",
+        "história",
+        "histórico",
+        "inventou",
+        "fundou",
+        "nasceu",
+        "criado em",
+        "origem",
     ],
 }
 
@@ -101,6 +148,7 @@ DOMAIN_KEYWORDS = {
 # ─────────────────────────────────────────────────────────────────────
 # FUNÇÕES DE DECAY (puras, sem side effects)
 # ─────────────────────────────────────────────────────────────────────
+
 
 def detect_domain(text: str) -> Domain:
     """Detecta o domínio de um fato por keywords."""
@@ -163,17 +211,18 @@ def effective_confidence(
 # DECAY ENGINE — usa MemoryProtocol, NUNCA acessa _db direto
 # ─────────────────────────────────────────────────────────────────────
 
+
 class DecayEngine:
     """
     Aplica decay em todos os fatos da memória semântica.
-    
+
     Diferença do original: usa update_fact_confidence() e delete_fact()
     do MemoryProtocol ao invés de self.memory._db.execute() direto.
     Isso significa que QUALQUER backend (SQLite, Graphiti, Postgres)
     funciona sem mudar uma linha aqui.
-    
+
     Também limpa sessões antigas no mesmo ciclo.
-    
+
     Uso:
         engine = DecayEngine(memory_store)
         stats = await engine.run()
@@ -194,7 +243,7 @@ class DecayEngine:
             # Memória Reflexiva: Imune a decay. Regras de usuário não envelhecem.
             if fact.get("category") == "reflexive_rule":
                 continue
-                
+
             domain = detect_domain(fact["fact"])
             eff_conf = effective_confidence(
                 base_confidence=fact["confidence"],

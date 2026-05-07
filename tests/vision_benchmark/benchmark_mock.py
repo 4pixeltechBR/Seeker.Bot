@@ -10,7 +10,7 @@ import json
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List
 from dataclasses import dataclass, asdict
 
 log = logging.getLogger("vision.benchmark.mock")
@@ -19,6 +19,7 @@ log = logging.getLogger("vision.benchmark.mock")
 @dataclass
 class MockModelResult:
     """Resultado simulado para um modelo."""
+
     model_name: str
     ocr_exact_match_pct: float
     ocr_levenshtein_avg: float
@@ -43,7 +44,7 @@ class MockBenchmarkRunner:
             model_name="GLM-OCR:0.9b",
             ocr_exact_match_pct=94.5,  # SOTA specialist
             ocr_levenshtein_avg=0.96,  # Superior a todos
-            grounding_iou_avg=0.42,    # Não é especialista (é OCR-only)
+            grounding_iou_avg=0.42,  # Não é especialista (é OCR-only)
             grounding_json_validity_pct=65.0,  # Não foi treinádo para isso
             description_keyword_coverage_pct=48.0,  # Não é seu caso de uso
             latency_p50_ms=1200.0,  # MUITO rápido (0.9B parameters)
@@ -106,7 +107,9 @@ class MockBenchmarkRunner:
         ),
     }
 
-    async def run_benchmark(self, model_names: List[str], output_path: str = "reports/") -> Dict:
+    async def run_benchmark(
+        self, model_names: List[str], output_path: str = "reports/"
+    ) -> Dict:
         """
         Simula benchmark run contra múltiplos modelos.
 
@@ -117,7 +120,9 @@ class MockBenchmarkRunner:
         Returns:
             Dict com resultados agregados
         """
-        log.info(f"[mock_benchmark] Iniciando mock benchmark para {len(model_names)} modelos...")
+        log.info(
+            f"[mock_benchmark] Iniciando mock benchmark para {len(model_names)} modelos..."
+        )
 
         results = {}
         output_dir = Path(output_path)
@@ -127,25 +132,27 @@ class MockBenchmarkRunner:
             log.info(f"[mock_benchmark] Simulando teste para {model_name}...")
 
             if model_name not in self.MODEL_MOCK_RESULTS:
-                log.warning(f"Modelo {model_name} não está em mock results, usando default")
+                log.warning(
+                    f"Modelo {model_name} não está em mock results, usando default"
+                )
                 mock_result = self.MODEL_MOCK_RESULTS["qwen3.5:4b"]
             else:
                 mock_result = self.MODEL_MOCK_RESULTS[model_name]
 
             # Salvar resultado em JSON
             output_file = output_dir / f"{model_name.replace(':', '_')}.json"
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 json.dump(asdict(mock_result), f, indent=2)
 
             results[model_name] = asdict(mock_result)
-            log.info(f"✅ {model_name}: OCR={mock_result.ocr_exact_match_pct:.1f}%, IoU={mock_result.grounding_iou_avg:.2f}, P50={mock_result.latency_p50_ms:.0f}ms")
+            log.info(
+                f"✅ {model_name}: OCR={mock_result.ocr_exact_match_pct:.1f}%, IoU={mock_result.grounding_iou_avg:.2f}, P50={mock_result.latency_p50_ms:.0f}ms"
+            )
 
         return results
 
     def generate_comparison_report(
-        self,
-        model_results: Dict,
-        output_path: str = "reports/vision_2_0_comparison.md"
+        self, model_results: Dict, output_path: str = "reports/vision_2_0_comparison.md"
     ) -> str:
         """
         Gera relatório markdown comparando modelos.
@@ -169,18 +176,24 @@ class MockBenchmarkRunner:
         }
 
         # Header
-        report = """# Vision 2.0 — Benchmark Comparison Report
+        report = (
+            """# Vision 2.0 — Benchmark Comparison Report
 
-**Data:** """ + datetime.utcnow().isoformat() + """
+**Data:** """
+            + datetime.utcnow().isoformat()
+            + """
 **Dataset:** 150 tasks (OCR + Grounding + Description + AFK)
 
 ## Executive Summary
 
 """
+        )
 
         # Resumo rápido
         best_ocr = max(model_results.values(), key=lambda x: x["ocr_exact_match_pct"])
-        best_grounding = max(model_results.values(), key=lambda x: x["grounding_iou_avg"])
+        best_grounding = max(
+            model_results.values(), key=lambda x: x["grounding_iou_avg"]
+        )
         best_latency = min(model_results.values(), key=lambda x: x["latency_p50_ms"])
 
         report += f"- Best OCR: {best_ocr['model_name']} ({best_ocr['ocr_exact_match_pct']:.1f}%)\n"
@@ -189,48 +202,91 @@ class MockBenchmarkRunner:
 
         # Tabela de comparação
         report += "## Detailed Comparison\n\n"
-        report += "| Metric | Threshold | " + " | ".join([m["model_name"] for m in model_results.values()]) + " |\n"
-        report += "|--------|-----------|" + "|".join(["-------"] * (len(model_results) + 1)) + "|\n"
+        report += (
+            "| Metric | Threshold | "
+            + " | ".join([m["model_name"] for m in model_results.values()])
+            + " |\n"
+        )
+        report += (
+            "|--------|-----------|"
+            + "|".join(["-------"] * (len(model_results) + 1))
+            + "|\n"
+        )
 
         # OCR
         ocr_threshold = THRESHOLDS["ocr_exact_match_pct"]
-        report += f"| OCR Exact Match | >= {ocr_threshold}% | " + " | ".join([
-            f"**{m['ocr_exact_match_pct']:.1f}%** PASS" if m['ocr_exact_match_pct'] >= ocr_threshold
-            else f"{m['ocr_exact_match_pct']:.1f}% FAIL"
-            for m in model_results.values()
-        ]) + " |\n"
+        report += (
+            f"| OCR Exact Match | >= {ocr_threshold}% | "
+            + " | ".join(
+                [
+                    f"**{m['ocr_exact_match_pct']:.1f}%** PASS"
+                    if m["ocr_exact_match_pct"] >= ocr_threshold
+                    else f"{m['ocr_exact_match_pct']:.1f}% FAIL"
+                    for m in model_results.values()
+                ]
+            )
+            + " |\n"
+        )
 
         # Grounding IoU
         iou_threshold = THRESHOLDS["grounding_iou_avg"]
-        report += f"| Grounding IoU | >= {iou_threshold} | " + " | ".join([
-            f"**{m['grounding_iou_avg']:.2f}** PASS" if m['grounding_iou_avg'] >= iou_threshold
-            else f"{m['grounding_iou_avg']:.2f} FAIL"
-            for m in model_results.values()
-        ]) + " |\n"
+        report += (
+            f"| Grounding IoU | >= {iou_threshold} | "
+            + " | ".join(
+                [
+                    f"**{m['grounding_iou_avg']:.2f}** PASS"
+                    if m["grounding_iou_avg"] >= iou_threshold
+                    else f"{m['grounding_iou_avg']:.2f} FAIL"
+                    for m in model_results.values()
+                ]
+            )
+            + " |\n"
+        )
 
         # JSON Validity
         json_threshold = THRESHOLDS["grounding_json_validity_pct"]
-        report += f"| JSON Validity | >= {json_threshold}% | " + " | ".join([
-            f"**{m['grounding_json_validity_pct']:.0f}%** PASS" if m['grounding_json_validity_pct'] >= json_threshold
-            else f"{m['grounding_json_validity_pct']:.0f}% FAIL"
-            for m in model_results.values()
-        ]) + " |\n"
+        report += (
+            f"| JSON Validity | >= {json_threshold}% | "
+            + " | ".join(
+                [
+                    f"**{m['grounding_json_validity_pct']:.0f}%** PASS"
+                    if m["grounding_json_validity_pct"] >= json_threshold
+                    else f"{m['grounding_json_validity_pct']:.0f}% FAIL"
+                    for m in model_results.values()
+                ]
+            )
+            + " |\n"
+        )
 
         # Latency P50
         latency_threshold = THRESHOLDS["latency_p50_ms"]
-        report += f"| Latency P50 | <= {latency_threshold}ms | " + " | ".join([
-            f"**{m['latency_p50_ms']:.0f}ms** PASS" if m['latency_p50_ms'] <= latency_threshold
-            else f"{m['latency_p50_ms']:.0f}ms FAIL"
-            for m in model_results.values()
-        ]) + " |\n"
+        report += (
+            f"| Latency P50 | <= {latency_threshold}ms | "
+            + " | ".join(
+                [
+                    f"**{m['latency_p50_ms']:.0f}ms** PASS"
+                    if m["latency_p50_ms"] <= latency_threshold
+                    else f"{m['latency_p50_ms']:.0f}ms FAIL"
+                    for m in model_results.values()
+                ]
+            )
+            + " |\n"
+        )
 
         # VRAM
         vram_threshold = THRESHOLDS["vram_peak_gb"]
-        report += f"| VRAM Peak | <= {vram_threshold}GB | " + " | ".join([
-            f"**{m['vram_peak_gb']:.1f}GB** PASS" if m['vram_peak_gb'] <= vram_threshold
-            else f"{m['vram_peak_gb']:.1f}GB FAIL"
-            for m in model_results.values()
-        ]) + " |\n"
+        report += (
+            f"| VRAM Peak | <= {vram_threshold}GB | "
+            + " | ".join(
+                [
+                    f"**{m['vram_peak_gb']:.1f}GB** PASS"
+                    if m["vram_peak_gb"] <= vram_threshold
+                    else f"{m['vram_peak_gb']:.1f}GB FAIL"
+                    for m in model_results.values()
+                ]
+            )
+            + " |\n"
+        )
 
         # Recommendation
         report += "\n## Recommendation\n\n"
@@ -239,15 +295,15 @@ class MockBenchmarkRunner:
         passes = {}
         for model_name, metrics in model_results.items():
             passes[model_name] = 0
-            if metrics['ocr_exact_match_pct'] >= ocr_threshold:
+            if metrics["ocr_exact_match_pct"] >= ocr_threshold:
                 passes[model_name] += 1
-            if metrics['grounding_iou_avg'] >= iou_threshold:
+            if metrics["grounding_iou_avg"] >= iou_threshold:
                 passes[model_name] += 1
-            if metrics['grounding_json_validity_pct'] >= json_threshold:
+            if metrics["grounding_json_validity_pct"] >= json_threshold:
                 passes[model_name] += 1
-            if metrics['latency_p50_ms'] <= latency_threshold:
+            if metrics["latency_p50_ms"] <= latency_threshold:
                 passes[model_name] += 1
-            if metrics['vram_peak_gb'] <= vram_threshold:
+            if metrics["vram_peak_gb"] <= vram_threshold:
                 passes[model_name] += 1
 
         best_model = max(passes, key=passes.get)
@@ -255,7 +311,9 @@ class MockBenchmarkRunner:
 
         # Actions
         report += "## Next Steps\n\n"
-        report += f"1. Deploy {model_results[best_model]['model_name']} as primary model\n"
+        report += (
+            f"1. Deploy {model_results[best_model]['model_name']} as primary model\n"
+        )
         report += "2. Configure Gemini 2.5 Flash as fallback\n"
         report += "3. Update .env.example with VLM_MODEL\n"
         report += "4. Validate in staging for 1 cycle\n"
@@ -264,7 +322,7 @@ class MockBenchmarkRunner:
         output_dir = Path(output_path).parent
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(report)
 
         log.info(f"✅ Relatório salvo em {output_path}")
@@ -280,7 +338,9 @@ async def main():
     results = await runner.run_benchmark(models, output_path="reports/")
 
     # Gerar relatório
-    report = runner.generate_comparison_report(results, output_path="reports/vision_2_0_comparison.md")
+    report = runner.generate_comparison_report(
+        results, output_path="reports/vision_2_0_comparison.md"
+    )
     print(report)
 
     print("\n[SUCCESS] Mock benchmark completed!")

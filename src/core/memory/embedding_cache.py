@@ -8,8 +8,8 @@ Uses: OrderedDict com move_to_end() para LRU inteligente
 
 import logging
 from collections import OrderedDict, deque
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional, Tuple
 import hashlib
 
@@ -19,6 +19,7 @@ log = logging.getLogger("seeker.embedding.cache")
 @dataclass
 class CacheStats:
     """Estatísticas do cache"""
+
     total_lookups: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
@@ -41,6 +42,7 @@ class CacheStats:
 @dataclass
 class CachedEmbedding:
     """Embedding em cache com metadados"""
+
     embedding: bytes  # Serializado como BLOB
     timestamp_created: datetime
     timestamp_last_accessed: datetime
@@ -145,10 +147,7 @@ class SmartEmbeddingCache:
             self.stats.cache_hits += 1
             self.access_history.append(("hit", key))
 
-            log.debug(
-                f"[cache] HIT para {key[:8]}... "
-                f"(acessos: {cached.access_count})"
-            )
+            log.debug(f"[cache] HIT para {key[:8]}... (acessos: {cached.access_count})")
 
             return cached.embedding
 
@@ -205,8 +204,8 @@ class SmartEmbeddingCache:
         candidates = []
         for key, cached in self._cache.items():
             score = (
-                cached.access_count * 0.7 +  # 70% peso em acessos
-                (cached.age_seconds / 3600) * 0.3  # 30% peso em idade
+                cached.access_count * 0.7  # 70% peso em acessos
+                + (cached.age_seconds / 3600) * 0.3  # 30% peso em idade
             )
             candidates.append((score, key, cached))
 

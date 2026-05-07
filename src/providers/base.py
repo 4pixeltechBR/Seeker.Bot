@@ -32,6 +32,7 @@ log = logging.getLogger("seeker.providers")
 # TIPOS
 # ─────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class LLMResponse:
     text: str
@@ -60,6 +61,7 @@ class LLMRequest:
 # ─────────────────────────────────────────────────────────────────────
 # RATE LIMITER — token bucket com sliding window
 # ─────────────────────────────────────────────────────────────────────
+
 
 class AsyncRateLimiter:
     """Rate limiter assíncrono por provider. Sliding window."""
@@ -122,12 +124,12 @@ def _get_rate_limiter(config: ModelConfig) -> AsyncRateLimiter:
 # ─────────────────────────────────────────────────────────────────────
 
 PROVIDER_TIMEOUTS = {
-    "nvidia": 25.0,     # Aumentado para 25s (era 15s) — suporta latência de rede melhor
-    "groq": 15.0,       # Groq é LPU, deve responder instantaneamente
-    "gemini": 30.0,     # Padrão, às vezes tem cold start na API
-    "deepseek": 40.0,   # Aumentado para 40s (era 30s) — China firewall pode ser lento
+    "nvidia": 25.0,  # Aumentado para 25s (era 15s) — suporta latência de rede melhor
+    "groq": 15.0,  # Groq é LPU, deve responder instantaneamente
+    "gemini": 30.0,  # Padrão, às vezes tem cold start na API
+    "deepseek": 40.0,  # Aumentado para 40s (era 30s) — China firewall pode ser lento
     "mistral": 30.0,
-    "ollama": 120.0,    # GPU local ou offload CPU (lento por padrão no fallback)
+    "ollama": 120.0,  # GPU local ou offload CPU (lento por padrão no fallback)
 }
 
 _client_pool: dict[str, httpx.AsyncClient] = {}
@@ -136,7 +138,7 @@ _client_pool: dict[str, httpx.AsyncClient] = {}
 def _get_shared_client(provider: str) -> httpx.AsyncClient:
     """
     Retorna um client compartilhado por provider, mas com timeout adaptativo.
-    
+
     Reutiliza conexões TCP entre requests. O Timeout dinâmico salva latência de
     fallback quando um endpoint fast (como Groq/Nvidia) cai offline.
     """
@@ -212,12 +214,20 @@ def _is_retryable(error: Exception, provider: str = "") -> bool:
         # 429 Too Many Requests -> retry
         # 500+ Internal Errors -> retry
         return error.response.status_code in RETRYABLE_STATUS_CODES
-        
-    if isinstance(error, (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.ConnectError, asyncio.TimeoutError)):
+
+    if isinstance(
+        error,
+        (
+            httpx.ConnectTimeout,
+            httpx.ReadTimeout,
+            httpx.ConnectError,
+            asyncio.TimeoutError,
+        ),
+    ):
         # Circuit Breaker C4: Timeouts de rede e conexão não devem sofrer retries internos engarrafando a pipeline
         # Se um provedor da nuvem (Nvidia, Groq, etc) der timeout, falhe rápido para acionar a Fallback Chain
         return False
-        
+
     return False
 
 
@@ -225,10 +235,11 @@ def _is_retryable(error: Exception, provider: str = "") -> bool:
 # PROVIDER BASE
 # ─────────────────────────────────────────────────────────────────────
 
+
 class BaseProvider(ABC):
     """
     Contrato base para providers de LLM.
-    
+
     complete() adiciona:
       1. Rate limiting
       2. Retry com exponential backoff
@@ -295,20 +306,23 @@ class BaseProvider(ABC):
 
     def _calculate_cost(self, response: LLMResponse) -> float:
         input_cost = (response.input_tokens / 1_000_000) * self.config.cost_per_1m_input
-        output_cost = (response.output_tokens / 1_000_000) * self.config.cost_per_1m_output
+        output_cost = (
+            response.output_tokens / 1_000_000
+        ) * self.config.cost_per_1m_output
         return input_cost + output_cost
 
     @abstractmethod
-    async def _call(self, request: LLMRequest) -> LLMResponse:
-        ...
+    async def _call(self, request: LLMRequest) -> LLMResponse: ...
 
 
 # ─────────────────────────────────────────────────────────────────────
 # PROVIDERS CONCRETOS
 # ─────────────────────────────────────────────────────────────────────
 
+
 class OpenAICompatibleProvider(BaseProvider):
     """Base para providers com API compatível com OpenAI (DeepSeek, Groq, Mistral, NVIDIA)."""
+
     BASE_URL: str = ""
 
     async def _call(self, request: LLMRequest) -> LLMResponse:
@@ -326,7 +340,10 @@ class OpenAICompatibleProvider(BaseProvider):
             payload["response_format"] = {"type": "json_object"}
         resp = await client.post(
             self.BASE_URL,
-            headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
             json=payload,
         )
         resp.raise_for_status()
@@ -392,7 +409,9 @@ class GeminiProvider(BaseProvider):
         parts = content.get("parts", [])
         text = parts[0]["text"] if parts else ""
         if not text:
-            raise ValueError(f"Gemini retornou resposta sem texto: {list(candidate.keys())}")
+            raise ValueError(
+                f"Gemini retornou resposta sem texto: {list(candidate.keys())}"
+            )
         usage = data.get("usageMetadata", {})
         return LLMResponse(
             text=text,
@@ -486,7 +505,7 @@ async def invoke_with_fallback(
 ) -> LLMResponse:
     """
     Invoca o modelo primário. Se falhar, tenta fallbacks.
-    
+
     Agora usa connection pool global — close() é no-op,
     connections são reutilizadas entre requests.
     """
@@ -505,6 +524,5 @@ async def invoke_with_fallback(
             continue
 
     raise RuntimeError(
-        f"Todos os providers falharam para {role.value}. "
-        f"Último erro: {last_error}"
+        f"Todos os providers falharam para {role.value}. Último erro: {last_error}"
     )

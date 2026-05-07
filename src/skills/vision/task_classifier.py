@@ -12,7 +12,6 @@ Routes other tasks to Qwen3-VL:8b (0.76 IoU, multimodal)
 
 import logging
 from enum import Enum
-from pathlib import Path
 from typing import Optional
 import cv2
 import numpy as np
@@ -22,8 +21,9 @@ log = logging.getLogger("seeker.vision.task_classifier")
 
 class TaskType(Enum):
     """Vision task classification types."""
-    OCR = "ocr"              # Document/text-heavy tasks
-    GROUNDING = "grounding"   # UI element detection/localization
+
+    OCR = "ocr"  # Document/text-heavy tasks
+    GROUNDING = "grounding"  # UI element detection/localization
     DESCRIPTION = "description"  # Scene understanding, AFK detection
 
 
@@ -33,7 +33,9 @@ class TaskClassifier:
     # Thresholds para detecção (tunáveis)
     ASPECT_RATIO_THRESHOLD = 1.1  # tall=document (>1.1), square=UI (<1.1)
     TEXT_DENSITY_THRESHOLD = 0.12  # high text density → OCR task
-    COLOR_ENTROPY_THRESHOLD = 5.0  # low entropy → structured (document), high → natural scene
+    COLOR_ENTROPY_THRESHOLD = (
+        5.0  # low entropy → structured (document), high → natural scene
+    )
 
     def __init__(self):
         """Initialize classifier."""
@@ -149,7 +151,7 @@ class TaskClassifier:
         # Load image
         img = self._load_image(image_path)
         if img is None:
-            log.warning(f"[classifier] Defaulting to DESCRIPTION for failed load")
+            log.warning("[classifier] Defaulting to DESCRIPTION for failed load")
             self.stats["description"] += 1
             self.stats["classifier_errors"] += 1
             return TaskType.DESCRIPTION
@@ -177,10 +179,12 @@ class TaskClassifier:
             log.info(f"[classifier] Classified as OCR (text_heavy={is_text_heavy})")
         elif not is_tall and is_structured:
             task_type = TaskType.GROUNDING
-            log.info(f"[classifier] Classified as GROUNDING (square={not is_tall}, structured={is_structured})")
+            log.info(
+                f"[classifier] Classified as GROUNDING (square={not is_tall}, structured={is_structured})"
+            )
         else:
             task_type = TaskType.DESCRIPTION
-            log.info(f"[classifier] Classified as DESCRIPTION (default)")
+            log.info("[classifier] Classified as DESCRIPTION (default)")
 
         # Update stats
         if task_type == TaskType.OCR:

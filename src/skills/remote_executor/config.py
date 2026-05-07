@@ -4,8 +4,6 @@ Remote Executor Configuration
 Constantes, defaults e configurações para o RemoteExecutor goal.
 """
 
-from enum import Enum
-
 
 class RemoteExecutorConfig:
     """Configuração centralizada do Remote Executor."""
@@ -48,11 +46,7 @@ class RemoteExecutorConfig:
         "Duração: {duration_ms}ms"
     )
 
-    TELEGRAM_FAILURE_TEMPLATE = (
-        "❌ Execução falhou:\n\n"
-        "{error}\n\n"
-        "Plano: {plan_id}"
-    )
+    TELEGRAM_FAILURE_TEMPLATE = "❌ Execução falhou:\n\n{error}\n\nPlano: {plan_id}"
 
 
 # Singleton exportado

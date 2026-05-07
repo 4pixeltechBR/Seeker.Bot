@@ -32,6 +32,7 @@ class MemoryLayer(IntEnum):
     SESSION = 50
     OVERRIDE = 100
 
+
 # ─── 4-LAYER STACK DE contexto ─────────────────────────────
 # L0: IDENTITY   (~100 tokens) - Identidade fixa e estado do bot
 # L1: ESSENTIAL  (~500 tokens) - Top fatos por score (importância + recência)
@@ -60,8 +61,10 @@ CATEGORY_TO_LAYER = {
     "override": MemoryLayer.OVERRIDE,
 }
 
+
 def get_layer(category: str) -> MemoryLayer:
     return CATEGORY_TO_LAYER.get(category, MemoryLayer.SYSTEM)
+
 
 def score_fact(fact: dict) -> float:
     """Score = (layer * 10) + (confidence * 5) + recency_bonus."""
@@ -72,6 +75,7 @@ def score_fact(fact: dict) -> float:
     # Bonus de recência: decai em 30 dias
     recency = max(0, 1 - (age / (30 * 86400)))
     return (float(layer) * 10.0) + (confidence * 5.0) + recency
+
 
 def format_4layer_context(
     *,

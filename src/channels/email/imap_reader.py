@@ -2,7 +2,7 @@
 Seeker.Bot — IMAP Reader
 src/channels/email/imap_reader.py
 
-Conecta via IMAP (async), busca emails não lidos (UNSEEN) 
+Conecta via IMAP (async), busca emails não lidos (UNSEEN)
 e extrai o conteúdo para ser sumarizado pelo LLM.
 """
 
@@ -11,7 +11,6 @@ import logging
 import os
 import email
 from email.header import decode_header
-from datetime import datetime, timedelta
 
 import aioimaplib
 
@@ -52,33 +51,35 @@ class IMAPReader:
             await asyncio.wait_for(client.wait_hello_from_server(), timeout=30.0)
             log.info("[imap] ✓ Conectado ao servidor IMAP")
         except (asyncio.TimeoutError, Exception) as e:
-            log.error(f"[imap] ❌ Falha na conexão (Timeout ou Auth): {e}", exc_info=True)
+            log.error(
+                f"[imap] ❌ Falha na conexão (Timeout ou Auth): {e}", exc_info=True
+            )
             return []
 
         try:
             log.info(f"[imap] Autenticando como {self.user}...")
             res, _ = await client.login(self.user, self.password)
-            if res != 'OK':
+            if res != "OK":
                 log.error(f"[imap] ❌ Falha no login: {res}", exc_info=True)
                 return []
             log.info("[imap] ✓ Autenticado com sucesso")
 
             log.info("[imap] Selecionando INBOX...")
             res, _ = await client.select("INBOX")
-            if res != 'OK':
+            if res != "OK":
                 log.error("[imap] ❌ Falha ao selecionar INBOX", exc_info=True)
                 return []
             log.info("[imap] ✓ INBOX selecionado")
 
             # Busca emails não lidos
             log.info("[imap] Procurando emails UNSEEN...")
-            res, data = await client.search('UNSEEN')
+            res, data = await client.search("UNSEEN")
 
-            raw_ids = data[0] if data else b''
+            raw_ids = data[0] if data else b""
             if isinstance(raw_ids, bytes):
-                raw_ids = raw_ids.decode('utf-8', errors='ignore')
+                raw_ids = raw_ids.decode("utf-8", errors="ignore")
 
-            if res != 'OK':
+            if res != "OK":
                 log.error(f"[imap] ❌ Falha na busca UNSEEN: {res}", exc_info=True)
                 return []
 
@@ -93,13 +94,15 @@ class IMAPReader:
 
             # Pega os últimos `max_emails`
             email_ids = email_ids[-max_emails:]
-            log.info(f"[imap] 📥 Baixando {len(email_ids)} emails não lidos do INBOX...")
+            log.info(
+                f"[imap] 📥 Baixando {len(email_ids)} emails não lidos do INBOX..."
+            )
 
             emails_data = []
             for b_id in email_ids:
                 # Faz fetch do corpo sem marcar como lido (PEEK)
-                res, fetch_data = await client.fetch(b_id, '(BODY.PEEK[])')
-                if res != 'OK':
+                res, fetch_data = await client.fetch(b_id, "(BODY.PEEK[])")
+                if res != "OK":
                     log.debug(f"[imap] fetch retornou res={res} para id={b_id}")
                     continue
 
@@ -113,26 +116,34 @@ class IMAPReader:
                 raw_email = self._extract_raw_email(fetch_data, b_id)
 
                 if not raw_email:
-                    log.warning(f"[imap] ⚠ Não foi possível extrair raw_email para id={b_id}")
+                    log.warning(
+                        f"[imap] ⚠ Não foi possível extrair raw_email para id={b_id}"
+                    )
                     continue
 
                 msg = email.message_from_bytes(raw_email)
-                
+
                 # Extrai metadados
                 subject = self._decode_header(msg.get("Subject", "(Sem Assunto)"))
                 sender = self._decode_header(msg.get("From", "(Desconhecido)"))
                 date_str = msg.get("Date", "")
-                
+
                 # Extrai corpo plaintext
                 body = self._extract_text_body(msg)
 
-                emails_data.append({
-                    "id": b_id.decode('utf-8') if isinstance(b_id, bytes) else str(b_id),
-                    "subject": subject,
-                    "sender": sender,
-                    "date": date_str,
-                    "body": body[:2000] # Limita tamanho para não estourar contexto do LLM
-                })
+                emails_data.append(
+                    {
+                        "id": b_id.decode("utf-8")
+                        if isinstance(b_id, bytes)
+                        else str(b_id),
+                        "subject": subject,
+                        "sender": sender,
+                        "date": date_str,
+                        "body": body[
+                            :2000
+                        ],  # Limita tamanho para não estourar contexto do LLM
+                    }
+                )
 
             log.info(f"[imap] ✅ Retornando {len(emails_data)} emails processados")
             return emails_data
@@ -170,15 +181,19 @@ class IMAPReader:
             elif isinstance(item, tuple):
                 for sub in item:
                     if isinstance(sub, (bytes, bytearray)) and len(sub) > 50:
-                        candidates.append(bytes(sub) if isinstance(sub, bytearray) else sub)
+                        candidates.append(
+                            bytes(sub) if isinstance(sub, bytearray) else sub
+                        )
 
         # Tenta cada candidato — usa o primeiro que parseia como email válido
         for data in candidates:
             try:
                 msg = email.message_from_bytes(data)
                 # Considera válido se tiver pelo menos From OU Subject
-                if msg.get('From') or msg.get('Subject') or msg.get('Date'):
-                    log.info(f"[imap] ✓ raw_email válido id={b_id} size={len(data)} from='{msg.get('From','?')[:60]}'")
+                if msg.get("From") or msg.get("Subject") or msg.get("Date"):
+                    log.info(
+                        f"[imap] ✓ raw_email válido id={b_id} size={len(data)} from='{msg.get('From', '?')[:60]}'"
+                    )
                     return data
             except Exception as e:
                 log.debug(f"[imap] candidato inválido id={b_id}: {e}")
@@ -188,7 +203,9 @@ class IMAPReader:
         if candidates:
             biggest = max(candidates, key=len)
             if len(biggest) > 500:
-                log.debug(f"[imap] ⚠ Usando maior candidato id={b_id} size={len(biggest)} (sem headers detectados)")
+                log.debug(
+                    f"[imap] ⚠ Usando maior candidato id={b_id} size={len(biggest)} (sem headers detectados)"
+                )
                 return biggest
 
         return None
@@ -201,10 +218,12 @@ class IMAPReader:
         for part, charset in decode_header(header_str):
             if isinstance(part, bytes):
                 try:
-                    decoded_parts.append(part.decode(charset or 'utf-8', errors='replace'))
+                    decoded_parts.append(
+                        part.decode(charset or "utf-8", errors="replace")
+                    )
                 except (UnicodeDecodeError, LookupError) as e:
                     log.debug(f"[imap] Charset fallback (charset={charset}): {e}")
-                    decoded_parts.append(part.decode('latin1', errors='replace'))
+                    decoded_parts.append(part.decode("latin1", errors="replace"))
             else:
                 decoded_parts.append(part)
         return "".join(decoded_parts)
@@ -216,16 +235,23 @@ class IMAPReader:
                 content_type = part.get_content_type()
                 content_disposition = str(part.get("Content-Disposition"))
 
-                if content_type == "text/plain" and "attachment" not in content_disposition:
+                if (
+                    content_type == "text/plain"
+                    and "attachment" not in content_disposition
+                ):
                     try:
-                        return part.get_payload(decode=True).decode(part.get_content_charset() or 'utf-8', errors='replace')
+                        return part.get_payload(decode=True).decode(
+                            part.get_content_charset() or "utf-8", errors="replace"
+                        )
                     except (UnicodeDecodeError, AttributeError, TypeError) as e:
                         log.debug(f"[imap] Falha ao extrair parte plaintext: {e}")
                         continue
         else:
             if msg.get_content_type() == "text/plain":
                 try:
-                    return msg.get_payload(decode=True).decode(msg.get_content_charset() or 'utf-8', errors='replace')
+                    return msg.get_payload(decode=True).decode(
+                        msg.get_content_charset() or "utf-8", errors="replace"
+                    )
                 except (UnicodeDecodeError, AttributeError, TypeError) as e:
                     log.debug(f"[imap] Falha ao extrair body simples: {e}")
         return "(Apenas conteúdo HTML ou anexos)"

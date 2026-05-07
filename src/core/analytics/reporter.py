@@ -6,7 +6,6 @@ Geração de relatórios em HTML para visualização
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 log = logging.getLogger("seeker.analytics.reporter")
 
@@ -14,6 +13,7 @@ log = logging.getLogger("seeker.analytics.reporter")
 @dataclass
 class RelatorioFinanceiro:
     """Relatório financeiro estruturado"""
+
     titulo: str
     periodo: str
     timestamp: datetime
@@ -60,9 +60,11 @@ class Reporter:
         )
 
         linhas.append("<b>Gastos de Hoje</b>")
-        linhas.append(f"{resumo['custo_hoje']} de ${metricas.custo_total_mes:.2f} no mês")
         linhas.append(
-            f"<code>{'█' * int(barra_width/10)}{'░' * (10-int(barra_width/10))} "
+            f"{resumo['custo_hoje']} de ${metricas.custo_total_mes:.2f} no mês"
+        )
+        linhas.append(
+            f"<code>{'█' * int(barra_width / 10)}{'░' * (10 - int(barra_width / 10))} "
             f"{metricas.percentual_limite_diario:.0f}%</code>\n"
         )
 
@@ -70,15 +72,19 @@ class Reporter:
         linhas.append(f"Saúde do Sistema: {resumo['saude']}")
         linhas.append(f"Tendência: {resumo['tendencia']}")
         linhas.append(f"Provedores Ativos: {resumo['provedores_ativos']}")
-        linhas.append(
-            f"Taxa Sucesso: {metricas.taxa_sucesso_geral:.1f}%"
-        )
+        linhas.append(f"Taxa Sucesso: {metricas.taxa_sucesso_geral:.1f}%")
         linhas.append(f"Latência: {metricas.latencia_media_ms:.0f}ms\n")
 
         if alertas:
             linhas.append("<b>Alertas Ativos</b>")
             for alerta in alertas[:3]:  # Top 3 alertas
-                emoji = "🔴" if alerta["tipo"] == "CRITICO" else "🟠" if alerta["tipo"] == "ALERTA" else "🔵"
+                emoji = (
+                    "🔴"
+                    if alerta["tipo"] == "CRITICO"
+                    else "🟠"
+                    if alerta["tipo"] == "ALERTA"
+                    else "🔵"
+                )
                 linhas.append(f"{emoji} <i>{alerta['mensagem']}</i>")
 
         html = "\n".join(linhas)
@@ -116,9 +122,7 @@ class Reporter:
         # Top provedores
         linhas.append("<b>Top Provedores (7d)</b>")
         for provider, custo in sorted(
-            metricas.custo_por_provider.items(),
-            key=lambda x: x[1],
-            reverse=True
+            metricas.custo_por_provider.items(), key=lambda x: x[1], reverse=True
         )[:3]:
             stats = detalhes.get(provider, {})
             taxa = stats.get("taxa_sucesso", 0)
@@ -154,14 +158,16 @@ class Reporter:
         linhas.append(f"Total Mês: ${metricas.custo_total_mes:.2f}")
         linhas.append(f"Limite: ${resumo_mensal['limite']:.2f}")
         linhas.append(f"Utilização: {resumo_mensal['porcentagem_limite']:.0f}%")
-        linhas.append(f"Restante: ${resumo_mensal['limite'] - metricas.custo_total_mes:.2f}\n")
+        linhas.append(
+            f"Restante: ${resumo_mensal['limite'] - metricas.custo_total_mes:.2f}\n"
+        )
 
         # Previsão para próximos 30 dias
         linhas.append("<b>Previsão Próximos 30 Dias</b>")
         linhas.append(f"Total Estimado: ${previsoes['previsao_30d']['total']:.2f}")
         linhas.append(f"Média/Dia: ${previsoes['previsao_30d']['media_diaria']:.2f}")
 
-        if previsoes['data_alerta_mensal']:
+        if previsoes["data_alerta_mensal"]:
             linhas.append(
                 f"Possível Alerta: {previsoes['data_alerta_mensal']} "
                 f"({previsoes['dias_ate_alerta']} dias)"
@@ -190,7 +196,12 @@ class Reporter:
     async def _obter_saude_sistema(self) -> str:
         """Avalia saúde geral do sistema"""
         metricas = await self.dashboard.obter_metricas()
-        return metricas.taxa_sucesso_geral >= 95 and metricas.percentual_limite_mensal <= 80 and "EXCELENTE" or "BOA"
+        return (
+            metricas.taxa_sucesso_geral >= 95
+            and metricas.percentual_limite_mensal <= 80
+            and "EXCELENTE"
+            or "BOA"
+        )
 
     def formatar_para_telegram(self, relatorio: RelatorioFinanceiro) -> str:
         """Formata relatório para envio no Telegram"""

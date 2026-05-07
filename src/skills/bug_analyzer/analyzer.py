@@ -9,7 +9,13 @@ import logging
 import json
 import re
 import time
-from .models import BugReport, BugAnalysis, AnalysisPhase, AnalysisFinding, FixSuggestion
+from .models import (
+    BugReport,
+    BugAnalysis,
+    AnalysisPhase,
+    AnalysisFinding,
+    FixSuggestion,
+)
 from .context_collector import ContextCollector
 
 log = logging.getLogger("seeker.bug_analyzer")
@@ -207,7 +213,9 @@ CRITICAL RULES FOR DIAGNOSIS:
                 )
                 analysis.suggestions.append(suggestion)
 
-            log.info(f"[bug_analyzer] Parsed: {len(analysis.findings)} findings, {len(analysis.suggestions)} suggestions")
+            log.info(
+                f"[bug_analyzer] Parsed: {len(analysis.findings)} findings, {len(analysis.suggestions)} suggestions"
+            )
 
         except json.JSONDecodeError as e:
             log.error(f"[bug_analyzer] Erro ao parsear JSON: {e}")

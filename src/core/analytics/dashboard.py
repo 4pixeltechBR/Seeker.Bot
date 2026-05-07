@@ -5,9 +5,8 @@ Agregação de métricas de custo, uso e performance
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional
-from collections import defaultdict
 
 log = logging.getLogger("seeker.analytics.dashboard")
 
@@ -15,6 +14,7 @@ log = logging.getLogger("seeker.analytics.dashboard")
 @dataclass
 class MetricasDashboard:
     """Métricas agregadas para o dashboard"""
+
     timestamp: datetime
 
     # Custos
@@ -96,7 +96,8 @@ class DashboardFinanceiro:
             latencia_media = sum(latencias) / len(latencias) if latencias else 0.0
 
             sucesso_count = sum(
-                1 for v in stats_profiler.get("goals", {}).values()
+                1
+                for v in stats_profiler.get("goals", {}).values()
                 if v.get("sucesso_rate", 0) > 0
             )
             taxa_sucesso = (
@@ -107,8 +108,8 @@ class DashboardFinanceiro:
 
         # Analisar tendência
         if len(custos_7d) >= 2:
-            primeira_metade = sum(custos_7d[:len(custos_7d)//2])
-            segunda_metade = sum(custos_7d[len(custos_7d)//2:])
+            primeira_metade = sum(custos_7d[: len(custos_7d) // 2])
+            segunda_metade = sum(custos_7d[len(custos_7d) // 2 :])
             if segunda_metade > primeira_metade * 1.1:
                 tendencia = "crescente"
             elif segunda_metade < primeira_metade * 0.9:
@@ -129,7 +130,8 @@ class DashboardFinanceiro:
         agora = datetime.utcnow()
         ano_chave = agora.strftime("%Y")
         custo_ano = sum(
-            v for k, v in self.cost_tracker._gastos_mensais.items()
+            v
+            for k, v in self.cost_tracker._gastos_mensais.items()
             if k.startswith(ano_chave)
         )
 
@@ -142,7 +144,7 @@ class DashboardFinanceiro:
             provider_mais_caro=max(
                 resumo_diario["provedores"].items(),
                 key=lambda x: x[1],
-                default=(None, 0)
+                default=(None, 0),
             )[0],
             provider_mais_usado=None,  # Calculado do profiler
             custo_por_provider=resumo_diario["provedores"],
@@ -244,31 +246,39 @@ class DashboardFinanceiro:
         alertas = []
 
         if metricas.percentual_limite_diario > 100:
-            alertas.append({
-                "tipo": "CRITICO",
-                "mensagem": f"Limite diário excedido em {metricas.percentual_limite_diario - 100:.0f}%",
-                "acao": "Reduzir uso ou aumentar limite",
-            })
+            alertas.append(
+                {
+                    "tipo": "CRITICO",
+                    "mensagem": f"Limite diário excedido em {metricas.percentual_limite_diario - 100:.0f}%",
+                    "acao": "Reduzir uso ou aumentar limite",
+                }
+            )
 
         if metricas.percentual_limite_mensal > 90:
-            alertas.append({
-                "tipo": "ALERTA",
-                "mensagem": f"Limite mensal em {metricas.percentual_limite_mensal:.0f}%",
-                "acao": "Monitorar closely",
-            })
+            alertas.append(
+                {
+                    "tipo": "ALERTA",
+                    "mensagem": f"Limite mensal em {metricas.percentual_limite_mensal:.0f}%",
+                    "acao": "Monitorar closely",
+                }
+            )
 
         if metricas.tendencia_custos == "crescente":
-            alertas.append({
-                "tipo": "INFO",
-                "mensagem": "Custos em tendência crescente",
-                "acao": "Investigar aumento",
-            })
+            alertas.append(
+                {
+                    "tipo": "INFO",
+                    "mensagem": "Custos em tendência crescente",
+                    "acao": "Investigar aumento",
+                }
+            )
 
         if metricas.taxa_sucesso_geral < 90:
-            alertas.append({
-                "tipo": "AVISO",
-                "mensagem": f"Taxa de sucesso baixa: {metricas.taxa_sucesso_geral:.1f}%",
-                "acao": "Revisar erros",
-            })
+            alertas.append(
+                {
+                    "tipo": "AVISO",
+                    "mensagem": f"Taxa de sucesso baixa: {metricas.taxa_sucesso_geral:.1f}%",
+                    "acao": "Revisar erros",
+                }
+            )
 
         return alertas

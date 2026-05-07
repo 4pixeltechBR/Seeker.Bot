@@ -11,9 +11,11 @@ import re
 
 _TOKEN_RE = re.compile(r"\w{2,}", re.UNICODE)
 
+
 def tokenize(text: str) -> list[str]:
     """Lowercase + strip to alphanumeric tokens of length ≥ 2."""
     return _TOKEN_RE.findall(text.lower())
+
 
 def bm25_scores(
     query: str,
@@ -43,7 +45,10 @@ def bm25_scores(
         for term in seen:
             df[term] += 1
 
-    idf = {term: math.log((n_docs - df[term] + 0.5) / (df[term] + 0.5) + 1) for term in query_terms}
+    idf = {
+        term: math.log((n_docs - df[term] + 0.5) / (df[term] + 0.5) + 1)
+        for term in query_terms
+    }
 
     scores = []
     for toks, dl in zip(tokenized, doc_lens):
@@ -62,6 +67,7 @@ def bm25_scores(
         scores.append(score)
     return scores
 
+
 def hybrid_rank(
     results: list[dict],
     query: str,
@@ -70,7 +76,7 @@ def hybrid_rank(
 ) -> list[dict]:
     """
     Re-ranka resultados por combinação de similaridade vetorial e BM25.
-    
+
     Results deve conter dicts com 'fact' (texto) e 'similarity' (vector score).
     Mutates results para adicionar 'bm25_score' e 'hybrid_score'.
     """
@@ -80,7 +86,9 @@ def hybrid_rank(
     docs = [r.get("fact", "") for r in results]
     bm25_raw = bm25_scores(query, docs)
     max_bm25 = max(bm25_raw) if bm25_raw else 0.0
-    bm25_norm = [s / max_bm25 for s in bm25_raw] if max_bm25 > 0 else [0.0] * len(bm25_raw)
+    bm25_norm = (
+        [s / max_bm25 for s in bm25_raw] if max_bm25 > 0 else [0.0] * len(bm25_raw)
+    )
 
     scored = []
     for r, raw, norm in zip(results, bm25_raw, bm25_norm):

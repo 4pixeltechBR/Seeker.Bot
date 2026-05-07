@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import random
-import time
 from typing import Optional, Dict
 from collections import defaultdict
 
@@ -32,7 +31,9 @@ class RateLimitManager:
         self.max_delay = 30.0  # segundos
         self.jitter_range = (0.8, 1.2)  # 20% de jitter
 
-    def get_limiter(self, provider: str, model: str, rpm: int = 60) -> SmartQueuedLimiter:
+    def get_limiter(
+        self, provider: str, model: str, rpm: int = 60
+    ) -> SmartQueuedLimiter:
         """Obtém ou cria limiter para provider/modelo"""
         key = f"{provider}:{model}"
         if key not in self._limiters:
@@ -98,7 +99,12 @@ class RateLimitManager:
         return total_delay
 
     def _record_metric(
-        self, provider: str, model: str, retry_count: int, delay: float, retry_after: float
+        self,
+        provider: str,
+        model: str,
+        retry_count: int,
+        delay: float,
+        retry_after: float,
     ):
         """Registra métrica de uma tentativa"""
         key = f"{provider}:{model}"
@@ -186,12 +192,18 @@ class RateLimitManager:
             "total_providers": len(self._limiters),
             "providers": {},
             "overall": {
-                "total_rate_limits_hit": sum(s.total_rate_limits_hit for s in self._stats.values()),
+                "total_rate_limits_hit": sum(
+                    s.total_rate_limits_hit for s in self._stats.values()
+                ),
                 "total_retries": sum(s.total_retries for s in self._stats.values()),
                 "total_requests": sum(s.total_requests for s in self._stats.values()),
-                "avg_success_rate_pct": sum(s.success_rate for s in self._stats.values())
-                / len(self._stats) if self._stats else 100.0,
-            }
+                "avg_success_rate_pct": sum(
+                    s.success_rate for s in self._stats.values()
+                )
+                / len(self._stats)
+                if self._stats
+                else 100.0,
+            },
         }
 
         for key, stats in self._stats.items():

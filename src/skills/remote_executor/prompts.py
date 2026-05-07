@@ -84,7 +84,9 @@ TIPOS DE AÇÃO SUPORTADOS:
 """
 
 
-def get_planning_user_prompt(intention: str, afk_status: str, budget_remaining: float) -> str:
+def get_planning_user_prompt(
+    intention: str, afk_status: str, budget_remaining: float
+) -> str:
     """User prompt customizado para planning."""
     return f"""Planeje a execução:
 
@@ -124,10 +126,12 @@ def get_approval_notification(
     )
 
     # Retorna matriz de botões inline
-    buttons = [[
-        {"text": "✅ Aprovar", "callback_data": f"exec_approve:{action_id}"},
-        {"text": "❌ Rejeitar", "callback_data": f"exec_reject:{action_id}"}
-    ]]
+    buttons = [
+        [
+            {"text": "✅ Aprovar", "callback_data": f"exec_approve:{action_id}"},
+            {"text": "❌ Rejeitar", "callback_data": f"exec_reject:{action_id}"},
+        ]
+    ]
 
     return text, buttons
 

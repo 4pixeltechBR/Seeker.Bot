@@ -10,13 +10,13 @@ cada goal tem ciclo, budget, estado, canal de notificação.
 from __future__ import annotations
 from typing import Protocol, runtime_checkable
 from dataclasses import dataclass, field
-from enum import Enum, auto
+from enum import Enum
 
 
 class GoalStatus(str, Enum):
     IDLE = "idle"
     RUNNING = "running"
-    PAUSED = "paused"         # Budget esgotado ou backoff
+    PAUSED = "paused"  # Budget esgotado ou backoff
     WAITING_APPROVAL = "waiting_approval"  # AFK Protocol
     ERROR = "error"
 
@@ -30,6 +30,7 @@ class NotificationChannel(str, Enum):
 @dataclass
 class GoalBudget:
     """Controle de custo por goal."""
+
     max_per_cycle_usd: float = 0.05
     max_daily_usd: float = 0.50
     spent_today_usd: float = 0.0
@@ -58,9 +59,10 @@ class GoalBudget:
 @dataclass
 class GoalResult:
     """Resultado de um ciclo de goal."""
+
     success: bool
-    summary: str                          # 1 linha pro log
-    notification: str | None = None       # HTML pro Telegram/email (None = sem notificação)
+    summary: str  # 1 linha pro log
+    notification: str | None = None  # HTML pro Telegram/email (None = sem notificação)
     cost_usd: float = 0.0
     data: dict = field(default_factory=dict)  # Payload livre pro goal
 

@@ -7,7 +7,7 @@ Core protocol definitions for hierarchical agents.
 NOTE: CognitiveDepth is imported from router.cognitive_load to maintain consistency
 """
 
-from typing import Protocol, Optional, Any, runtime_checkable
+from typing import Protocol, Any, runtime_checkable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -18,6 +18,7 @@ from ..router.cognitive_load import CognitiveDepth
 @dataclass
 class CrewRequest:
     """Input to any crew"""
+
     user_input: str
     cognitive_depth: CognitiveDepth
     memory_context: list[str]  # Top-k similar facts from semantic search
@@ -34,6 +35,7 @@ class CrewRequest:
 @dataclass
 class CrewResult:
     """Output from any crew"""
+
     response: str
     crew_id: str
     cost_usd: float
@@ -51,6 +53,7 @@ class CrewResult:
 
 class CrewPriority(str, Enum):
     """Execution priority levels"""
+
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     NORMAL = "NORMAL"
@@ -80,6 +83,7 @@ class Crew(Protocol):
 @dataclass
 class SupervisorDecision:
     """Supervisor's routing decision"""
+
     target_crews: list[str]  # Which crews to invoke
     parallelizable: bool  # Can crews run in parallel?
     cognitive_depth: CognitiveDepth
@@ -91,6 +95,7 @@ class SupervisorDecision:
 @dataclass
 class ProviderRequest:
     """Request to LLM provider"""
+
     prompt: str
     max_tokens: int
     temperature: float
@@ -102,6 +107,7 @@ class ProviderRequest:
 @dataclass
 class ProviderResponse:
     """Response from LLM provider"""
+
     text: str
     tokens_used: int
     cost: float

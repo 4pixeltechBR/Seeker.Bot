@@ -185,15 +185,38 @@ Responda APENAS em JSON com este formato:
 # BUILDER — compõe o system prompt por profundidade
 # ─────────────────────────────────────────────────────────────────────
 
+
 def build_reflex_prompt(*, memory_context: str = "", session_context: str = "") -> str:
     """System prompt para REFLEX: direto, sem pipeline."""
     import datetime
+
     now = datetime.datetime.now()
-    dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
-    meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
+    dias = [
+        "segunda-feira",
+        "terça-feira",
+        "quarta-feira",
+        "quinta-feira",
+        "sexta-feira",
+        "sábado",
+        "domingo",
+    ]
+    meses = [
+        "janeiro",
+        "fevereiro",
+        "março",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
+    ]
     date_context = (
         f"DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
-        f"{meses[now.month-1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
+        f"{meses[now.month - 1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
         f"(horário de Brasília).\n"
         f"Use esta data para contextualizar TODAS as respostas. "
         f"Quando resultados de busca mencionarem datas relativas, "
@@ -217,12 +240,34 @@ def build_deliberate_prompt(
 ) -> str:
     """System prompt para DELIBERATE: síntese com memória."""
     import datetime
+
     now = datetime.datetime.now()
-    dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
-    meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
+    dias = [
+        "segunda-feira",
+        "terça-feira",
+        "quarta-feira",
+        "quinta-feira",
+        "sexta-feira",
+        "sábado",
+        "domingo",
+    ]
+    meses = [
+        "janeiro",
+        "fevereiro",
+        "março",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
+    ]
     date_context = (
         f"DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
-        f"{meses[now.month-1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
+        f"{meses[now.month - 1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
         f"(horário de Brasília).\n"
         f"Use esta data para contextualizar TODAS as respostas. "
         f"Quando resultados de busca mencionarem datas relativas, "
@@ -251,15 +296,39 @@ def build_deep_prompt(
     god_mode: bool = False,
 ) -> str:
     """System prompt para DEEP: análise profunda com triangulação."""
-    web_section = f"\n\n━━━ PESQUISA WEB (fontes reais) ━━━\n{web_context}" if web_context else ""
-    
+    web_section = (
+        f"\n\n━━━ PESQUISA WEB (fontes reais) ━━━\n{web_context}" if web_context else ""
+    )
+
     import datetime
+
     now = datetime.datetime.now()
-    dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
-    meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro']
+    dias = [
+        "segunda-feira",
+        "terça-feira",
+        "quarta-feira",
+        "quinta-feira",
+        "sexta-feira",
+        "sábado",
+        "domingo",
+    ]
+    meses = [
+        "janeiro",
+        "fevereiro",
+        "março",
+        "abril",
+        "maio",
+        "junho",
+        "julho",
+        "agosto",
+        "setembro",
+        "outubro",
+        "novembro",
+        "dezembro",
+    ]
     date_context = (
         f"DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
-        f"{meses[now.month-1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
+        f"{meses[now.month - 1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
         f"(horário de Brasília).\n"
         f"Use esta data para contextualizar TODAS as respostas. "
         f"Quando resultados de busca mencionarem datas relativas, "
@@ -285,6 +354,8 @@ def build_deep_prompt(
         parts.append(memory_context)
 
     return "\n\n".join(parts)
+
+
 def build_refinement_prompt(
     *,
     original_input: str,
@@ -296,6 +367,6 @@ def build_refinement_prompt(
     content = [
         f"━━━ INPUT ORIGINAL ━━━\n{original_input}",
         f"━━━ DRAFT DA RESPOSTA ━━━\n{draft_response}",
-        f"━━━ FONTES DE VERDADE ━━━\n{evidence_context}\n{web_context}"
+        f"━━━ FONTES DE VERDADE ━━━\n{evidence_context}\n{web_context}",
     ]
     return REFINEMENT_CRITIQUE_SYSTEM + "\n\n" + "\n\n".join(content)

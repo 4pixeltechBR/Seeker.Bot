@@ -13,9 +13,7 @@ Handles:
 import os
 import subprocess
 import logging
-import asyncio
 import time
-from typing import Optional, Dict, Any
 from datetime import datetime
 
 from ..interfaces import CrewRequest, CrewResult, CrewPriority
@@ -30,17 +28,38 @@ class ExecutorCrew(BaseCrew):
     # Whitelist de comandos bash por nível de risco
     BASH_WHITELIST = {
         "L2_SILENT": [
-            "ls", "cat", "grep", "find", "head", "tail", "wc",
-            "git status", "git log", "pwd", "echo"
+            "ls",
+            "cat",
+            "grep",
+            "find",
+            "head",
+            "tail",
+            "wc",
+            "git status",
+            "git log",
+            "pwd",
+            "echo",
         ],
         "L1_LOGGED": [
-            "mkdir", "touch", "cp", "mv", "echo >",
-            "git add", "git diff", "git fetch"
+            "mkdir",
+            "touch",
+            "cp",
+            "mv",
+            "echo >",
+            "git add",
+            "git diff",
+            "git fetch",
         ],
         "L0_MANUAL": [
-            "rm", "rmdir", "chmod", "chown", "dd",
-            "git rm", "git reset", "git rebase"
-        ]
+            "rm",
+            "rmdir",
+            "chmod",
+            "chown",
+            "dd",
+            "git rm",
+            "git reset",
+            "git rebase",
+        ],
     }
 
     def __init__(self):
@@ -68,9 +87,13 @@ class ExecutorCrew(BaseCrew):
         # ──────────────────────────────────────────────────────────
         # DETECT ACTION INTENT
         # ──────────────────────────────────────────────────────────
-        git_commit = any(kw in user_input for kw in ["commit", "backup", "save", "fazer commit"])
+        git_commit = any(
+            kw in user_input for kw in ["commit", "backup", "save", "fazer commit"]
+        )
         git_push = "push" in user_input or "enviar" in user_input
-        bash_exec = any(kw in user_input for kw in ["execute", "rodar", "executar", "bash"])
+        bash_exec = any(
+            kw in user_input for kw in ["execute", "rodar", "executar", "bash"]
+        )
 
         if not (git_commit or git_push or bash_exec):
             return CrewResult(
@@ -93,7 +116,7 @@ class ExecutorCrew(BaseCrew):
                     shell=True,
                     cwd=self._repo_dir,
                     text=True,
-                    timeout=10
+                    timeout=10,
                 ).strip()
 
                 if status_output:
@@ -104,7 +127,7 @@ class ExecutorCrew(BaseCrew):
                         cwd=self._repo_dir,
                         timeout=10,
                         check=True,
-                        capture_output=True
+                        capture_output=True,
                     )
 
                     # Get diff for LLM
@@ -113,7 +136,7 @@ class ExecutorCrew(BaseCrew):
                         shell=True,
                         cwd=self._repo_dir,
                         text=True,
-                        timeout=10
+                        timeout=10,
                     ).strip()
 
                     # Generate commit message via LLM
@@ -128,7 +151,7 @@ class ExecutorCrew(BaseCrew):
                         cwd=self._repo_dir,
                         timeout=15,
                         check=True,
-                        capture_output=True
+                        capture_output=True,
                     )
 
                     actions_executed.append(f"✅ Git commit: {commit_msg}")
@@ -157,13 +180,13 @@ class ExecutorCrew(BaseCrew):
                         cwd=self._repo_dir,
                         capture_output=True,
                         text=True,
-                        timeout=30
+                        timeout=30,
                     )
                     if push_res.returncode == 0:
                         actions_executed.append(f"✅ Push to {repo_slug}")
                         log.info(f"[executor] Push successful: {repo_slug}")
                     else:
-                        errors.append(f"❌ Push failed (check token)")
+                        errors.append("❌ Push failed (check token)")
                         log.warning(f"[executor] Push failed: rc={push_res.returncode}")
                 else:
                     errors.append("⚠️ GITHUB_TOKEN ou GITHUB_REPO não configurados")
@@ -191,12 +214,12 @@ class ExecutorCrew(BaseCrew):
 
                 if is_whitelisted:
                     try:
-                        output = subprocess.check_output(
+                        subprocess.check_output(
                             command,
                             shell=True,
                             cwd=self._repo_dir,
                             text=True,
-                            timeout=30
+                            timeout=30,
                         )
                         actions_executed.append(f"✅ Bash: {command[:40]}")
                         log.info(f"[executor] Bash executed: {command}")
@@ -220,8 +243,8 @@ class ExecutorCrew(BaseCrew):
         elif actions_executed and errors:
             response_text = (
                 "⚠️ Execução parcial\n\n"
-                f"Sucesso:\n" + "\n".join([f"  {a}" for a in actions_executed]) + "\n\n"
-                f"Erros:\n" + "\n".join([f"  {e}" for e in errors])
+                "Sucesso:\n" + "\n".join([f"  {a}" for a in actions_executed]) + "\n\n"
+                "Erros:\n" + "\n".join([f"  {e}" for e in errors])
             )
             confidence = 0.5
         else:
@@ -229,13 +252,15 @@ class ExecutorCrew(BaseCrew):
             confidence = 0.1
 
         # Store action in history
-        self._last_actions.append({
-            "timestamp": time.time(),
-            "user_input": user_input[:100],
-            "success": len(actions_executed) > 0 and not errors,
-            "actions": actions_executed,
-            "errors": errors
-        })
+        self._last_actions.append(
+            {
+                "timestamp": time.time(),
+                "user_input": user_input[:100],
+                "success": len(actions_executed) > 0 and not errors,
+                "actions": actions_executed,
+                "errors": errors,
+            }
+        )
         if len(self._last_actions) > 20:
             self._last_actions.pop(0)
 
@@ -243,7 +268,9 @@ class ExecutorCrew(BaseCrew):
             response=response_text,
             crew_id=self.crew_id,
             cost_usd=total_cost,
-            llm_calls=1 if git_commit else 0,  # Commit message generation counts as 1 LLM call
+            llm_calls=1
+            if git_commit
+            else 0,  # Commit message generation counts as 1 LLM call
             confidence=confidence,
             latency_ms=latency_ms,
             sources=[],
@@ -268,11 +295,13 @@ class ExecutorCrew(BaseCrew):
     def get_status(self) -> dict:
         """Extended status with execution history"""
         base_status = super().get_status()
-        base_status.update({
-            "last_actions_count": len(self._last_actions),
-            "recent_actions": self._last_actions[-3:] if self._last_actions else [],
-            "repo_dir": self._repo_dir,
-        })
+        base_status.update(
+            {
+                "last_actions_count": len(self._last_actions),
+                "recent_actions": self._last_actions[-3:] if self._last_actions else [],
+                "repo_dir": self._repo_dir,
+            }
+        )
         return base_status
 
 

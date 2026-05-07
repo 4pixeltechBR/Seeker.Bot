@@ -67,9 +67,7 @@ class VerificationWorker:
         self.api_keys = api_keys
         self.min_confidence = min_confidence
 
-    async def verify_lead(
-        self, target: str, trigger: str, score: int
-    ) -> dict:
+    async def verify_lead(self, target: str, trigger: str, score: int) -> dict:
         """
         Verifica um lead via busca direcionada + LLM.
 
@@ -79,6 +77,7 @@ class VerificationWorker:
         """
         try:
             from datetime import date
+
             current_year = date.today().year
 
             # Busca direcionada ao alvo específico
@@ -102,8 +101,7 @@ class VerificationWorker:
 
             # Monta contexto de verificação
             verification_context = "\n".join(
-                f"- [{r.title[:60]}] {r.snippet[:150]}"
-                for r in all_results[:6]
+                f"- [{r.title[:60]}] {r.snippet[:150]}" for r in all_results[:6]
             )
 
             # LLM como juiz
@@ -123,8 +121,10 @@ class VerificationWorker:
             )
 
             resp = await invoke_with_fallback(
-                CognitiveRole.JUDGE, req,
-                self.model_router, self.api_keys,
+                CognitiveRole.JUDGE,
+                req,
+                self.model_router,
+                self.api_keys,
             )
 
             # Parse
@@ -135,6 +135,7 @@ class VerificationWorker:
                 text = text[:-3]
 
             import json
+
             result = json.loads(text.strip())
 
             # Valida campos mínimos

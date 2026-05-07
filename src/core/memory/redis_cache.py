@@ -33,7 +33,9 @@ class RedisEmbeddingCache:
             self._enabled = True
             log.info(f"[redis] Conectado em {redis_url}")
         except ImportError:
-            log.warning("[redis] redis-py não instalado. Cache distribuído desativado. (pip install redis)")
+            log.warning(
+                "[redis] redis-py não instalado. Cache distribuído desativado. (pip install redis)"
+            )
         except Exception as e:
             log.warning(f"[redis] Conexão falhou: {e}. Usando cache local.")
 

@@ -27,26 +27,27 @@ log = logging.getLogger("seeker.router")
 
 
 class CognitiveDepth(str, Enum):
-    REFLEX     = "reflex"      # 0 LLM calls — resposta direta
+    REFLEX = "reflex"  # 0 LLM calls — resposta direta
     DELIBERATE = "deliberate"  # 1-2 LLM calls — Kernel + Synthesis
-    DEEP       = "deep"        # 3+ LLM calls — pipeline completo
+    DEEP = "deep"  # 3+ LLM calls — pipeline completo
 
 
 class ExecutionMode(str, Enum):
     INTERACTIVE = "interactive"  # Foco em latência (Telegram)
-    HEADLESS    = "headless"     # Foco em qualidade (Curadoria, Background)
+    HEADLESS = "headless"  # Foco em qualidade (Curadoria, Background)
 
 
 @dataclass(frozen=True)
 class RoutingDecision:
     """Resultado do roteamento cognitivo."""
+
     depth: CognitiveDepth
     reason: str
     execution_mode: ExecutionMode = ExecutionMode.INTERACTIVE
     god_mode: bool = False
     forced_module: str | None = None
-    needs_web: bool = False            # Independente da profundidade
-    needs_vault: bool = False          # Indica se deve buscar no Obsidian
+    needs_web: bool = False  # Independente da profundidade
+    needs_vault: bool = False  # Indica se deve buscar no Obsidian
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -124,20 +125,40 @@ WEB_TRIGGERS = re.compile(
 VAULT_TRIGGERS = re.compile(
     r"no cofre|no obsidian|nas notas|minhas anotações|meu segundo cérebro|"
     r"o que eu anotei|pesquisa nas notas|busca no obsidian",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 # Módulos detectáveis por keyword (ajuda o Kernel a pular detecção)
 MODULE_PATTERNS = {
-    "debug":  re.compile(r"erro|error|traceback|quebrou|não\s*funciona|bug|crash|exception", re.IGNORECASE),
-    "arq":    re.compile(r"arquitetura|estrutur|escalar|stack|refatorar|migrar|sistema", re.IGNORECASE),
-    "review": re.compile(r"revis[ae]|code\s*review|está\s*bom|avalia|feedback", re.IGNORECASE),
-    "growth": re.compile(r"\bviews?\b|viral|hook|retenção|ctr|shorts?|engajamento", re.IGNORECASE),
-    "edu":    re.compile(r"explic[ae]|como\s*funciona|o\s*que\s*é|me\s*ensin[ae]|diferença\s*entre", re.IGNORECASE),
-    "llm":    re.compile(r"modelo|fine.?tun|quantiz|rag\b|agente\b|embedding|llm|ollama", re.IGNORECASE),
-    "ideia":  re.compile(r"ideia|e\s*se\b|brainstorm|seria\s*possível|e\s*se\s*eu", re.IGNORECASE),
-    "lumen":  re.compile(r"design|ui\b|ux\b|interface|visual|slide|layout|tipografia", re.IGNORECASE),
-    "email":  re.compile(r"e-?mails?|inbox|caixa\s*de\s*entrada|correspondência", re.IGNORECASE),
+    "debug": re.compile(
+        r"erro|error|traceback|quebrou|não\s*funciona|bug|crash|exception",
+        re.IGNORECASE,
+    ),
+    "arq": re.compile(
+        r"arquitetura|estrutur|escalar|stack|refatorar|migrar|sistema", re.IGNORECASE
+    ),
+    "review": re.compile(
+        r"revis[ae]|code\s*review|está\s*bom|avalia|feedback", re.IGNORECASE
+    ),
+    "growth": re.compile(
+        r"\bviews?\b|viral|hook|retenção|ctr|shorts?|engajamento", re.IGNORECASE
+    ),
+    "edu": re.compile(
+        r"explic[ae]|como\s*funciona|o\s*que\s*é|me\s*ensin[ae]|diferença\s*entre",
+        re.IGNORECASE,
+    ),
+    "llm": re.compile(
+        r"modelo|fine.?tun|quantiz|rag\b|agente\b|embedding|llm|ollama", re.IGNORECASE
+    ),
+    "ideia": re.compile(
+        r"ideia|e\s*se\b|brainstorm|seria\s*possível|e\s*se\s*eu", re.IGNORECASE
+    ),
+    "lumen": re.compile(
+        r"design|ui\b|ux\b|interface|visual|slide|layout|tipografia", re.IGNORECASE
+    ),
+    "email": re.compile(
+        r"e-?mails?|inbox|caixa\s*de\s*entrada|correspondência", re.IGNORECASE
+    ),
     "vision": re.compile(
         r"veja?\s*(minha)?\s*tela|print\b|screenshot|"
         r"olh[ae]\s*(minha)?\s*tela|mostra?\s*(a\s*)?tela|"
@@ -155,9 +176,10 @@ MODULE_PATTERNS = {
 # HEURÍSTICAS DE COMPLEXIDADE
 # ─────────────────────────────────────────────────────────────────────
 
+
 def _count_sentences(text: str) -> int:
     """Conta sentenças de forma aproximada."""
-    return len(re.split(r'[.!?]+', text.strip())) - 1 or 1
+    return len(re.split(r"[.!?]+", text.strip())) - 1 or 1
 
 
 def _count_questions(text: str) -> int:
@@ -167,7 +189,11 @@ def _count_questions(text: str) -> int:
 
 def _has_code_block(text: str) -> bool:
     """Detecta se tem bloco de código."""
-    return "```" in text or text.strip().startswith("def ") or text.strip().startswith("class ")
+    return (
+        "```" in text
+        or text.strip().startswith("def ")
+        or text.strip().startswith("class ")
+    )
 
 
 def _word_count(text: str) -> int:
@@ -178,20 +204,23 @@ def _word_count(text: str) -> int:
 # O ROUTER
 # ─────────────────────────────────────────────────────────────────────
 
+
 class CognitiveLoadRouter:
     """
     Classifica a profundidade cognitiva necessária para processar um input.
-    
+
     Zero chamadas LLM. Regex + heurísticas + contadores.
     Erra conservadoramente — na dúvida, sobe.
-    
+
     Uso:
         router = CognitiveLoadRouter()
         decision = router.route("analisa se vale migrar pra K8s")
         # RoutingDecision(depth=DEEP, reason="deep trigger: migrar", god_mode=False)
     """
 
-    def route(self, text: str, mode: ExecutionMode = ExecutionMode.INTERACTIVE) -> RoutingDecision:
+    def route(
+        self, text: str, mode: ExecutionMode = ExecutionMode.INTERACTIVE
+    ) -> RoutingDecision:
         """Classifica profundidade E necessidade de web, independentemente."""
 
         text_stripped = text.strip()
@@ -220,7 +249,7 @@ class CognitiveLoadRouter:
                 execution_mode=mode,
                 god_mode=True,
                 needs_web=True,  # God Mode sempre busca
-                needs_vault=True, # God Mode também olha o cofre
+                needs_vault=True,  # God Mode também olha o cofre
             )
 
         # ── Reflex: input curto e padrão reconhecido ──────────
@@ -306,7 +335,7 @@ class CognitiveLoadRouter:
             target_depth = CognitiveDepth.DELIBERATE
             if mode == ExecutionMode.HEADLESS and complexity_score >= 2:
                 target_depth = CognitiveDepth.DEEP
-                
+
             return RoutingDecision(
                 depth=target_depth,
                 reason=f"complexidade moderada ({', '.join(complexity_reasons or ['input médio'])})",

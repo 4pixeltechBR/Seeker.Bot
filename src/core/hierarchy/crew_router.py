@@ -8,7 +8,6 @@ Takes CognitiveDepth from CognitiveLoadRouter and determines:
 """
 
 import logging
-from typing import Optional
 
 from ..router.cognitive_load import CognitiveDepth as CognitiveDepthRouter
 from .interfaces import SupervisorDecision

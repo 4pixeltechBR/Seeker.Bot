@@ -66,10 +66,10 @@ log = logging.getLogger("seeker.rl.state")
 
 STATE_DIM = 26
 
-_RE_CODE   = re.compile(r"```|^\s*(def |class |import |from )", re.MULTILINE)
-_RE_URL    = re.compile(r"https?://|www\.")
-_RE_CMD    = re.compile(r"^/\w+")
-_RE_POSIT  = re.compile(
+_RE_CODE = re.compile(r"```|^\s*(def |class |import |from )", re.MULTILINE)
+_RE_URL = re.compile(r"https?://|www\.")
+_RE_CMD = re.compile(r"^/\w+")
+_RE_POSIT = re.compile(
     r"perfeito|ótimo|excelente|show|top|bora|blz|valeu|obrigado",
     re.IGNORECASE,
 )
@@ -78,6 +78,7 @@ _RE_POSIT  = re.compile(
 # ─────────────────────────────────────────────────────────────────────────────
 # ESTADO SEMÂNTICO (input rico, fácil de popular)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class SeekerState:
@@ -104,12 +105,14 @@ class SeekerState:
     # Providers
     provider_tier1_healthy: bool = True
     provider_tier2_healthy: bool = True
-    recent_failures: int = 0      # falhas nas últimas 10 calls
+    recent_failures: int = 0  # falhas nas últimas 10 calls
     avg_latency_ms: float = 500.0
 
     # Sessão
     session_turns: int = 0
-    recent_depths: list[str] = field(default_factory=list)  # últimas 5: "reflex"|"deliberate"|"deep"
+    recent_depths: list[str] = field(
+        default_factory=list
+    )  # últimas 5: "reflex"|"deliberate"|"deep"
     last_reward: float = 0.0
     last_call_timestamp: Optional[float] = None
 
@@ -119,6 +122,7 @@ class SeekerState:
     def copy_with(self, **kwargs) -> "SeekerState":
         """Retorna cópia com campos sobrescritos."""
         import dataclasses
+
         d = dataclasses.asdict(self)
         d.pop("intent_card")  # não serializable
         d.update(kwargs)
@@ -130,6 +134,7 @@ class SeekerState:
 # ─────────────────────────────────────────────────────────────────────────────
 # ENCODER
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class StateEncoder:
     """
@@ -173,7 +178,7 @@ class StateEncoder:
 
         # ── [6-9] Tempo (codificação cíclica) ─────────────────────────
         dt = time.localtime(state.timestamp)
-        hour    = dt.tm_hour
+        hour = dt.tm_hour
         weekday = dt.tm_wday  # 0=Monday
 
         v[6] = (math.sin(2 * math.pi * hour / 24) + 1) / 2
@@ -185,7 +190,9 @@ class StateEncoder:
         if state.budget_daily_limit_usd > 0:
             v[10] = min(1.0, state.budget_daily_used_usd / state.budget_daily_limit_usd)
         if state.budget_monthly_limit_usd > 0:
-            v[11] = min(1.0, state.budget_monthly_used_usd / state.budget_monthly_limit_usd)
+            v[11] = min(
+                1.0, state.budget_monthly_used_usd / state.budget_monthly_limit_usd
+            )
 
         if state.recent_costs_usd:
             avg_cost = sum(state.recent_costs_usd) / len(state.recent_costs_usd)
@@ -218,10 +225,11 @@ class StateEncoder:
         # ── [22-25] Intenção ──────────────────────────────────────────
         if state.intent_card is not None:
             from src.core.intent_card import IntentType
+
             ic = state.intent_card
             v[22] = 1.0 if ic.intent_type == IntentType.INFORMATION else 0.0
-            v[23] = 1.0 if ic.intent_type == IntentType.ANALYSIS    else 0.0
-            v[24] = 1.0 if ic.intent_type == IntentType.ACTION      else 0.0
+            v[23] = 1.0 if ic.intent_type == IntentType.ANALYSIS else 0.0
+            v[24] = 1.0 if ic.intent_type == IntentType.ACTION else 0.0
             v[25] = ic.risk_level.value / 3.0
 
         # Validação: todos em [0, 1]

@@ -104,8 +104,7 @@ class HabitTracker:
                 emoji = "🟡"
 
             lines.append(
-                f"  {emoji} {goal}/{action} {day} {hour}h → "
-                f"{rate:.0%} ({total}x)"
+                f"  {emoji} {goal}/{action} {day} {hour}h → {rate:.0%} ({total}x)"
             )
         return "\n".join(lines)
 

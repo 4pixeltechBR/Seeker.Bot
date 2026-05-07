@@ -8,7 +8,7 @@ import json
 import sqlite3
 from datetime import datetime
 from typing import Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from enum import Enum
 import logging
 
@@ -17,6 +17,7 @@ log = logging.getLogger("seeker.hierarchy.events")
 
 class GoalEventType(str, Enum):
     """Event types in goal execution lifecycle"""
+
     STARTED = "started"
     API_CALL = "api_call"
     FACT_LEARNED = "fact_learned"
@@ -28,6 +29,7 @@ class GoalEventType(str, Enum):
 @dataclass
 class GoalEvent:
     """Single immutable event in goal execution"""
+
     event_id: int
     goal_id: str
     crew_id: str
@@ -210,9 +212,7 @@ class GoalEventLog:
             )
 
             # Delete old events
-            conn.execute(
-                "DELETE FROM goal_events WHERE timestamp < ?", (cutoff_time,)
-            )
+            conn.execute("DELETE FROM goal_events WHERE timestamp < ?", (cutoff_time,))
             conn.commit()
 
             log.info(f"Archived and deleted {count} events older than {days_old} days")

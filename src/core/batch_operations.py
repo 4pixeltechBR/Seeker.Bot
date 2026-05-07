@@ -8,11 +8,10 @@ Economiza ~7 commits por resposta em 1 commit consolidado
 
 import logging
 import asyncio
-import inspect
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Callable, Coroutine, Any, List
+from typing import Callable, Any, List
 from collections import deque
 
 log = logging.getLogger("seeker.batch_ops")
@@ -21,6 +20,7 @@ log = logging.getLogger("seeker.batch_ops")
 @dataclass
 class PendingOperation:
     """Operação pendente de commit"""
+
     operation_name: str
     operation_func: Callable
     args: tuple = field(default_factory=tuple)
@@ -38,6 +38,7 @@ class PendingOperation:
 @dataclass
 class BatchResult:
     """Resultado de um batch de operações"""
+
     total_operations: int
     successful_operations: int
     failed_operations: int
@@ -76,7 +77,9 @@ class BatchOperationsManager:
             "total_latency_ms": 0.0,
         }
 
-        log.info(f"[batch] BatchOperationsManager inicializado (max_pending={max_pending})")
+        log.info(
+            f"[batch] BatchOperationsManager inicializado (max_pending={max_pending})"
+        )
 
     def queue_operation(
         self,
@@ -110,8 +113,7 @@ class BatchOperationsManager:
         # Auto-commit se atingiu limite
         if len(self._pending_ops) >= self.max_pending:
             log.warning(
-                f"[batch] Max pending ({self.max_pending}) atingido, "
-                f"forçando commit"
+                f"[batch] Max pending ({self.max_pending}) atingido, forçando commit"
             )
 
     async def commit_all(self) -> BatchResult:
@@ -147,9 +149,7 @@ class BatchOperationsManager:
 
         try:
             total_ops = len(self._pending_ops)
-            log.info(
-                f"[batch] Iniciando commit de {total_ops} operações"
-            )
+            log.info(f"[batch] Iniciando commit de {total_ops} operações")
 
             # Executar todas as operações
             while self._pending_ops:
@@ -163,14 +163,14 @@ class BatchOperationsManager:
                 except Exception as e:
                     failed += 1
                     error_msg = str(e)[:100]
-                    errors.append({
-                        "operation": op.operation_name,
-                        "error": error_msg,
-                        "timestamp": datetime.utcnow().isoformat(),
-                    })
-                    log.error(
-                        f"[batch] ✗ {op.operation_name}: {error_msg}"
+                    errors.append(
+                        {
+                            "operation": op.operation_name,
+                            "error": error_msg,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
                     )
+                    log.error(f"[batch] ✗ {op.operation_name}: {error_msg}")
 
             end_time = time.perf_counter()
             latency_ms = (end_time - start_time) * 1000
@@ -218,9 +218,7 @@ class BatchOperationsManager:
         result = await self.commit_all()
 
         if result.failed_operations == 0:
-            log.info(
-                f"[batch] Transação '{transaction_name}' completada com sucesso"
-            )
+            log.info(f"[batch] Transação '{transaction_name}' completada com sucesso")
         else:
             log.warning(
                 f"[batch] Transação '{transaction_name}' com "
@@ -244,9 +242,7 @@ class BatchOperationsManager:
         """Retorna estatísticas de batch operations"""
         avg_latency = 0.0
         if self.stats["total_batches"] > 0:
-            avg_latency = (
-                self.stats["total_latency_ms"] / self.stats["total_batches"]
-            )
+            avg_latency = self.stats["total_latency_ms"] / self.stats["total_batches"]
 
         return {
             "total_batches": self.stats["total_batches"],
@@ -279,7 +275,8 @@ class BatchOperationsManager:
             "max_pending": self.max_pending,
             "utilization_percent": f"{utilization:.1f}%",
             "recommendation": (
-                "Executar commit" if pending > self.max_pending * 0.5
+                "Executar commit"
+                if pending > self.max_pending * 0.5
                 else "Operação normal"
             ),
         }

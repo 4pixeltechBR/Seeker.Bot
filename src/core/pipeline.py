@@ -35,9 +35,11 @@ import time
 import uuid
 from dataclasses import dataclass, field
 
-from config.models import ModelRouter, CognitiveRole, build_default_router
+from config.models import build_default_router
 from src.core.router.cognitive_load import (
-    CognitiveLoadRouter, CognitiveDepth, RoutingDecision, ExecutionMode
+    CognitiveLoadRouter,
+    CognitiveDepth,
+    ExecutionMode,
 )
 from src.skills.knowledge_vault import VaultSearcher
 from src.core.evidence.arbitrage import EvidenceArbitrage, ArbitrageResult
@@ -49,17 +51,27 @@ from src.core.memory.extractor import FactExtractor
 from src.core.memory.embeddings import GeminiEmbedder, SemanticSearch
 from src.core.memory.session import SessionManager
 from src.core.memory.compressor import SessionCompressor
-from src.core.intent_card import IntentClassifier, IntentCard
-from src.core.safety_layer_enhanced import SafetyLayer, SafetyPolicy, AutonomyTier, ActionType
-from src.core.phases.base import PhaseContext, PhaseResult
+from src.core.intent_card import IntentClassifier
+from src.core.safety_layer_enhanced import (
+    SafetyLayer,
+    SafetyPolicy,
+    AutonomyTier,
+    ActionType,
+)
+from src.core.phases.base import PhaseContext
 from src.core.phases.reflex import ReflexPhase
 from src.core.phases.deliberate import DeliberatePhase
 from src.core.phases.deep import DeepPhase
-from src.providers.base import LLMRequest, invoke_with_fallback
 from src.providers.cascade import CascadeAdapter
-from src.core.rl import RewardCollector, StateEncoder, SeekerState, CascadeBandit, BanditMode
+from src.core.rl import (
+    RewardCollector,
+    StateEncoder,
+    SeekerState,
+    CascadeBandit,
+    BanditMode,
+)
 from src.core.batch_operations import BatchOperationsManager
-from src.core.metrics import Sprint11Tracker
+from src.core.metrics import Sprint11Tracker, IntegrityMonitor
 from src.core.memory.hierarchy import score_fact, format_4layer_context
 from src.core.profiling.profiler import SystemProfiler
 from src.core.profiling.exporter import PrometheusExporter
@@ -85,8 +97,12 @@ class PipelineResult:
     image_bytes: bytes | None = None
     facts_used: int = 0  # fatos de memória injetados no contexto desta resposta
     new_facts_count: int = 0  # fatos extraídos deste turno
-    _extraction: dict = field(default_factory=dict) # Cache de extração para post-process
-    decision_id: str = field(default_factory=lambda: str(uuid.uuid4()))  # ID p/ RL feedback
+    _extraction: dict = field(
+        default_factory=dict
+    )  # Cache de extração para post-process
+    decision_id: str = field(
+        default_factory=lambda: str(uuid.uuid4())
+    )  # ID p/ RL feedback
 
 
 class SeekerPipeline:
@@ -124,8 +140,11 @@ class SeekerPipeline:
         self.api_keys = api_keys
         self.model_router = build_default_router()
         self.cognitive_router = CognitiveLoadRouter()
-        self.intent_classifier = IntentClassifier()  # Intent classification + autonomy tiers
+        self.intent_classifier = (
+            IntentClassifier()
+        )  # Intent classification + autonomy tiers
         self.extractor = FactExtractor(self.model_router, api_keys)
+        self.integrity = IntegrityMonitor()
 
         # Search
         tavily_key = os.getenv("TAVILY_API_KEY", "")
@@ -143,7 +162,9 @@ class SeekerPipeline:
 
         # Memory
         if db_path is None:
-            base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            base = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
             db_path = os.path.join(base, "data", "seeker_memory.db")
         self.memory = MemoryStore(db_path=db_path)
         self.compressor = SessionCompressor(self.model_router, self.api_keys)
@@ -186,12 +207,17 @@ class SeekerPipeline:
 
         # Obsidian Exporter
         vault_path = os.getenv("OBSIDIAN_VAULT_PATH")
-        self.obsidian_exporter = ObsidianExporter(self.memory, vault_path) if vault_path else None
+        self.obsidian_exporter = (
+            ObsidianExporter(self.memory, vault_path) if vault_path else None
+        )
 
         # Data Manager — armazenamento eficiente de fatos semânticos
         data_db_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "data", "seeker_data.db"
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            ),
+            "data",
+            "seeker_data.db",
         )
         self.data_store = ArmazemDados(db_path=data_db_path)
         self.data_indexador = Indexador(self.data_store)
@@ -222,7 +248,11 @@ class SeekerPipeline:
         self.afk_protocol = None  # Setado pelo bot.py após init
 
         # Métricas de uso de memória (acumuladas na sessão)
-        self._memory_stats = {"responses": 0, "with_facts": 0, "total_facts_injected": 0}
+        self._memory_stats = {
+            "responses": 0,
+            "with_facts": 0,
+            "total_facts_injected": 0,
+        }
 
     async def init(self) -> None:
         if self._initialized:
@@ -236,7 +266,7 @@ class SeekerPipeline:
         # Semantic search com embeddings persistidos
         if self.embedder:
             self.semantic_search = SemanticSearch(self.embedder, self.memory)
-            await self.semantic_search.load()           # Carrega do disco (0 API calls)
+            await self.semantic_search.load()  # Carrega do disco (0 API calls)
             await self.semantic_search.ensure_indexed()  # Só embeda fatos NOVOS
             log.info("[pipeline] Semantic search com Gemini Embedding 2 ativo")
 
@@ -259,11 +289,16 @@ class SeekerPipeline:
         # Inicializa phases
         self._phase_reflex = ReflexPhase(self.model_router, self.api_keys)
         self._phase_deliberate = DeliberatePhase(
-            self.model_router, self.api_keys, self.searcher,
+            self.model_router,
+            self.api_keys,
+            self.searcher,
         )
         self._phase_deep = DeepPhase(
-            self.model_router, self.api_keys, self.searcher,
-            self.arbitrage, self.gate,
+            self.model_router,
+            self.api_keys,
+            self.searcher,
+            self.arbitrage,
+            self.gate,
         )
 
         self._initialized = True
@@ -374,10 +409,12 @@ class SeekerPipeline:
         if decision.needs_vault:
             if not self._vault_searcher:
                 self._vault_searcher = VaultSearcher()
-            
+
             vault_context = self._vault_searcher.get_context_for_llm(user_input)
             if vault_context:
-                log.info(f"[pipeline] Contexto do cofre injetado ({len(vault_context)} chars)")
+                log.info(
+                    f"[pipeline] Contexto do cofre injetado ({len(vault_context)} chars)"
+                )
                 memory_prompt += f"\n\n{vault_context}"
 
         # ── 3. Dispatch pra fase ──────────────────────────────
@@ -398,20 +435,19 @@ class SeekerPipeline:
             try:
                 phase_result = await self._phase_reflex.execute(ctx)
                 self.profiler.end_profiling(
-                    session_id, "Reflex",
+                    session_id,
+                    "Reflex",
                     llm_calls=phase_result.llm_calls,
-                    input_tokens=getattr(phase_result, 'input_tokens', 0),
-                    output_tokens=getattr(phase_result, 'output_tokens', 0),
+                    input_tokens=getattr(phase_result, "input_tokens", 0),
+                    output_tokens=getattr(phase_result, "output_tokens", 0),
                     cost_usd=phase_result.cost_usd,
-                    provider=getattr(phase_result, 'provider', ''),
-                    model=getattr(phase_result, 'model', ''),
-                    success=True
+                    provider=getattr(phase_result, "provider", ""),
+                    model=getattr(phase_result, "model", ""),
+                    success=True,
                 )
             except Exception as e:
                 self.profiler.end_profiling(
-                    session_id, "Reflex",
-                    success=False,
-                    error_msg=str(e)
+                    session_id, "Reflex", success=False, error_msg=str(e)
                 )
                 raise
 
@@ -421,20 +457,19 @@ class SeekerPipeline:
             try:
                 phase_result = await self._phase_deep.execute(ctx)
                 self.profiler.end_profiling(
-                    session_id, "Deep",
+                    session_id,
+                    "Deep",
                     llm_calls=phase_result.llm_calls,
-                    input_tokens=getattr(phase_result, 'input_tokens', 0),
-                    output_tokens=getattr(phase_result, 'output_tokens', 0),
+                    input_tokens=getattr(phase_result, "input_tokens", 0),
+                    output_tokens=getattr(phase_result, "output_tokens", 0),
                     cost_usd=phase_result.cost_usd,
-                    provider=getattr(phase_result, 'provider', ''),
-                    model=getattr(phase_result, 'model', ''),
-                    success=True
+                    provider=getattr(phase_result, "provider", ""),
+                    model=getattr(phase_result, "model", ""),
+                    success=True,
                 )
             except Exception as e:
                 self.profiler.end_profiling(
-                    session_id, "Deep",
-                    success=False,
-                    error_msg=str(e)
+                    session_id, "Deep", success=False, error_msg=str(e)
                 )
                 raise
 
@@ -444,20 +479,19 @@ class SeekerPipeline:
             try:
                 phase_result = await self._phase_deliberate.execute(ctx)
                 self.profiler.end_profiling(
-                    session_id, "Deliberate",
+                    session_id,
+                    "Deliberate",
                     llm_calls=phase_result.llm_calls,
-                    input_tokens=getattr(phase_result, 'input_tokens', 0),
-                    output_tokens=getattr(phase_result, 'output_tokens', 0),
+                    input_tokens=getattr(phase_result, "input_tokens", 0),
+                    output_tokens=getattr(phase_result, "output_tokens", 0),
                     cost_usd=phase_result.cost_usd,
-                    provider=getattr(phase_result, 'provider', ''),
-                    model=getattr(phase_result, 'model', ''),
-                    success=True
+                    provider=getattr(phase_result, "provider", ""),
+                    model=getattr(phase_result, "model", ""),
+                    success=True,
                 )
             except Exception as e:
                 self.profiler.end_profiling(
-                    session_id, "Deliberate",
-                    success=False,
-                    error_msg=str(e)
+                    session_id, "Deliberate", success=False, error_msg=str(e)
                 )
                 raise
 
@@ -476,6 +510,13 @@ class SeekerPipeline:
             facts_used=facts_used,
             decision_id=decision_id,
         )
+
+        # ── Integridade: registra métricas (Sprint 12) ────────
+        if result.arbitrage:
+            self.integrity.record_arbitrage(
+                has_conflicts=result.arbitrage.has_conflicts,
+                cost=result.arbitrage.total_cost_usd
+            )
 
         # ── RL: registra sinal técnico ────────────────────────
         self.reward_collector.record_technical(
@@ -510,7 +551,7 @@ class SeekerPipeline:
             extraction = await self.extractor.extract(user_input, result.response)
             result.new_facts_count = len(extraction.get("facts", []))
             # Armazena extração para uso no _post_process
-            result._extraction = extraction 
+            result._extraction = extraction
         except Exception as e:
             log.warning(f"[pipeline] Falha na extração síncrona: {e}")
 
@@ -564,6 +605,10 @@ class SeekerPipeline:
     def get_bandit_stats(self) -> str:
         """Formata stats do LinUCB Bandit para Telegram."""
         return self.cascade_bandit.format_stats()
+
+    def get_integrity_report(self) -> str:
+        """Retorna relatório de integridade formatado para Telegram."""
+        return self.integrity.format_for_telegram()
 
     # ─────────────────────────────────────────────────────────
     # LIFECYCLE
@@ -619,10 +664,7 @@ class SeekerPipeline:
         Returns: (allowed, reason)
         """
         allowed, reason = await self.safety_layer.check_action(
-            action_type,
-            goal_name,
-            current_tier,
-            action_details
+            action_type, goal_name, current_tier, action_details
         )
         return allowed, reason
 
@@ -647,7 +689,7 @@ class SeekerPipeline:
             "timestamp": time.time(),
             "goals": {},
             "worst_offenders": [],
-            "system_health": {}
+            "system_health": {},
         }
 
         # Agregações por goal
@@ -656,14 +698,16 @@ class SeekerPipeline:
 
         # Top 10 worst (latência)
         for metric in worst[:10]:
-            dashboard["worst_offenders"].append({
-                "goal_id": metric.goal_id,
-                "phase": metric.phase_name,
-                "latency_ms": f"{metric.latency_ms:.0f}",
-                "cost_usd": f"${metric.cost_usd:.4f}",
-                "provider": metric.provider,
-                "timestamp": metric.timestamp.isoformat()
-            })
+            dashboard["worst_offenders"].append(
+                {
+                    "goal_id": metric.goal_id,
+                    "phase": metric.phase_name,
+                    "latency_ms": f"{metric.latency_ms:.0f}",
+                    "cost_usd": f"${metric.cost_usd:.4f}",
+                    "provider": metric.provider,
+                    "timestamp": metric.timestamp.isoformat(),
+                }
+            )
 
         # Health metrics
         if all_stats:
@@ -672,9 +716,13 @@ class SeekerPipeline:
             dashboard["system_health"] = {
                 "total_goals": total_goals,
                 "healthy_goals": total_success,
-                "health_pct": f"{(total_success / total_goals * 100):.1f}%" if total_goals > 0 else "0%",
+                "health_pct": f"{(total_success / total_goals * 100):.1f}%"
+                if total_goals > 0
+                else "0%",
                 "total_cost_usd": f"${sum(g.total_cost_usd for g in all_stats.values()):.2f}",
-                "avg_latency_ms": f"{(sum(g.avg_latency_ms for g in all_stats.values()) / total_goals):.0f}" if total_goals > 0 else "0"
+                "avg_latency_ms": f"{(sum(g.avg_latency_ms for g in all_stats.values()) / total_goals):.0f}"
+                if total_goals > 0
+                else "0",
             }
 
         return dashboard
@@ -740,14 +788,16 @@ class SeekerPipeline:
 
         # Fase 2: Aguarda background tasks pendentes com commit final (max 10s)
         if self._background_tasks:
-            log.info(f"[pipeline] Aguardando {len(self._background_tasks)} background tasks...")
-            done, pending = await asyncio.wait(
-                self._background_tasks, timeout=10.0
+            log.info(
+                f"[pipeline] Aguardando {len(self._background_tasks)} background tasks..."
             )
+            done, pending = await asyncio.wait(self._background_tasks, timeout=10.0)
             if done:
                 log.info(f"[pipeline] {len(done)} background tasks completadas")
             if pending:
-                log.warning(f"[pipeline] {len(pending)} background tasks ainda pendentes após timeout, cancelando...")
+                log.warning(
+                    f"[pipeline] {len(pending)} background tasks ainda pendentes após timeout, cancelando..."
+                )
                 for t in pending:
                     t.cancel()
                     try:
@@ -814,15 +864,17 @@ class SeekerPipeline:
                 user_input, top_k=5, min_similarity=0.35
             )
             # Deduplica contra L1
-            seen = {f.get('fact', '') for f in essential}
-            search_results = [sr for sr in search_results if sr.get('fact', '') not in seen]
+            seen = {f.get("fact", "") for f in essential}
+            search_results = [
+                sr for sr in search_results if sr.get("fact", "") not in seen
+            ]
             facts_used += len(search_results)
 
         # L3: Fallback textual se semântica não encontrou nada
         if not search_results and user_input:
             relevant = await self.memory.search_facts(user_input, limit=5)
-            seen_ids = {f.get('id') for f in essential}
-            search_results = [f for f in relevant if f.get('id', -1) not in seen_ids]
+            seen_ids = {f.get("id") for f in essential}
+            search_results = [f for f in relevant if f.get("id", -1) not in seen_ids]
             facts_used += len(search_results)
 
         # Auditoria Temporal (Verificação de fatos obsoletos)
@@ -836,7 +888,7 @@ class SeekerPipeline:
             on_demand_facts=search_results if search_results else None,
             episodes=episodes if episodes else None,
         )
-        
+
         if audit_context:
             memory_prompt += f"\n\n{audit_context}"
 
@@ -852,16 +904,18 @@ class SeekerPipeline:
         try:
             # Respostas de sistema (0 LLM calls) não precisam de extração
             if result.llm_calls == 0:
-                await self.session.add_turn(session_id, "assistant", result.response[:2000])
+                await self.session.add_turn(
+                    session_id, "assistant", result.response[:2000]
+                )
                 return
 
             # Registra resposta na sessão
-            await self.session.add_turn(
-                session_id, "assistant", result.response[:2000]
-            )
+            await self.session.add_turn(session_id, "assistant", result.response[:2000])
 
             # Extrai fatos e relacionamentos estruturados (Knowledge Graph)
-            extraction = result._extraction or await self.extractor.extract(user_input, result.response)
+            extraction = result._extraction or await self.extractor.extract(
+                user_input, result.response
+            )
             facts = extraction.get("facts", [])
             entities = extraction.get("entities", [])
             triples = extraction.get("triples", [])
@@ -873,7 +927,7 @@ class SeekerPipeline:
                     await self.memory.add_entity(
                         name=ent["name"],
                         entity_type=ent.get("type", "unknown"),
-                        properties=ent.get("props")
+                        properties=ent.get("props"),
                     )
                 except Exception:
                     pass
@@ -887,7 +941,7 @@ class SeekerPipeline:
                         object_=t["object"],
                         valid_from=t.get("valid_from"),
                         confidence=t.get("confidence", 1.0),
-                        adapter_name=result.routing_reason[:50]
+                        adapter_name=result.routing_reason[:50],
                     )
                 except Exception:
                     pass
@@ -934,7 +988,9 @@ class SeekerPipeline:
             # Registra latência e consolidação no Sprint 11 Tracker (Fase 4)
             self.sprint11_tracker.record_latency(result.total_latency_ms)
             commits_avoided = max(0, len(facts))  # 1 commit por fato evitado
-            self.sprint11_tracker.record_batch_consolidation(len(facts) + 1)  # +1 para episódio
+            self.sprint11_tracker.record_batch_consolidation(
+                len(facts) + 1
+            )  # +1 para episódio
 
             # Log de consolidação: compara commits evitados com batch operations
             # Sem batch: ~7 commits (1 por fato + 1 episódio)
@@ -986,7 +1042,7 @@ class SeekerPipeline:
                         except Exception as e:
                             log.warning(
                                 f"[decay] Falha ao re-indexar embeddings: {e}",
-                                exc_info=True
+                                exc_info=True,
                             )
 
                 except asyncio.CancelledError:
@@ -999,18 +1055,12 @@ class SeekerPipeline:
 
                 except Exception as e:
                     # Erros na execução do decay não devem matar a task
-                    log.error(
-                        f"[decay] Erro no ciclo #{iteration}: {e}",
-                        exc_info=True
-                    )
+                    log.error(f"[decay] Erro no ciclo #{iteration}: {e}", exc_info=True)
                     # Continua no próximo ciclo
 
         except asyncio.CancelledError:
             # Re-raise para respeitarasyncio.CancelledError como sinalizador
             raise
         except Exception as e:
-            log.error(
-                f"[decay] Task encerrada por erro fatal: {e}",
-                exc_info=True
-            )
+            log.error(f"[decay] Task encerrada por erro fatal: {e}", exc_info=True)
             raise

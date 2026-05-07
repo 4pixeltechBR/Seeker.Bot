@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from typing import Optional, Tuple
+from typing import Tuple
 from collections import deque
 from enum import Enum
 
@@ -12,6 +12,7 @@ log = logging.getLogger("seeker.rate_limiting")
 
 class QueuePriority(Enum):
     """Priority levels for queued requests"""
+
     LOW = 3
     NORMAL = 2
     HIGH = 1

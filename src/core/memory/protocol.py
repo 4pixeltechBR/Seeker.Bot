@@ -24,10 +24,10 @@ from typing import Protocol, runtime_checkable
 class MemoryProtocol(Protocol):
     """
     Contrato estável para backends de memória do Seeker.
-    
-    Todo módulo que acessa memória (DecayEngine, SemanticSearch, 
+
+    Todo módulo que acessa memória (DecayEngine, SemanticSearch,
     FactExtractor, SessionManager, Pipeline) depende deste contrato.
-    
+
     Regras:
       - Métodos keyword-only (*, ) pra segurança — sem confundir ordem de args
       - upsert_fact retorna int (fact_id) — elimina hack de search-after-insert
@@ -90,7 +90,7 @@ class MemoryProtocol(Protocol):
     ) -> int:
         """
         Insere ou atualiza um fato. Retorna o fact_id.
-        
+
         Se o fato já existe:
           - Incrementa times_seen
           - Atualiza last_seen
@@ -167,7 +167,9 @@ class MemoryProtocol(Protocol):
     # ─── Knowledge Graph (Temporal Triples) ──────────────────
     # Sujeito → Predicado → Objeto (com validade temporal)
 
-    async def add_entity(self, name: str, entity_type: str = "unknown", properties: dict | None = None) -> str:
+    async def add_entity(
+        self, name: str, entity_type: str = "unknown", properties: dict | None = None
+    ) -> str:
         """Adiciona ou atualiza um nó de entidade. Retorna o entity_id."""
         ...
 
@@ -187,15 +189,21 @@ class MemoryProtocol(Protocol):
         """Adiciona uma tripla de relacionamento subject → predicate → object."""
         ...
 
-    async def invalidate_triple(self, subject: str, predicate: str, object_: str, ended: str | None = None) -> None:
+    async def invalidate_triple(
+        self, subject: str, predicate: str, object_: str, ended: str | None = None
+    ) -> None:
         """Marca um relacionamento como não mais válido (set valid_to)."""
         ...
 
-    async def query_knowledge(self, entity_name: str, as_of: str | None = None, direction: str = "outgoing") -> list[dict]:
+    async def query_knowledge(
+        self, entity_name: str, as_of: str | None = None, direction: str = "outgoing"
+    ) -> list[dict]:
         """Busca relacionamentos de uma entidade."""
         ...
 
-    async def get_knowledge_timeline(self, entity_name: str | None = None, limit: int = 100) -> list[dict]:
+    async def get_knowledge_timeline(
+        self, entity_name: str | None = None, limit: int = 100
+    ) -> list[dict]:
         """Timeline cronológica de fatos do grafo."""
         ...
 

@@ -26,7 +26,7 @@ log = logging.getLogger("seeker.email")
 class EmailClient:
     """
     Client SMTP async. Gmail-friendly (usa App Password).
-    
+
     Uso:
         client = EmailClient.from_env()
         await client.send(
@@ -60,7 +60,9 @@ class EmailClient:
         password = os.getenv("SMTP_PASSWORD", "")
 
         if not all([host, user, password]):
-            log.info("[email] SMTP não configurado — notificações por email desativadas.")
+            log.info(
+                "[email] SMTP não configurado — notificações por email desativadas."
+            )
             return None
 
         log.info(f"[email] SMTP configurado: {user}@{host}:{port}")
@@ -85,6 +87,7 @@ class EmailClient:
         # Plaintext fallback
         if body_text is None:
             import re
+
             body_text = re.sub(r"<[^>]+>", "", body_html)
 
         msg.attach(MIMEText(body_text, "plain", "utf-8"))
@@ -109,9 +112,7 @@ class EmailClient:
     async def health_check(self) -> bool:
         """Testa conexão SMTP sem enviar."""
         try:
-            smtp = aiosmtplib.SMTP(
-                hostname=self.host, port=self.port, use_tls=False
-            )
+            smtp = aiosmtplib.SMTP(hostname=self.host, port=self.port, use_tls=False)
             await smtp.connect()
             await smtp.starttls()
             await smtp.login(self.user, self.password)

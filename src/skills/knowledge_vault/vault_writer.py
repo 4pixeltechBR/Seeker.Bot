@@ -1,6 +1,7 @@
 """
 ObsidianWriter - Escrita direta no filesystem do Obsidian
 """
+
 import os
 import re
 import yaml
@@ -12,6 +13,7 @@ log = logging.getLogger("seeker.knowledge_vault.writer")
 
 VAULT_PATH = r"D:\Obsidian\Segundo Cérebro\Segundo Cérebro"
 INBOX_PATH = os.path.join(VAULT_PATH, "Inbox")
+
 
 class ObsidianWriter:
     def __init__(self, inbox_path: str = INBOX_PATH):
@@ -29,14 +31,21 @@ class ObsidianWriter:
 
     def sanitize_filename(self, filename: str) -> str:
         """Remove caracteres inválidos para nome de arquivo no Windows."""
-        return re.sub(r'[<>:"/\\|?*]', '', filename).strip()
+        return re.sub(r'[<>:"/\\|?*]', "", filename).strip()
 
-    def write_note(self, title: str, body: str, tags: list[str], source_type: str, source_url: str = "") -> Path:
+    def write_note(
+        self,
+        title: str,
+        body: str,
+        tags: list[str],
+        source_type: str,
+        source_url: str = "",
+    ) -> Path:
         """Escreve uma nova nota no Inbox."""
         safe_title = self.sanitize_filename(title)
         date_str = datetime.now().strftime("%Y-%m-%d")
         filename = f"{date_str} - {safe_title}.md"
-        
+
         file_path = self.inbox_path / filename
 
         # Evita sobrescrever se já existir exatamente o mesmo nome
@@ -53,7 +62,7 @@ class ObsidianWriter:
             "source": source_url,
             "type": source_type,
             "tags": tags,
-            "captured_by": "seeker"
+            "captured_by": "seeker",
         }
 
         content = f"---\n{yaml.dump(frontmatter, allow_unicode=True, sort_keys=False)}---\n\n{body}\n"
@@ -70,9 +79,9 @@ class ObsidianWriter:
     def check_duplicate(self, title: str) -> bool:
         """Verifica se existe uma nota recente com título similar no Inbox."""
         import difflib
-        
+
         safe_title = self.sanitize_filename(title).lower()
-        
+
         if not self.inbox_path.exists():
             return False
 
@@ -80,11 +89,13 @@ class ObsidianWriter:
             # Remove data (YYYY-MM-DD - ) do nome do arquivo
             name = file_path.stem
             name_no_date = re.sub(r"^\d{4}-\d{2}-\d{2}\s*-\s*", "", name).lower()
-            
+
             # Fuzzy match
             ratio = difflib.SequenceMatcher(None, safe_title, name_no_date).ratio()
             if ratio > 0.85:
-                log.info(f"[obsidian] Possível duplicata ignorada: '{title}' vs '{name}' (ratio: {ratio:.2f})")
+                log.info(
+                    f"[obsidian] Possível duplicata ignorada: '{title}' vs '{name}' (ratio: {ratio:.2f})"
+                )
                 return True
-                
+
         return False

@@ -59,11 +59,15 @@ def parse_llm_json(text: str) -> dict | list:
 
     end_idx = clean.rfind(end_char)
     if end_idx <= start_idx:
-        raise ValueError(f"JSON malformado — '{start_char}' sem '{end_char}' correspondente.")
+        raise ValueError(
+            f"JSON malformado — '{start_char}' sem '{end_char}' correspondente."
+        )
 
-    candidate = clean[start_idx:end_idx + 1]
+    candidate = clean[start_idx : end_idx + 1]
 
     try:
         return json.loads(candidate)
     except json.JSONDecodeError as e:
-        raise ValueError(f"JSON inválido entre posições {start_idx}-{end_idx}: {e}") from e
+        raise ValueError(
+            f"JSON inválido entre posições {start_idx}-{end_idx}: {e}"
+        ) from e

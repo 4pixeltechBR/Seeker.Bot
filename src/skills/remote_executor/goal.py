@@ -13,14 +13,12 @@ Fluxo:
 Implementa AutonomousGoal protocol.
 """
 
-import asyncio
 import logging
 from datetime import datetime
 from typing import Optional, Dict
 
 from src.core.pipeline import SeekerPipeline
 from src.core.goals.protocol import (
-    AutonomousGoal,
     GoalBudget,
     GoalResult,
     GoalStatus,
@@ -31,8 +29,6 @@ from src.core.executor import (
     ActionExecutor,
     ExecutionContext,
     ExecutionPlan,
-    ApprovalTier,
-    ActionStatus,
 )
 from src.core.executor.afk_protocol import AFKProtocolCoordinator
 from src.core.executor.safety import SafetyGateEvaluator, ExecutorPolicy
@@ -80,12 +76,14 @@ class RemoteExecutorGoal:
             cascade_adapter=pipeline.cascade_adapter,
         )
         self.executor = ActionExecutor()
-        self.afk_protocol = AFKProtocolCoordinator(user_id=getattr(pipeline, 'user_id', 'default'))
+        self.afk_protocol = AFKProtocolCoordinator(
+            user_id=getattr(pipeline, "user_id", "default")
+        )
         self.safety_evaluator = SafetyGateEvaluator()
         self.policy = ExecutorPolicy()
 
         # Metrics tracking (Sprint 11)
-        self.tracker = getattr(pipeline, 'sprint11_tracker', Sprint11Tracker())
+        self.tracker = getattr(pipeline, "sprint11_tracker", Sprint11Tracker())
 
         # Pending plans (para tracking)
         self.pending_plans: Dict[str, ExecutionPlan] = {}
@@ -140,8 +138,10 @@ class RemoteExecutorGoal:
             cycle_cost += execution_results.get("cost", 0.0)
 
             # Log de status
-            summary = f"Approval queue: {approval_result.get('processed', 0)} checked. " \
-                     f"Executed: {execution_results.get('count', 0)} plans."
+            summary = (
+                f"Approval queue: {approval_result.get('processed', 0)} checked. "
+                f"Executed: {execution_results.get('count', 0)} plans."
+            )
             notification = None
 
             if execution_results.get("failed", 0) > 0:
@@ -254,7 +254,9 @@ class RemoteExecutorGoal:
                         inputs={
                             "command": step.command,
                             "approval_tier": step.approval_tier.value,
-                            "afk_status": self.afk_protocol.status.value if hasattr(self.afk_protocol, 'status') else "unknown",
+                            "afk_status": self.afk_protocol.status.value
+                            if hasattr(self.afk_protocol, "status")
+                            else "unknown",
                         },
                         output={
                             "status": result.status,
@@ -306,7 +308,9 @@ class RemoteExecutorGoal:
     async def _send_approval_notification(self, step, approval) -> None:
         """Envia notificação de aprovação com inline buttons via notifier."""
         if not self.notifier:
-            log.warning("[remote_executor] Notifier não disponível, pulando notificação")
+            log.warning(
+                "[remote_executor] Notifier não disponível, pulando notificação"
+            )
             return
 
         text, buttons = get_approval_notification(
@@ -339,8 +343,10 @@ class RemoteExecutorGoal:
         try:
             # AFKProtocol não expõe approval_queue publicamente
             # A estrutura real é _requests (dict de asyncio.Future)
-            if not hasattr(self.afk_protocol, '_requests'):
-                log.debug("[remote_executor] AFKProtocol não inicializado, skipping approval queue")
+            if not hasattr(self.afk_protocol, "_requests"):
+                log.debug(
+                    "[remote_executor] AFKProtocol não inicializado, skipping approval queue"
+                )
                 return {"processed": processed, "cost": cost}
 
             # Apenas logs informativos, não processa atualmente
@@ -349,7 +355,9 @@ class RemoteExecutorGoal:
             pending_count = sum(1 for f in requests_copy.values() if not f.done())
 
             if pending_count > 0:
-                log.debug(f"[remote_executor] {pending_count} approval requests pendentes (AFKProtocol gerencia)")
+                log.debug(
+                    f"[remote_executor] {pending_count} approval requests pendentes (AFKProtocol gerencia)"
+                )
                 processed = pending_count
 
         except Exception as e:
@@ -379,7 +387,9 @@ class RemoteExecutorGoal:
 
             for plan_id, plan in pending_plans_list:
                 # Verificar se foi aprovado (se houver L0_MANUAL)
-                has_l0_manual = any(s.approval_tier.value == "L0_MANUAL" for s in plan.steps)
+                has_l0_manual = any(
+                    s.approval_tier.value == "L0_MANUAL" for s in plan.steps
+                )
                 if has_l0_manual:
                     # Verificar se foi respondido (aprovado/rejeitado)
                     all_l0_responded = True
@@ -390,7 +400,9 @@ class RemoteExecutorGoal:
                                 break
 
                     if not all_l0_responded:
-                        log.debug(f"[remote_executor] Plan {plan_id} ainda aguarda L0 approval")
+                        log.debug(
+                            f"[remote_executor] Plan {plan_id} ainda aguarda L0 approval"
+                        )
                         continue
 
                 # Executar plan
@@ -404,7 +416,7 @@ class RemoteExecutorGoal:
 
                 start_time = datetime.utcnow()
                 results = await self.executor.execute_plan(plan, context)
-                elapsed_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                (datetime.utcnow() - start_time).total_seconds() * 1000
 
                 # Processa resultados e registra métricas
                 for step_id, result in results.items():
@@ -418,7 +430,9 @@ class RemoteExecutorGoal:
                     # Registra tier de autonomia
                     step = next((s for s in plan.steps if s.id == step_id), None)
                     if step:
-                        self.tracker.record_remote_executor_autonomy_tier(step.approval_tier.value)
+                        self.tracker.record_remote_executor_autonomy_tier(
+                            step.approval_tier.value
+                        )
 
                 # Atualizar contadores
                 summary = self.executor.summarize_results(results)
@@ -430,7 +444,9 @@ class RemoteExecutorGoal:
                 del self.pending_plans[plan_id]
 
         except Exception as e:
-            log.error(f"[remote_executor] Error executing pending plans: {e}", exc_info=True)
+            log.error(
+                f"[remote_executor] Error executing pending plans: {e}", exc_info=True
+            )
 
         return {
             "count": count,

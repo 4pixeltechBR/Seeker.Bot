@@ -44,7 +44,7 @@ class GeminiEmbedder:
     """
     Gera embeddings via Gemini Embedding 2.
     100 RPM, 1.000 requisições/dia grátis.
-    
+
     Cache em memória por sessão — evita re-embedar o mesmo texto
     dentro da mesma execução (comum no ClaimComparator).
     """
@@ -73,9 +73,7 @@ class GeminiEmbedder:
                 headers={"x-goog-api-key": self.api_key},
                 json={
                     "model": f"models/{self.MODEL}",
-                    "content": {
-                        "parts": [{"text": text[:2000]}]
-                    },
+                    "content": {"parts": [{"text": text[:2000]}]},
                 },
             )
             resp.raise_for_status()
@@ -164,13 +162,17 @@ class SemanticSearch:
         self._vectors = {}  # Começa vazio — será preenchido sob demanda
         self._loaded = True
 
-        log.info(f"[semantic] {len(self._vector_ids)} embeddings disponíveis no DB (lazy loading)")
+        log.info(
+            f"[semantic] {len(self._vector_ids)} embeddings disponíveis no DB (lazy loading)"
+        )
 
         # Carregar fatos em TF-IDF como fallback
         facts = await self.memory.get_facts(min_confidence=0.0, limit=9999)
         for fact in facts:
             self._tfidf_search.add_document(fact["id"], fact["fact"])
-        log.info(f"[semantic] TF-IDF carregado com {len(facts)} documentos (fallback offline)")
+        log.info(
+            f"[semantic] TF-IDF carregado com {len(facts)} documentos (fallback offline)"
+        )
 
         if len(self._vector_ids) > self.FAISS_WARNING_THRESHOLD:
             log.warning(
@@ -199,7 +201,7 @@ class SemanticSearch:
         indexed = 0
 
         for i in range(0, len(to_embed), BATCH_SIZE):
-            batch = to_embed[i:i + BATCH_SIZE]
+            batch = to_embed[i : i + BATCH_SIZE]
             texts = [f["fact"] for f in batch]
             vectors = await self.embedder.embed_batch(texts)
 
@@ -296,7 +298,9 @@ class SemanticSearch:
 
         # Fallback: TF-IDF quando Gemini falha ou retorna vec vazio
         log.debug("[semantic] Gemini indisponível/vazio, usando TF-IDF fallback")
-        tfidf_results = self._tfidf_search.search(query, top_k=top_k, min_similarity=0.1)
+        tfidf_results = self._tfidf_search.search(
+            query, top_k=top_k, min_similarity=0.1
+        )
 
         if tfidf_results:
             log.debug(f"[semantic] {len(tfidf_results)} matches via TF-IDF")
@@ -315,7 +319,9 @@ class SemanticSearch:
         Encontra fatos semanticamente similares à query usando busca HÍBRIDA.
         Combina Vector Search (Gemini) + BM25 Re-ranker.
         """
-        similar_ids = await self.find_similar(query, top_k * 2, min_similarity) # Over-fetch
+        similar_ids = await self.find_similar(
+            query, top_k * 2, min_similarity
+        )  # Over-fetch
         if not similar_ids:
             # Fallback pra LIKE
             log.debug("[semantic] Nenhum match semântico, usando LIKE")
@@ -334,7 +340,10 @@ class SemanticSearch:
 
         # Re-ranking Híbrido (BM25 + Vector)
         from src.core.memory.bm25 import hybrid_rank
+
         ranked = hybrid_rank(candidates, query, vector_weight=0.6, bm25_weight=0.4)
-        
-        log.debug(f"[semantic] Hybrid search: {len(ranked)} resultados (top hybrid_score: {ranked[0]['hybrid_score'] if ranked else 0})")
+
+        log.debug(
+            f"[semantic] Hybrid search: {len(ranked)} resultados (top hybrid_score: {ranked[0]['hybrid_score'] if ranked else 0})"
+        )
         return ranked[:top_k]

@@ -6,7 +6,6 @@ Monitoramento diário de modelos de IA de interesse.
 Executa às 08:00 todos os dias.
 """
 
-import asyncio
 import logging
 import json
 import os
@@ -14,9 +13,13 @@ from datetime import datetime, timedelta
 
 from src.core.pipeline import SeekerPipeline
 from src.core.goals.protocol import (
-    AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
+    AutonomousGoal,
+    GoalBudget,
+    GoalResult,
+    GoalStatus,
+    NotificationChannel,
 )
-from src.skills.sherlock_news.prompts import SYSTEM_PROMPT, USER_PROMPT
+from src.skills.sherlock_news.prompts import SYSTEM_PROMPT
 
 log = logging.getLogger("seeker.sherlock")
 
@@ -44,8 +47,10 @@ class SherlockNewsGoal:
     def interval_seconds(self) -> int:
         now = datetime.now()
         target = now.replace(
-            hour=self.target_hour, minute=self.target_minute,
-            second=0, microsecond=0,
+            hour=self.target_hour,
+            minute=self.target_minute,
+            second=0,
+            microsecond=0,
         )
         if now >= target:
             target += timedelta(days=1)
@@ -88,15 +93,21 @@ class SherlockNewsGoal:
 
         if self._last_run_date == today_str:
             self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="SherlockNews já executado hoje", cost_usd=0.0)
+            return GoalResult(
+                success=True, summary="SherlockNews já executado hoje", cost_usd=0.0
+            )
 
         self._status = GoalStatus.RUNNING
         targets = self.load_targets()
-        
+
         if not targets:
             self._last_run_date = today_str
             self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="Nenhum alvo pendente no SherlockNews", cost_usd=0.0)
+            return GoalResult(
+                success=True,
+                summary="Nenhum alvo pendente no SherlockNews",
+                cost_usd=0.0,
+            )
 
         log.info(f"[sherlock] Verificando {len(targets)} alvos: {targets}")
 
@@ -107,7 +118,9 @@ class SherlockNewsGoal:
         # Executa descoberta via Web Search + LLM Analysis
         try:
             # 1. Busca web sobre os modelos
-            search_results = await self.pipeline.searcher.search(search_query, max_results=5)
+            search_results = await self.pipeline.searcher.search(
+                search_query, max_results=5
+            )
 
             if not search_results or not search_results.results:
                 self._last_run_date = today_str
@@ -115,17 +128,17 @@ class SherlockNewsGoal:
                 return GoalResult(
                     success=True,
                     summary=f"SherlockNews: Nenhum resultado encontrado para {len(targets)} modelos",
-                    cost_usd=0.0
+                    cost_usd=0.0,
                 )
 
             # 2. Formata resultados para análise
-            search_snippet = "\n".join([
-                f"- {r.title}: {r.snippet}"
-                for r in search_results.results[:5]
-            ])
+            search_snippet = "\n".join(
+                [f"- {r.title}: {r.snippet}" for r in search_results.results[:5]]
+            )
 
             # 3. Análise com LLM usando cascade
             from src.providers.cascade import CascadeRole
+
             analysis_prompt = SYSTEM_PROMPT.format(targets=targets_str)
             user_message = f"{search_query}\n\nResultados:\n{search_snippet}"
 
@@ -133,10 +146,10 @@ class SherlockNewsGoal:
                 role=CascadeRole.FAST,
                 messages=[
                     {"role": "system", "content": analysis_prompt},
-                    {"role": "user", "content": user_message}
+                    {"role": "user", "content": user_message},
                 ],
                 temperature=0.7,
-                max_tokens=1024
+                max_tokens=1024,
             )
 
             self._last_run_date = today_str
@@ -146,13 +159,15 @@ class SherlockNewsGoal:
                 success=True,
                 summary=f"SherlockNews: Checagem concluída para {len(targets)} modelos",
                 notification=result.get("content", ""),
-                cost_usd=result.get("cost_usd", 0.0)
+                cost_usd=result.get("cost_usd", 0.0),
             )
 
         except Exception as e:
             self._status = GoalStatus.ERROR
             log.error(f"[sherlock] Erro no ciclo: {e}")
-            return GoalResult(success=False, summary=f"Erro no SherlockNews: {e}", cost_usd=0.0)
+            return GoalResult(
+                success=False, summary=f"Erro no SherlockNews: {e}", cost_usd=0.0
+            )
 
 
 def create_goal(pipeline: SeekerPipeline) -> AutonomousGoal:

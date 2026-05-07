@@ -22,8 +22,11 @@ import time
 log = logging.getLogger("seeker.memory.store")
 
 DEFAULT_DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "data", "seeker_memory.db"
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    ),
+    "data",
+    "seeker_memory.db",
 )
 
 SCHEMA = """
@@ -150,7 +153,7 @@ CREATE INDEX IF NOT EXISTS idx_goal_cycles_name ON goal_cycles(goal_name, timest
 class MemoryStore:
     """
     Implementação SQLite do MemoryProtocol.
-    
+
     Uso:
         store = MemoryStore()
         await store.initialize()
@@ -221,9 +224,17 @@ class MemoryStore:
              module, had_arbitrage, had_conflicts, cost_usd, latency_ms, metadata)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                time.time(), session_id, user_input, response_summary[:500],
-                depth, module, int(had_arbitrage), int(had_conflicts),
-                cost_usd, latency_ms, json.dumps(metadata or {}),
+                time.time(),
+                session_id,
+                user_input,
+                response_summary[:500],
+                depth,
+                module,
+                int(had_arbitrage),
+                int(had_conflicts),
+                cost_usd,
+                latency_ms,
+                json.dumps(metadata or {}),
             ),
         )
         if not _batch:
@@ -255,7 +266,9 @@ class MemoryStore:
         async with self._db.execute(
             "SELECT depth, COUNT(*) as cnt FROM episodic GROUP BY depth"
         ) as cur:
-            stats["by_depth"] = {row["depth"]: row["cnt"] for row in await cur.fetchall()}
+            stats["by_depth"] = {
+                row["depth"]: row["cnt"] for row in await cur.fetchall()
+            }
         return stats
 
     # ─── SEMÂNTICA ────────────────────────────────────────────
@@ -272,7 +285,7 @@ class MemoryStore:
     ) -> int:
         """
         Insere ou atualiza um fato. Retorna o fact_id.
-        
+
         Isso elimina o hack anterior de search-after-insert que existia
         no pipeline.py:192 para descobrir o ID do fato recém inserido.
         """
@@ -290,9 +303,15 @@ class MemoryStore:
                     confidence = MIN(0.95, confidence + 0.05),
                     metadata = ?""",
                 (
-                    fact_clean, category, confidence, source,
-                    now, now, meta_json,
-                    now, meta_json,
+                    fact_clean,
+                    category,
+                    confidence,
+                    source,
+                    now,
+                    now,
+                    meta_json,
+                    now,
+                    meta_json,
                 ),
             )
             if not _batch:
@@ -338,7 +357,7 @@ class MemoryStore:
     async def update_fact_confidence(self, fact_id: int, confidence: float) -> None:
         """
         Atualiza confiança de um fato específico.
-        
+
         Usado pelo DecayEngine — substitui o acesso direto a _db
         que existia antes (self.memory._db.execute).
         """
@@ -351,19 +370,21 @@ class MemoryStore:
     async def delete_fact(self, fact_id: int) -> None:
         """
         Remove fato + embedding associado (cascade).
-        
+
         O ON DELETE CASCADE na FK de fact_embeddings garante
         que o embedding é removido junto, mas fazemos explícito
         por segurança (nem toda migração preserva FKs).
         """
-        await self._db.execute("DELETE FROM fact_embeddings WHERE fact_id = ?", (fact_id,))
+        await self._db.execute(
+            "DELETE FROM fact_embeddings WHERE fact_id = ?", (fact_id,)
+        )
         await self._db.execute("DELETE FROM semantic WHERE id = ?", (fact_id,))
         # Commit feito em batch pelo chamador
 
     async def commit(self) -> None:
         """
         Commit explícito para operações em batch.
-        
+
         DecayEngine e outros módulos que fazem múltiplas operações
         chamam commit() uma vez no final ao invés de por operação.
         """
@@ -472,12 +493,14 @@ class MemoryStore:
         """Gera um ID normalizado para uma entidade."""
         return name.lower().strip().replace(" ", "_").replace("'", "").replace('"', "")
 
-    async def add_entity(self, name: str, entity_type: str = "unknown", properties: dict | None = None) -> str:
+    async def add_entity(
+        self, name: str, entity_type: str = "unknown", properties: dict | None = None
+    ) -> str:
         eid = self._entity_id(name)
         props_json = json.dumps(properties or {})
         await self._db.execute(
             "INSERT OR REPLACE INTO entities (id, name, type, properties) VALUES (?, ?, ?, ?)",
-            (eid, name, entity_type, props_json)
+            (eid, name, entity_type, props_json),
         )
         await self._db.commit()
         return eid
@@ -500,19 +523,24 @@ class MemoryStore:
         pred = predicate.lower().strip().replace(" ", "_")
 
         # Garante que entidades existem
-        await self._db.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (sub_id, subject))
-        await self._db.execute("INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (obj_id, object_))
+        await self._db.execute(
+            "INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (sub_id, subject)
+        )
+        await self._db.execute(
+            "INSERT OR IGNORE INTO entities (id, name) VALUES (?, ?)", (obj_id, object_)
+        )
 
         # Check se já existe idêntico e válido
         async with self._db.execute(
             "SELECT id FROM knowledge_triples WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
-            (sub_id, pred, obj_id)
+            (sub_id, pred, obj_id),
         ) as cur:
             row = await cur.fetchone()
             if row:
                 return row["id"]
 
         import hashlib
+
         triple_id = f"t_{sub_id}_{pred}_{obj_id}_{hashlib.sha256(f'{valid_from}{time.time()}'.encode()).hexdigest()[:12]}"
 
         await self._db.execute(
@@ -521,12 +549,25 @@ class MemoryStore:
                 valid_from, valid_to, confidence,
                 source_file, source_drawer_id, adapter_name
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (triple_id, sub_id, pred, obj_id, valid_from, valid_to, confidence, source_file, source_drawer_id, adapter_name)
+            (
+                triple_id,
+                sub_id,
+                pred,
+                obj_id,
+                valid_from,
+                valid_to,
+                confidence,
+                source_file,
+                source_drawer_id,
+                adapter_name,
+            ),
         )
         await self._db.commit()
         return triple_id
 
-    async def invalidate_triple(self, subject: str, predicate: str, object_: str, ended: str | None = None) -> None:
+    async def invalidate_triple(
+        self, subject: str, predicate: str, object_: str, ended: str | None = None
+    ) -> None:
         sub_id = self._entity_id(subject)
         obj_id = self._entity_id(object_)
         pred = predicate.lower().strip().replace(" ", "_")
@@ -534,11 +575,13 @@ class MemoryStore:
 
         await self._db.execute(
             "UPDATE knowledge_triples SET valid_to=? WHERE subject=? AND predicate=? AND object=? AND valid_to IS NULL",
-            (ended, sub_id, pred, obj_id)
+            (ended, sub_id, pred, obj_id),
         )
         await self._db.commit()
 
-    async def query_knowledge(self, entity_name: str, as_of: str | None = None, direction: str = "outgoing") -> list[dict]:
+    async def query_knowledge(
+        self, entity_name: str, as_of: str | None = None, direction: str = "outgoing"
+    ) -> list[dict]:
         eid = self._entity_id(entity_name)
         results = []
 
@@ -567,7 +610,9 @@ class MemoryStore:
                     results.append(d)
         return results
 
-    async def get_knowledge_timeline(self, entity_name: str | None = None, limit: int = 100) -> list[dict]:
+    async def get_knowledge_timeline(
+        self, entity_name: str | None = None, limit: int = 100
+    ) -> list[dict]:
         query = """
             SELECT t.*, s.name as sub_name, o.name as obj_name
             FROM knowledge_triples t
@@ -579,10 +624,10 @@ class MemoryStore:
             eid = self._entity_id(entity_name)
             query += " WHERE t.subject = ? OR t.object = ?"
             params = [eid, eid]
-        
+
         query += " ORDER BY t.valid_from ASC NULLS LAST LIMIT ?"
         params.append(limit)
-        
+
         async with self._db.execute(query, params) as cur:
             return [dict(row) for row in await cur.fetchall()]
 
@@ -610,10 +655,14 @@ class MemoryStore:
         anomalies = await self.find_temporal_anomalies(limit=3)
         if not anomalies:
             return ""
-        
-        lines = ["=== AUDITORIA TEMPORAL (Verificar com usuário se ainda é verdade) ==="]
+
+        lines = [
+            "=== AUDITORIA TEMPORAL (Verificar com usuário se ainda é verdade) ==="
+        ]
         for a in anomalies:
-            lines.append(f"• {a['sub_name']} {a['predicate']} {a['obj_name']} (Registrado em: {a['extracted_at'][:10]})")
+            lines.append(
+                f"• {a['sub_name']} {a['predicate']} {a['obj_name']} (Registrado em: {a['extracted_at'][:10]})"
+            )
         return "\n".join(lines)
 
     # ─── CONTEXTO PARA O LLM ─────────────────────────────────
@@ -629,18 +678,18 @@ class MemoryStore:
         Formata o contexto usando o 4-Layer Stack (L0-L3).
         """
         from src.core.memory.hierarchy import format_4layer_context, score_fact
-        
+
         # L1: Essential
         all_facts = await self.get_facts(min_confidence=0.3, limit=100)
         scored = [(score_fact(f), f) for f in all_facts]
         scored.sort(key=lambda x: x[0], reverse=True)
         essential = [f for _, f in scored[:limit]]
-        
+
         # L2: On-Demand
         on_demand = []
         if on_demand_category:
             on_demand = await self.get_facts(category=on_demand_category, limit=5)
-            
+
         # L3: Search
         search_results = []
         if query:
@@ -650,7 +699,7 @@ class MemoryStore:
             identity=identity,
             essential_facts=essential,
             on_demand_facts=on_demand,
-            search_results=search_results
+            search_results=search_results,
         )
 
     # ─── USER PREFERENCES ──────────────────────────────────────
@@ -666,18 +715,20 @@ class MemoryStore:
                 return None
         async with self._db.execute(
             "SELECT niches FROM user_preferences WHERE user_id = ? OR telegram_id = ?",
-            (user_id, str(user_id))
+            (user_id, str(user_id)),
         ) as cur:
             row = await cur.fetchone()
             if not row:
                 return None
             try:
-                niches = json.loads(row['niches'])
+                niches = json.loads(row["niches"])
                 return niches if isinstance(niches, list) else None
             except (json.JSONDecodeError, TypeError):
                 return None
 
-    async def set_user_niches(self, user_id: int, telegram_id: str, niches: list[str]) -> bool:
+    async def set_user_niches(
+        self, user_id: int, telegram_id: str, niches: list[str]
+    ) -> bool:
         """Salva nichos escolhidos pelo usuário."""
         if not self._db:
             return False
@@ -686,7 +737,7 @@ class MemoryStore:
                 """INSERT INTO user_preferences (user_id, telegram_id, niches, updated_at)
                 VALUES (?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET niches = excluded.niches, updated_at = excluded.updated_at""",
-                (user_id, telegram_id, json.dumps(niches), time.time())
+                (user_id, telegram_id, json.dumps(niches), time.time()),
             )
             await self._db.commit()
             return True

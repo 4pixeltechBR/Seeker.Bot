@@ -13,6 +13,7 @@ log = logging.getLogger("seeker.bug_analyzer")
 
 class BugWizardState(str, Enum):
     """Estados do wizard de análise de bug"""
+
     IDLE = "idle"
     ASKING_DESCRIPTION = "asking_description"
     COLLECTING_CONTEXT = "collecting_context"
@@ -163,12 +164,14 @@ class BugAnalyzerTelegramInterface:
             lines.append(f"<b>{i}. {sugg.file_path}</b>")
             lines.append(f"   Risco: {sugg.risk_level}")
             lines.append(f"   Explicação: {sugg.explanation}")
-            lines.append(f"   <code>Antes:</code>")
+            lines.append("   <code>Antes:</code>")
             lines.append(f"   <code>{sugg.current_code[:80]}...</code>")
-            lines.append(f"   <code>Depois:</code>")
+            lines.append("   <code>Depois:</code>")
             lines.append(f"   <code>{sugg.suggested_code[:80]}...</code>\n")
 
-        lines.append("\n<i>⚠️ Fase 2 implementará aplicação automática com Git backup.</i>")
+        lines.append(
+            "\n<i>⚠️ Fase 2 implementará aplicação automática com Git backup.</i>"
+        )
 
         return "\n".join(lines)
 

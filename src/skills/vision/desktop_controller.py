@@ -46,8 +46,10 @@ class DesktopController:
         self._keyboard_listener_started = False
 
     # (L1 fica inalterado, vou manter da linha 31 até 78 do block abaixo)
-    
-    async def read_screen(self, reason: str = "Capturar screenshot para análise visual.") -> tuple[str, bytes | None]:
+
+    async def read_screen(
+        self, reason: str = "Capturar screenshot para análise visual."
+    ) -> tuple[str, bytes | None]:
         # ... Mantém lógica atual
         if not self.afk:
             return "\n\n[AFKProtocol ausente — visão não autorizada]", None
@@ -87,7 +89,7 @@ class DesktopController:
         except Exception as e:
             log.error(f"[controller] Falha na leitura: {e}", exc_info=True)
             # Preserva bytes capturados mesmo em erro
-            captured = screenshot_bytes if 'screenshot_bytes' in locals() else None
+            captured = screenshot_bytes if "screenshot_bytes" in locals() else None
             return (
                 f"\n\n[SISTEMA: A tela foi CAPTURADA e anexada à resposta. "
                 f"Ocorreu um erro no módulo VLM ({e}), mas a foto foi enviada.]"
@@ -106,7 +108,7 @@ class DesktopController:
     ) -> tuple[str, bytes | None]:
         """
         Executa uma ação combinada no desktop.
-        
+
         P4 Optimization: Confirmation screenshot + VLM analysis é feito apenas
         para ações que envolvem digitação ou hotkeys. Cliques simples retornam
         screenshot bruto sem análise VLM — economia de 3-8s.
@@ -121,14 +123,17 @@ class DesktopController:
             # 1. Permissão L3 Write — SEMPRE exige aprovação explícita
             res = await self.afk.request_permission(
                 reason=f"Desktop Takeover L3: {action_description}\n"
-                       f"Elemento alvo: {element_description or 'Nenhum'}\n"
-                       f"Texto: {text_to_type or 'Nenhum'}\n"
-                       f"Atalho: {'+'.join(hotkey) if hotkey else 'Nenhum'}",
+                f"Elemento alvo: {element_description or 'Nenhum'}\n"
+                f"Texto: {text_to_type or 'Nenhum'}\n"
+                f"Atalho: {'+'.join(hotkey) if hotkey else 'Nenhum'}",
                 tier=1,
                 action_type="write",
             )
             if res != PermissionResult.APPROVED:
-                return f"\n\n[Ação L3 negada: {res.name}. Controle requer aprovação explícita.]", None
+                return (
+                    f"\n\n[Ação L3 negada: {res.name}. Controle requer aprovação explícita.]",
+                    None,
+                )
 
             log.info(f"[controller] L3 APROVADO — Ação: {action_description}")
 
@@ -137,24 +142,36 @@ class DesktopController:
             await self.audit.log_frame("before_action", screenshot_bytes)
 
             if not await self.vlm.health_check():
-                return "\n\n[SISTEMA: VLM indisponível. Ollama precisa estar ativo.]", screenshot_bytes
+                return (
+                    "\n\n[SISTEMA: VLM indisponível. Ollama precisa estar ativo.]",
+                    screenshot_bytes,
+                )
 
             # 2. Inicia os Kill Switches
             if not self._mouse_listener_started:
-                 await self.mouse.start_listener()
-                 self._mouse_listener_started = True
+                await self.mouse.start_listener()
+                self._mouse_listener_started = True
             if not self._keyboard_listener_started:
-                 await self.keyboard.start_listener()
-                 self._keyboard_listener_started = True
+                await self.keyboard.start_listener()
+                self._keyboard_listener_started = True
 
             # 3. Localizar elemento e Clicar
-            if element_description and element_description.lower() not in ["nenhum", "tela", "vazio"]:
+            if element_description and element_description.lower() not in [
+                "nenhum",
+                "tela",
+                "vazio",
+            ]:
                 log.info(f"[controller] VLM: localizando '{element_description}'...")
-                bbox = await self.vlm.locate_element(screenshot_bytes, element_description)
+                bbox = await self.vlm.locate_element(
+                    screenshot_bytes, element_description
+                )
                 if not bbox or bbox.get("confidence", 0) < 0.3:
                     analysis = await self.vlm.describe_page(screenshot_bytes)
-                    return f"\n\n[SISTEMA: Falha localizando '{element_description}'.\n{analysis}]", screenshot_bytes
-                
+                    return (
+                        f"\n\n[SISTEMA: Falha localizando '{element_description}'.\n{analysis}]",
+                        screenshot_bytes,
+                    )
+
                 target_x, target_y = int(bbox["x"]), int(bbox["y"])
                 confidence = bbox.get("confidence", 0.5)
                 await self.mouse.move_to(target_x, target_y, duration=0.8)
@@ -200,11 +217,14 @@ class DesktopController:
 
         except UserInterventionException as e:
             log.warning(f"[controller] 🚨 KILL SWITCH ATIVADO: {e}")
-            captured = screenshot_bytes if 'screenshot_bytes' in locals() else None
-            return f"\n\n[SISTEMA: KILL SWITCH! Ação ABORTADA pelo usuário. Nenhum outro comando de digitação foi computado.]", captured
+            captured = screenshot_bytes if "screenshot_bytes" in locals() else None
+            return (
+                "\n\n[SISTEMA: KILL SWITCH! Ação ABORTADA pelo usuário. Nenhum outro comando de digitação foi computado.]",
+                captured,
+            )
         except Exception as e:
             log.error(f"[controller] Falha na ação L3: {e}", exc_info=True)
-            captured = screenshot_bytes if 'screenshot_bytes' in locals() else None
+            captured = screenshot_bytes if "screenshot_bytes" in locals() else None
             return f"\n\n[SISTEMA: Erro no Desktop Takeover: {e}.]", captured
 
     # ──────────────────────────────────────────────────────
@@ -221,4 +241,3 @@ class DesktopController:
             await self.vlm.unload_model()
         except Exception:
             pass
-

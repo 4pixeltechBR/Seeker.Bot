@@ -31,10 +31,24 @@ class SenseNewsPDF(FPDF):
     def header(self):
         self.set_font("Helvetica", "B", 14)
         self.set_text_color(30, 30, 30)
-        self.cell(0, 10, f"SenseNews - {self.date_label}", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(
+            0,
+            10,
+            f"SenseNews - {self.date_label}",
+            align="C",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(120, 120, 120)
-        self.cell(0, 5, "Gerado automaticamente pelo Seeker.Bot", align="C", new_x="LMARGIN", new_y="NEXT")
+        self.cell(
+            0,
+            5,
+            "Gerado automaticamente pelo Seeker.Bot",
+            align="C",
+            new_x="LMARGIN",
+            new_y="NEXT",
+        )
         self.ln(5)
         # Linha separadora
         self.set_draw_color(200, 200, 200)
@@ -90,7 +104,7 @@ def _render_markdown(pdf: FPDF, md_text: str):
     """Renderiza markdown premium no PDF."""
     # Corrige divisores do prompt (unicode) para o PDF
     md_text = md_text.replace("━━━━━━━━━━━━━━━━━━━━━━━━━━", "---")
-    
+
     lines = md_text.split("\n")
 
     for line in lines:
@@ -103,7 +117,7 @@ def _render_markdown(pdf: FPDF, md_text: str):
         # H1
         if stripped.startswith("# "):
             pdf.set_font("Helvetica", "B", 20)
-            pdf.set_text_color(15, 23, 42) # Slate 900
+            pdf.set_text_color(15, 23, 42)  # Slate 900
             text = _clean_text(stripped[2:])
             pdf.multi_cell(0, 10, text)
             pdf.ln(4)
@@ -124,7 +138,9 @@ def _render_markdown(pdf: FPDF, md_text: str):
             pdf.set_font("Helvetica", "I", 10)
             pdf.set_text_color(71, 85, 105)
             pdf.set_left_margin(15)
-            text = _strip_inline_markdown(stripped.replace(">", "").replace("<b>", "").replace("</b>", ""))
+            text = _strip_inline_markdown(
+                stripped.replace(">", "").replace("<b>", "").replace("</b>", "")
+            )
             pdf.multi_cell(0, 5, _clean_text(text))
             pdf.set_left_margin(10)
             pdf.ln(1)
@@ -140,7 +156,7 @@ def _render_markdown(pdf: FPDF, md_text: str):
 
         # Parágrafo normal
         pdf.set_font("Helvetica", "", 10)
-        pdf.set_text_color(51, 65, 85) # Slate 700
+        pdf.set_text_color(51, 65, 85)  # Slate 700
         text = _strip_inline_markdown(stripped)
         text = _clean_text(text)
         pdf.multi_cell(0, 6, text)
@@ -150,6 +166,7 @@ def _render_markdown(pdf: FPDF, md_text: str):
 def _strip_inline_markdown(text: str) -> str:
     """Remove **bold** e *italic* do texto."""
     import re
+
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"\*(.+?)\*", r"\1", text)
     text = re.sub(r"`(.+?)`", r"\1", text)
@@ -160,17 +177,22 @@ def _strip_inline_markdown(text: str) -> str:
 def _clean_text(text: str) -> str:
     """Remove emojis e substitui caracteres tipográficos não suportados pela Helvetica."""
     import re
+
     # Conversões Manuais de Caracteres Especiais Unicode
     replacements = {
-        '—': '-', '–': '-',
-        '“': '"', '”': '"',
-        '‘': "'", '’': "'",
-        '…': '...',
-        '•': '-', '·': '-',
+        "—": "-",
+        "–": "-",
+        "“": '"',
+        "”": '"',
+        "‘": "'",
+        "’": "'",
+        "…": "...",
+        "•": "-",
+        "·": "-",
     }
     for old_char, new_char in replacements.items():
         text = text.replace(old_char, new_char)
-        
+
     emoji_pattern = re.compile(
         "["
         "\U0001f600-\U0001f64f"
@@ -191,9 +213,7 @@ def _clean_text(text: str) -> str:
     return text.encode("windows-1252", errors="ignore").decode("windows-1252")
 
 
-def _fallback_pdf(
-    analyses: list[dict], date_label: str, pdf_path: str
-) -> str:
+def _fallback_pdf(analyses: list[dict], date_label: str, pdf_path: str) -> str:
     """Gera PDF simples como fallback."""
     try:
         pdf = SenseNewsPDF(date_label)

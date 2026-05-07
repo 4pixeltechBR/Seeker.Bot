@@ -5,9 +5,9 @@ Estruturas de dados para rastreamento financeiro
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from collections import defaultdict, deque
-from typing import Dict, List, Optional
+from datetime import datetime
+from collections import deque
+from typing import Dict, Optional
 
 log = logging.getLogger("seeker.budget.metrics")
 
@@ -15,6 +15,7 @@ log = logging.getLogger("seeker.budget.metrics")
 @dataclass
 class CustoMetrica:
     """Métrica de custo para uma chamada de LLM"""
+
     timestamp: datetime
     provider: str
     modelo: str
@@ -45,6 +46,7 @@ class CustoMetrica:
 @dataclass
 class CustoAgregado:
     """Custo agregado por chave (provider, modelo, fase, etc)"""
+
     chave: str
     total_chamadas: int = 0
     total_custo_usd: float = 0.0
@@ -52,10 +54,10 @@ class CustoAgregado:
     total_tokens_saida: int = 0
     chamadas_sucesso: int = 0
     chamadas_falha: int = 0
-    tempo_latencia_min_ms: int = float('inf')
+    tempo_latencia_min_ms: int = float("inf")
     tempo_latencia_max_ms: int = 0
     tempo_latencia_medio_ms: float = 0.0
-    custo_min: float = float('inf')
+    custo_min: float = float("inf")
     custo_max: float = 0.0
 
     @property
@@ -98,6 +100,7 @@ class CustoAgregado:
 @dataclass
 class EstatisticasProveedor:
     """Estatísticas agregadas de um provedor"""
+
     provedor: str
     total_chamadas: int = 0
     total_custo_usd: float = 0.0
@@ -145,7 +148,6 @@ class EstatisticasProveedor:
                 for modelo, custo in self.custo_por_modelo.items()
             },
             "custo_por_fase": {
-                fase: round(custo, 4)
-                for fase, custo in self.custo_por_fase.items()
+                fase: round(custo, 4) for fase, custo in self.custo_por_fase.items()
             },
         }

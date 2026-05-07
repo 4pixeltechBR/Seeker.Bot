@@ -37,9 +37,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field, asdict
-from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Optional
 
 log = logging.getLogger("seeker.rl.reward")
@@ -52,7 +50,7 @@ REWARD_DB_PATH = os.path.join(os.getcwd(), "data", "rl_rewards.jsonl")
 
 # Weights do reward composto
 W_BEHAVIORAL = 0.7
-W_TECHNICAL  = 0.3
+W_TECHNICAL = 0.3
 
 # Janela de observação comportamental (segundos)
 BEHAVIORAL_WINDOW_SECONDS = 900  # 15 minutos
@@ -81,16 +79,17 @@ NEGATIVE_EMOJIS = {"👎", "❌", "😤", "🙄", "😒", "🤦"}
 # MODELOS
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 class SignalSource(str, Enum):
-    BEHAVIORAL  = "behavioral"   # Comportamento do Victor
-    TECHNICAL   = "technical"    # Métricas do sistema
-    EXPLICIT    = "explicit"     # Feedback explícito (/feedback, botão)
+    BEHAVIORAL = "behavioral"  # Comportamento do Victor
+    TECHNICAL = "technical"  # Métricas do sistema
+    EXPLICIT = "explicit"  # Feedback explícito (/feedback, botão)
 
 
 class RewardSign(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
-    NEUTRAL  = "neutral"
+    NEUTRAL = "neutral"
 
 
 @dataclass
@@ -103,10 +102,11 @@ class RewardSignal:
       -1 = penalidade máxima
        0 = neutro
     """
+
     source: SignalSource
     sign: RewardSign
-    value: float          # [-1, +1]
-    reason: str           # Legível para debug
+    value: float  # [-1, +1]
+    reason: str  # Legível para debug
     timestamp: float = field(default_factory=time.time)
 
     def __post_init__(self):
@@ -123,16 +123,17 @@ class RewardEvent:
 
     Salvo em JSONL para backfill e análise posterior.
     """
-    decision_id: str                         # UUID da decisão
-    action_taken: str                        # "reflex" | "deliberate" | "deep" | tier name
-    context: str                             # Resumo textual do contexto
+
+    decision_id: str  # UUID da decisão
+    action_taken: str  # "reflex" | "deliberate" | "deep" | tier name
+    context: str  # Resumo textual do contexto
     signals: list[RewardSignal] = field(default_factory=list)
     reward_behavioral: float = 0.0
     reward_technical: float = 0.0
     reward_total: float = 0.0
     state_snapshot: dict = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
-    closed_at: Optional[float] = None       # Quando o evento foi finalizado
+    closed_at: Optional[float] = None  # Quando o evento foi finalizado
 
     @property
     def is_open(self) -> bool:
@@ -149,9 +150,13 @@ class RewardEvent:
 
     def _recompute(self) -> None:
         """Recalcula rewards agregados."""
-        behavioral = [s.value for s in self.signals if s.source == SignalSource.BEHAVIORAL]
-        technical  = [s.value for s in self.signals if s.source == SignalSource.TECHNICAL]
-        explicit   = [s.value for s in self.signals if s.source == SignalSource.EXPLICIT]
+        behavioral = [
+            s.value for s in self.signals if s.source == SignalSource.BEHAVIORAL
+        ]
+        technical = [
+            s.value for s in self.signals if s.source == SignalSource.TECHNICAL
+        ]
+        explicit = [s.value for s in self.signals if s.source == SignalSource.EXPLICIT]
 
         # Explicit feedback overrides behaviorals se presente
         if explicit:
@@ -164,16 +169,23 @@ class RewardEvent:
         self.reward_technical = sum(technical) / len(technical) if technical else 0.0
 
         self.reward_total = (
-            W_BEHAVIORAL * self.reward_behavioral
-            + W_TECHNICAL * self.reward_technical
+            W_BEHAVIORAL * self.reward_behavioral + W_TECHNICAL * self.reward_technical
         )
 
     def to_dict(self) -> dict:
         d = asdict(self)
         # Converter enums pra string
         for sig in d["signals"]:
-            sig["source"] = sig["source"].value if isinstance(sig["source"], SignalSource) else sig["source"]
-            sig["sign"]   = sig["sign"].value   if isinstance(sig["sign"],   RewardSign)   else sig["sign"]
+            sig["source"] = (
+                sig["source"].value
+                if isinstance(sig["source"], SignalSource)
+                else sig["source"]
+            )
+            sig["sign"] = (
+                sig["sign"].value
+                if isinstance(sig["sign"], RewardSign)
+                else sig["sign"]
+            )
         return d
 
     def close(self) -> None:
@@ -189,6 +201,7 @@ class RewardEvent:
 # ─────────────────────────────────────────────────────────────────────────────
 # COLLECTOR PRINCIPAL
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 class RewardCollector:
     """
@@ -266,7 +279,8 @@ class RewardCollector:
     def close_stale_events(self) -> int:
         """Fecha eventos mais velhos que BEHAVIORAL_WINDOW_SECONDS. Retorna contagem."""
         stale = [
-            eid for eid, e in self._open_events.items()
+            eid
+            for eid, e in self._open_events.items()
             if e.age_seconds > BEHAVIORAL_WINDOW_SECONDS
         ]
         for eid in stale:
@@ -297,50 +311,60 @@ class RewardCollector:
         signals = []
 
         # Sucesso/Falha
-        signals.append(RewardSignal(
-            source=SignalSource.TECHNICAL,
-            sign=RewardSign.POSITIVE if success else RewardSign.NEGATIVE,
-            value=1.0 if success else -1.0,
-            reason=f"LLM call {'succeeded' if success else 'failed'}",
-        ))
+        signals.append(
+            RewardSignal(
+                source=SignalSource.TECHNICAL,
+                sign=RewardSign.POSITIVE if success else RewardSign.NEGATIVE,
+                value=1.0 if success else -1.0,
+                reason=f"LLM call {'succeeded' if success else 'failed'}",
+            )
+        )
 
         # Custo (penalidade proporcional — $0.01 = -0.5)
         if cost_usd > 0:
             cost_penalty = min(1.0, cost_usd * 50)
-            signals.append(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.NEGATIVE,
-                value=-cost_penalty,
-                reason=f"cost ${cost_usd:.4f}",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-cost_penalty,
+                    reason=f"cost ${cost_usd:.4f}",
+                )
+            )
 
         # Latência (penalidade leve — 1000ms = -0.1)
         if latency_ms > 0:
             latency_penalty = min(0.5, latency_ms * 0.0001)
-            signals.append(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.NEGATIVE,
-                value=-latency_penalty,
-                reason=f"latency {latency_ms:.0f}ms",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-latency_penalty,
+                    reason=f"latency {latency_ms:.0f}ms",
+                )
+            )
 
         # Fallbacks acionados
         if fallbacks > 0:
-            signals.append(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.NEGATIVE,
-                value=min(1.0, -0.3 * fallbacks),
-                reason=f"{fallbacks} fallback(s) triggered",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=min(1.0, -0.3 * fallbacks),
+                    reason=f"{fallbacks} fallback(s) triggered",
+                )
+            )
 
         # Timeout
         if timed_out:
-            signals.append(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.NEGATIVE,
-                value=-1.0,
-                reason="timeout",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-1.0,
+                    reason="timeout",
+                )
+            )
 
         for sig in signals:
             event.add_signal(sig)
@@ -373,19 +397,23 @@ class RewardCollector:
         # ── Delay de resposta ──────────────────────────────────────────
         if response_delay_seconds > 0:
             if response_delay_seconds < 30:
-                signals.append(RewardSignal(
-                    source=SignalSource.BEHAVIORAL,
-                    sign=RewardSign.POSITIVE,
-                    value=+0.4,
-                    reason=f"resposta rápida ({response_delay_seconds:.0f}s)",
-                ))
+                signals.append(
+                    RewardSignal(
+                        source=SignalSource.BEHAVIORAL,
+                        sign=RewardSign.POSITIVE,
+                        value=+0.4,
+                        reason=f"resposta rápida ({response_delay_seconds:.0f}s)",
+                    )
+                )
             elif response_delay_seconds > 600:
-                signals.append(RewardSignal(
-                    source=SignalSource.BEHAVIORAL,
-                    sign=RewardSign.NEGATIVE,
-                    value=-0.3,
-                    reason=f"resposta lenta ({response_delay_seconds:.0f}s) — provavelmente ignorou",
-                ))
+                signals.append(
+                    RewardSignal(
+                        source=SignalSource.BEHAVIORAL,
+                        sign=RewardSign.NEGATIVE,
+                        value=-0.3,
+                        reason=f"resposta lenta ({response_delay_seconds:.0f}s) — provavelmente ignorou",
+                    )
+                )
 
         # ── Conteúdo da mensagem ───────────────────────────────────────
         text = message.strip()
@@ -393,42 +421,50 @@ class RewardCollector:
         # Emojis positivos
         emojis_found = set(text) & POSITIVE_EMOJIS
         if emojis_found:
-            signals.append(RewardSignal(
-                source=SignalSource.BEHAVIORAL,
-                sign=RewardSign.POSITIVE,
-                value=+0.7,
-                reason=f"emoji positivo: {' '.join(emojis_found)}",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.BEHAVIORAL,
+                    sign=RewardSign.POSITIVE,
+                    value=+0.7,
+                    reason=f"emoji positivo: {' '.join(emojis_found)}",
+                )
+            )
 
         # Emojis negativos
         emojis_found = set(text) & NEGATIVE_EMOJIS
         if emojis_found:
-            signals.append(RewardSignal(
-                source=SignalSource.BEHAVIORAL,
-                sign=RewardSign.NEGATIVE,
-                value=-0.7,
-                reason=f"emoji negativo: {' '.join(emojis_found)}",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.BEHAVIORAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-0.7,
+                    reason=f"emoji negativo: {' '.join(emojis_found)}",
+                )
+            )
 
         # Palavras positivas
         if POSITIVE_PATTERNS.search(text):
             match = POSITIVE_PATTERNS.search(text).group()
-            signals.append(RewardSignal(
-                source=SignalSource.BEHAVIORAL,
-                sign=RewardSign.POSITIVE,
-                value=+0.6,
-                reason=f"feedback positivo: '{match}'",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.BEHAVIORAL,
+                    sign=RewardSign.POSITIVE,
+                    value=+0.6,
+                    reason=f"feedback positivo: '{match}'",
+                )
+            )
 
         # Palavras negativas
         if NEGATIVE_PATTERNS.search(text):
             match = NEGATIVE_PATTERNS.search(text).group()
-            signals.append(RewardSignal(
-                source=SignalSource.BEHAVIORAL,
-                sign=RewardSign.NEGATIVE,
-                value=-0.8,
-                reason=f"feedback negativo: '{match}'",
-            ))
+            signals.append(
+                RewardSignal(
+                    source=SignalSource.BEHAVIORAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-0.8,
+                    reason=f"feedback negativo: '{match}'",
+                )
+            )
 
         for sig in signals:
             event.add_signal(sig)
@@ -449,12 +485,14 @@ class RewardCollector:
         event = self._open_events.get(decision_id)
         if not event:
             return
-        event.add_signal(RewardSignal(
-            source=SignalSource.EXPLICIT,
-            sign=RewardSign.POSITIVE if value > 0 else RewardSign.NEGATIVE,
-            value=value,
-            reason=reason,
-        ))
+        event.add_signal(
+            RewardSignal(
+                source=SignalSource.EXPLICIT,
+                sign=RewardSign.POSITIVE if value > 0 else RewardSign.NEGATIVE,
+                value=value,
+                reason=reason,
+            )
+        )
         log.info(f"[reward] Explícito {decision_id[:8]}: value={value:+.2f} ({reason})")
 
     # ── Persistência & Export ─────────────────────────────────────────
@@ -465,7 +503,9 @@ class RewardCollector:
             with open(self.db_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(event.to_dict(), ensure_ascii=False) + "\n")
         except Exception as e:
-            log.error(f"[reward] Falha ao persistir evento {event.decision_id[:8]}: {e}")
+            log.error(
+                f"[reward] Falha ao persistir evento {event.decision_id[:8]}: {e}"
+            )
 
     def export_dataset(self, days: int = 30) -> list[dict]:
         """
@@ -498,7 +538,9 @@ class RewardCollector:
         except Exception as e:
             log.error(f"[reward] Falha ao exportar dataset: {e}")
 
-        log.info(f"[reward] Dataset exportado: {len(dataset)} eventos dos últimos {days} dias")
+        log.info(
+            f"[reward] Dataset exportado: {len(dataset)} eventos dos últimos {days} dias"
+        )
         return dataset
 
     def get_stats(self) -> dict:

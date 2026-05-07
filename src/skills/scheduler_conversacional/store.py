@@ -7,7 +7,7 @@ Persistência em SQLite para tarefas agendadas, execuções e sessões do wizard
 import json
 import logging
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
 from src.skills.scheduler_conversacional.models import (
     ScheduledTask,
@@ -204,7 +204,9 @@ class SchedulerStore:
 
     async def delete_task(self, task_id: str) -> None:
         """Deleta tarefa e suas execuções"""
-        await self.db.execute("DELETE FROM scheduler_task_runs WHERE task_id = ?", (task_id,))
+        await self.db.execute(
+            "DELETE FROM scheduler_task_runs WHERE task_id = ?", (task_id,)
+        )
         await self.db.execute("DELETE FROM scheduler_tasks WHERE id = ?", (task_id,))
         await self.db.commit()
 
@@ -330,7 +332,9 @@ class SchedulerStore:
 
     async def delete_wizard_session(self, chat_id: int) -> None:
         """Deleta sessão (encerra wizard)"""
-        await self.db.execute("DELETE FROM scheduler_wizard_sessions WHERE chat_id = ?", (chat_id,))
+        await self.db.execute(
+            "DELETE FROM scheduler_wizard_sessions WHERE chat_id = ?", (chat_id,)
+        )
         await self.db.commit()
 
     async def cleanup_expired_sessions(self) -> int:
@@ -371,8 +375,12 @@ class SchedulerStore:
             status=TaskStatus(row["status"]),
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
-            last_run_at=datetime.fromisoformat(row["last_run_at"]) if row["last_run_at"] else None,
-            next_run_at=datetime.fromisoformat(row["next_run_at"]) if row["next_run_at"] else None,
+            last_run_at=datetime.fromisoformat(row["last_run_at"])
+            if row["last_run_at"]
+            else None,
+            next_run_at=datetime.fromisoformat(row["next_run_at"])
+            if row["next_run_at"]
+            else None,
             last_status=row["last_status"],
             failure_count=row["failure_count"],
             last_error=row["last_error"],
@@ -388,8 +396,12 @@ class SchedulerStore:
             id=row["id"],
             task_id=row["task_id"],
             scheduled_for=datetime.fromisoformat(row["scheduled_for"]),
-            started_at=datetime.fromisoformat(row["started_at"]) if row["started_at"] else None,
-            finished_at=datetime.fromisoformat(row["finished_at"]) if row["finished_at"] else None,
+            started_at=datetime.fromisoformat(row["started_at"])
+            if row["started_at"]
+            else None,
+            finished_at=datetime.fromisoformat(row["finished_at"])
+            if row["finished_at"]
+            else None,
             status=row["status"],
             error=row["error"],
             execution_id=row["execution_id"],
@@ -410,6 +422,10 @@ class SchedulerStore:
             data=data,
             created_at=datetime.fromisoformat(row["created_at"]),
             updated_at=datetime.fromisoformat(row["updated_at"]),
-            expires_at=datetime.fromisoformat(row["expires_at"]) if row["expires_at"] else None,
-            previous_state=WizardState(row["previous_state"]) if row["previous_state"] else None,
+            expires_at=datetime.fromisoformat(row["expires_at"])
+            if row["expires_at"]
+            else None,
+            previous_state=WizardState(row["previous_state"])
+            if row["previous_state"]
+            else None,
         )

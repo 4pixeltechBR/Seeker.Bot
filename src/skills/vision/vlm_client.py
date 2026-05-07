@@ -51,11 +51,15 @@ class VLMClient:
         gpu_semaphore: asyncio.Semaphore | None = None,
     ):
         # Config via env com fallback para defaults
-        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL)
+        self.base_url = base_url or os.getenv(
+            "OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL
+        )
         self.model = model or os.getenv("VLM_MODEL", DEFAULT_VLM_MODEL)
         self.generate_endpoint = f"{self.base_url}/api/generate"
 
-        log.info(f"[vlm] Inicializando VLMClient: model={self.model} base_url={self.base_url}")
+        log.info(
+            f"[vlm] Inicializando VLMClient: model={self.model} base_url={self.base_url}"
+        )
 
         # Semáforo compartilhado de GPU com outras skills
         # Se None, assume GPU sempre disponível (standalone mode)
@@ -99,9 +103,9 @@ class VLMClient:
                 self._client.post(
                     self.generate_endpoint,
                     json={"model": model_name, "prompt": "test", "stream": False},
-                    timeout=10.0
+                    timeout=10.0,
                 ),
-                timeout=12.0
+                timeout=12.0,
             )
 
             if test_response.status_code == 200:
@@ -109,7 +113,9 @@ class VLMClient:
                 log.info(f"[vlm] Modelo trocado para: {model_name}")
                 return True
             else:
-                log.warning(f"[vlm] Modelo {model_name} retornou status {test_response.status_code}")
+                log.warning(
+                    f"[vlm] Modelo {model_name} retornou status {test_response.status_code}"
+                )
                 return False
 
         except asyncio.TimeoutError:
@@ -150,8 +156,15 @@ class VLMClient:
         try:
             # Tenta Ollama primeiro
             return await ollama_coro
-        except (TimeoutError, httpx.TimeoutException, httpx.ReadTimeout, asyncio.TimeoutError) as e:
-            log.warning(f"[vlm] Ollama timeout ({self.model}), usando Gemini fallback...")
+        except (
+            TimeoutError,
+            httpx.TimeoutException,
+            httpx.ReadTimeout,
+            asyncio.TimeoutError,
+        ):
+            log.warning(
+                f"[vlm] Ollama timeout ({self.model}), usando Gemini fallback..."
+            )
 
             # Fallback para Gemini
             if not self._gemini_fallback or not self._gemini_fallback.enabled:
@@ -161,7 +174,9 @@ class VLMClient:
             # Chama método correspondente em Gemini
             gemini_method = getattr(self._gemini_fallback, gemini_method_name, None)
             if not gemini_method:
-                raise ValueError(f"Metodo '{gemini_method_name}' nao encontrado em GeminiVLMFallback")
+                raise ValueError(
+                    f"Metodo '{gemini_method_name}' nao encontrado em GeminiVLMFallback"
+                )
 
             # Audit log
             log.info(f"[vlm] Fallback para Gemini: {gemini_method_name}")
@@ -183,7 +198,7 @@ class VLMClient:
     ) -> str:
         """
         Envia screenshot + prompt para o VLM.
-        
+
         Roteamento de hardware:
         - GPU livre → roda na VRAM, keep_alive=5m (sessão fluida)
         - GPU ocupada → roda na CPU/RAM, keep_alive=0 (libera imediato)
@@ -207,11 +222,11 @@ class VLMClient:
         if not gpu_available:
             payload["options"]["num_gpu"] = 0
             log.info(
-                f"[vlm] GPU ocupada (semáforo ativo) → rodando na CPU/RAM. "
-                f"Latência estimada: 10-20s"
+                "[vlm] GPU ocupada (semáforo ativo) → rodando na CPU/RAM. "
+                "Latência estimada: 10-20s"
             )
         else:
-            log.info(f"[vlm] GPU livre → VRAM, keep_alive=5m")
+            log.info("[vlm] GPU livre → VRAM, keep_alive=5m")
 
         try:
             async with self._inference_lock:
@@ -234,7 +249,10 @@ class VLMClient:
                 return response_text
         except httpx.TimeoutException:
             mode = "GPU" if gpu_available else "CPU"
-            log.error(f"[vlm] Timeout ({mode} mode) — modelo pode estar carregando", exc_info=True)
+            log.error(
+                f"[vlm] Timeout ({mode} mode) — modelo pode estar carregando",
+                exc_info=True,
+            )
             raise
         except Exception as e:
             log.error(f"[vlm] Falha ao analisar screenshot: {e}", exc_info=True)
@@ -248,9 +266,7 @@ class VLMClient:
         )
         return await self.analyze_screenshot(image_bytes, prompt)
 
-    async def locate_element(
-        self, image_bytes: bytes, description: str
-    ) -> dict:
+    async def locate_element(self, image_bytes: bytes, description: str) -> dict:
         """
         Pede ao VLM para localizar um elemento e retornar coordenadas.
         Usa fallback Gemini se Ollama falha (timeout grounding).
@@ -329,6 +345,7 @@ class VLMClient:
     async def health_check(self) -> bool:
         """Verifica se o Ollama está rodando. Resultado cacheado por 60s."""
         import time as _time
+
         now = _time.monotonic()
         cached_result, cached_at = self._health_cache
         if (now - cached_at) < self._health_cache_ttl:
@@ -338,7 +355,9 @@ class VLMClient:
             res = await self._client.get(f"{self.base_url}/api/tags", timeout=5.0)
             res.raise_for_status()
             models = res.json().get("models", [])
-            available = any(m.get("name", "").startswith(self.model.split(":")[0]) for m in models)
+            available = any(
+                m.get("name", "").startswith(self.model.split(":")[0]) for m in models
+            )
             if not available:
                 log.warning(
                     f"[vlm] Modelo {self.model} não encontrado no Ollama. "
@@ -358,6 +377,7 @@ class VLMClient:
 
 
 # ── Helpers ───────────────────────────────────────────────
+
 
 def _parse_bbox_response(raw_text: str) -> dict:
     """Parse centralizado de respostas de localização do VLM."""
@@ -381,5 +401,5 @@ def _parse_bbox_response(raw_text: str) -> dict:
         pass
 
     # Fallback: retorna raw com confidence 0
-    log.warning(f"[vlm] Parsing de bbox falhou, retornando raw")
+    log.warning("[vlm] Parsing de bbox falhou, retornando raw")
     return {"raw_bbox": raw_text, "x": 0, "y": 0, "confidence": 0.0}

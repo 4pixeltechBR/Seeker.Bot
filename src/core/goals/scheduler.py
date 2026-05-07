@@ -30,7 +30,6 @@ from typing import Any, Coroutine
 
 from src.core.goals.protocol import (
     AutonomousGoal,
-    GoalResult,
     GoalStatus,
     NotificationChannel,
 )
@@ -45,10 +44,11 @@ STATE_DIR = os.path.join(os.getcwd(), "data", "goals")
 
 class GoalPriority(Enum):
     """Priority levels para goals — determina preemption e scheduling"""
+
     CRITICAL = 0  # Interrompe goals em execução (alerta, health check)
-    HIGH = 1      # Executado antes de NORMAL/LOW (importante mas não crítico)
-    NORMAL = 2    # Priority padrão (maioria dos goals)
-    LOW = 3       # Executado apenas se recursos disponíveis (background tasks)
+    HIGH = 1  # Executado antes de NORMAL/LOW (importante mas não crítico)
+    NORMAL = 2  # Priority padrão (maioria dos goals)
+    LOW = 3  # Executado apenas se recursos disponíveis (background tasks)
 
 
 class GoalScheduler:
@@ -69,14 +69,18 @@ class GoalScheduler:
 
     MAX_CONSECUTIVE_FAILURES = 3
     GLOBAL_DAILY_BUDGET_USD = 2.00  # Teto de segurança para TODOS os goals somados
-    MAX_CONCURRENT_GOALS = 3        # Limita goals executando em paralelo (Sprint 7.2)
+    MAX_CONCURRENT_GOALS = 3  # Limita goals executando em paralelo (Sprint 7.2)
 
     def __init__(self, notifier: "GoalNotifier"):
         self.notifier = notifier
         self._goals: dict[str, AutonomousGoal] = {}
-        self._goal_priorities: dict[str, GoalPriority] = {}  # Sprint 7.2: priority mapping
+        self._goal_priorities: dict[
+            str, GoalPriority
+        ] = {}  # Sprint 7.2: priority mapping
         self._tasks: dict[str, asyncio.Task] = {}
-        self._rethink_tasks: set = set()  # Background rethink tasks (tracked for shutdown)
+        self._rethink_tasks: set = (
+            set()
+        )  # Background rethink tasks (tracked for shutdown)
         self._failure_counts: dict[str, int] = {}
         self._cycle_history: dict[str, deque] = {}
         self._global_spent_today: float = 0.0
@@ -87,12 +91,18 @@ class GoalScheduler:
         self._paused_by_preemption: set[str] = set()  # Goals paused due to CRITICAL
         self._pool_semaphore = asyncio.Semaphore(self.MAX_CONCURRENT_GOALS)
 
-        self.friction_metrics = {"rate_limits": 0, "rethinks_blocked": 0, "sara_edits": 0}
+        self.friction_metrics = {
+            "rate_limits": 0,
+            "rethinks_blocked": 0,
+            "sara_edits": 0,
+        }
         self.running = False
 
         os.makedirs(STATE_DIR, exist_ok=True)
 
-    def register(self, goal: AutonomousGoal, priority: GoalPriority = GoalPriority.NORMAL) -> None:
+    def register(
+        self, goal: AutonomousGoal, priority: GoalPriority = GoalPriority.NORMAL
+    ) -> None:
         """
         Registra um goal e carrega estado persistido se existir.
 
@@ -127,14 +137,18 @@ class GoalScheduler:
 
         # Aguarda rethink tasks completarem
         if self._rethink_tasks:
-            log.info(f"[scheduler] Aguardando {len(self._rethink_tasks)} rethink tasks...")
+            log.info(
+                f"[scheduler] Aguardando {len(self._rethink_tasks)} rethink tasks..."
+            )
             try:
                 await asyncio.wait_for(
                     asyncio.gather(*self._rethink_tasks, return_exceptions=True),
-                    timeout=5.0
+                    timeout=5.0,
                 )
             except asyncio.TimeoutError:
-                log.warning("[scheduler] Timeout aguardando rethink tasks (5s). Continuando...")
+                log.warning(
+                    "[scheduler] Timeout aguardando rethink tasks (5s). Continuando..."
+                )
 
         # Cancela goal loops
         for name, task in self._tasks.items():
@@ -189,9 +203,9 @@ class GoalScheduler:
             if history:
                 age_s = now - history[-1]["ts"]
                 if age_s < 3600:
-                    age_str = f"{age_s/60:.0f}min atrás"
+                    age_str = f"{age_s / 60:.0f}min atrás"
                 else:
-                    age_str = f"{age_s/3600:.1f}h atrás"
+                    age_str = f"{age_s / 3600:.1f}h atrás"
                 last_summary = history[-1]["summary"]
             else:
                 age_str = "nunca rodou"
@@ -199,7 +213,11 @@ class GoalScheduler:
 
             # Avg latency (last 5)
             recent_latencies = [c["latency"] for c in history[-5:] if c["latency"] > 0]
-            latency_str = f"{sum(recent_latencies)/len(recent_latencies):.1f}s" if recent_latencies else "—"
+            latency_str = (
+                f"{sum(recent_latencies) / len(recent_latencies):.1f}s"
+                if recent_latencies
+                else "—"
+            )
 
             lines.append(
                 f"  {emoji} <b>{name}</b>\n"
@@ -243,9 +261,16 @@ class GoalScheduler:
             "goals": goals_health,
             "summary": {
                 "total_goals": len(self._goals),
-                "avg_success_rate": sum(g["metrics"]["success_rate"] for g in goals_health.values()) / len(goals_health) if goals_health else 0,
-                "total_cost_today": sum(goal.budget.spent_today_usd for goal in self._goals.values()),
-            }
+                "avg_success_rate": sum(
+                    g["metrics"]["success_rate"] for g in goals_health.values()
+                )
+                / len(goals_health)
+                if goals_health
+                else 0,
+                "total_cost_today": sum(
+                    goal.budget.spent_today_usd for goal in self._goals.values()
+                ),
+            },
         }
 
     def get_goal_metrics(self, goal_name: str) -> dict[str, Any]:
@@ -283,12 +308,22 @@ class GoalScheduler:
 
         # Trend: últimas 5 vs anteriores
         recent_5 = history[-5:]
-        recent_success = sum(1 for c in recent_5 if c["ok"]) / len(recent_5) * 100 if recent_5 else 0.0
+        recent_success = (
+            sum(1 for c in recent_5 if c["ok"]) / len(recent_5) * 100
+            if recent_5
+            else 0.0
+        )
 
         earlier = history[:-5]
-        earlier_success = sum(1 for c in earlier if c["ok"]) / len(earlier) * 100 if earlier else 0.0
+        earlier_success = (
+            sum(1 for c in earlier if c["ok"]) / len(earlier) * 100 if earlier else 0.0
+        )
 
-        trend = "📈" if recent_success > earlier_success else ("📉" if recent_success < earlier_success else "➡️")
+        trend = (
+            "📈"
+            if recent_success > earlier_success
+            else ("📉" if recent_success < earlier_success else "➡️")
+        )
 
         return {
             "name": goal_name,
@@ -353,8 +388,10 @@ class GoalScheduler:
         # Se há CRITICAL em execução e este é NORMAL/LOW, pausar
         if priority in [GoalPriority.NORMAL, GoalPriority.LOW]:
             for other_name, other_priority in self._goal_priorities.items():
-                if (other_priority == GoalPriority.CRITICAL and
-                    other_name in self._running_goals):
+                if (
+                    other_priority == GoalPriority.CRITICAL
+                    and other_name in self._running_goals
+                ):
                     self._paused_by_preemption.add(goal_name)
                     return False
 
@@ -371,7 +408,7 @@ class GoalScheduler:
         # Ordena goals por prioridade
         sorted_goals = sorted(
             self._goal_priorities.items(),
-            key=lambda x: x[1].value  # Menor valor = maior prioridade
+            key=lambda x: x[1].value,  # Menor valor = maior prioridade
         )
 
         for goal_name, priority in sorted_goals:
@@ -386,7 +423,9 @@ class GoalScheduler:
     def _write_heartbeat(self) -> None:
         """Escreve timestamp no arquivo de heartbeat para o watchdog monitorar."""
         try:
-            import os, time
+            import os
+            import time
+
             os.makedirs("logs", exist_ok=True)
             with open("logs/bot_heartbeat.txt", "w") as f:
                 f.write(str(time.time()))
@@ -434,8 +473,7 @@ class GoalScheduler:
                 if failures >= self.MAX_CONSECUTIVE_FAILURES:
                     backoff = goal.interval_seconds * 2
                     log.warning(
-                        f"[scheduler/{goal.name}] {failures} falhas, "
-                        f"backoff {backoff}s"
+                        f"[scheduler/{goal.name}] {failures} falhas, backoff {backoff}s"
                     )
                     await asyncio.sleep(backoff)
                     self._failure_counts[goal.name] = 0
@@ -459,13 +497,15 @@ class GoalScheduler:
                         self._running_goals.discard(goal.name)
 
                 # Registra histórico
-                self._cycle_history[goal.name].append({
-                    "ts": time.time(),
-                    "ok": result.success,
-                    "cost": result.cost_usd,
-                    "latency": round(_cycle_latency, 1),
-                    "summary": result.summary[:60],
-                })
+                self._cycle_history[goal.name].append(
+                    {
+                        "ts": time.time(),
+                        "ok": result.success,
+                        "cost": result.cost_usd,
+                        "latency": round(_cycle_latency, 1),
+                        "summary": result.summary[:60],
+                    }
+                )
 
                 # Contabiliza custo
                 goal.budget.spend(result.cost_usd)
@@ -477,7 +517,7 @@ class GoalScheduler:
                     rethinks = result.data.get("rethink_blocks", 0)
                     if rethinks > 0:
                         self.friction_metrics["rethinks_blocked"] += rethinks
-                        
+
                     sara_ops = result.data.get("sara_edits", 0)
                     if sara_ops > 0:
                         self.friction_metrics["sara_edits"] += sara_ops
@@ -496,29 +536,43 @@ class GoalScheduler:
 
             except Exception as e:
                 import traceback
+
                 tb_str = traceback.format_exc()
                 self._failure_counts[goal.name] = (
                     self._failure_counts.get(goal.name, 0) + 1
                 )
-                self._cycle_history[goal.name].append({
-                    "ts": time.time(),
-                    "ok": False,
-                    "cost": 0.0,
-                    "latency": 0.0,
-                    "summary": f"Exceção: {str(e)[:50]}",
-                })
+                self._cycle_history[goal.name].append(
+                    {
+                        "ts": time.time(),
+                        "ok": False,
+                        "cost": 0.0,
+                        "latency": 0.0,
+                        "summary": f"Exceção: {str(e)[:50]}",
+                    }
+                )
                 log.error(
                     f"[scheduler/{goal.name}] Falha "
                     f"#{self._failure_counts[goal.name]}: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
-                
+
                 # RETHINK: Confiança Extrema. Se for o início do backoff, emite relatório proativo
                 if self._failure_counts[goal.name] == self.MAX_CONSECUTIVE_FAILURES:
-                    self._create_tracked_task(self._execute_rethink_failure(goal.name, str(e), tb_str, goal.channels))
-                elif self._failure_counts[goal.name] == 1 and "rate" not in str(e).lower():
+                    self._create_tracked_task(
+                        self._execute_rethink_failure(
+                            goal.name, str(e), tb_str, goal.channels
+                        )
+                    )
+                elif (
+                    self._failure_counts[goal.name] == 1
+                    and "rate" not in str(e).lower()
+                ):
                     # Avisa no primeiro problema estrutural (que não seja rate limit local)
-                    self._create_tracked_task(self._execute_rethink_failure(goal.name, str(e), tb_str, goal.channels))
+                    self._create_tracked_task(
+                        self._execute_rethink_failure(
+                            goal.name, str(e), tb_str, goal.channels
+                        )
+                    )
 
             finally:
                 self._save_goal_state(goal)
@@ -543,7 +597,13 @@ class GoalScheduler:
         return task
 
     # ── Rethink (Autoavaliação de Falhas) ─────────────────
-    async def _execute_rethink_failure(self, goal_name: str, error_msg: str, tb_str: str, channels: list[NotificationChannel]) -> None:
+    async def _execute_rethink_failure(
+        self,
+        goal_name: str,
+        error_msg: str,
+        tb_str: str,
+        channels: list[NotificationChannel],
+    ) -> None:
         """Analisa a exceção ocorrida em um Goal e gera um relatório humanizado proativo antes do backoff."""
         prompt = (
             f"O Goal Autônomo '{goal_name}' acabou de falhar. Você é o módulo de RETHINK.\n"
@@ -555,30 +615,32 @@ class GoalScheduler:
             "Responda apenas com a explicação formatada em Telegram HTML, iniciando "
             "com '<b>RETHINK: Avaliação de Falha</b> 🛑\n' e sendo conciso. Sem enrolação."
         )
-        
+
         try:
             # Empresta as keys de um goal carregado localmente, como work-around, ou assume q o pipeline injeta as keys globais dps.
             # No scheduler não temos self.pipeline_api_keys diretamente, então pegamos do environment se possível,
             # Ou passamos uma LLMRequest para o fallback resolver (invoke defaults).
-            from src.core.pipeline import SeekerPipeline
             # Hack seguro se o router global nao for mandado
             from config.models import ModelRouter
+
             resp = await invoke_with_fallback(
                 CognitiveRole.FAST,
                 LLMRequest(
                     messages=[{"role": "user", "content": prompt}],
                     system="Explique o erro do sistema.",
                     temperature=0.1,
-                    max_tokens=300
+                    max_tokens=300,
                 ),
                 ModelRouter(),
-                {} # Dict de api keys empty delega pro os.environ na lib base
+                {},  # Dict de api keys empty delega pro os.environ na lib base
             )
             report = resp.text
             self.friction_metrics["rethinks_blocked"] += 1
             await self.notifier.send(goal_name, report, channels)
         except Exception as rethink_ex:
-            log.error(f"[rethink] Falhou ao explicar o erro: {rethink_ex}", exc_info=True)
+            log.error(
+                f"[rethink] Falhou ao explicar o erro: {rethink_ex}", exc_info=True
+            )
 
     # ── Persistência ──────────────────────────────────────
 
@@ -656,19 +718,22 @@ class GoalNotifier:
             if channel in (NotificationChannel.EMAIL, NotificationChannel.BOTH):
                 await self._send_email(goal_name, content)
 
-    async def _send_telegram(self, goal_name: str, content: str, data: dict[str, Any] | None = None) -> None:
+    async def _send_telegram(
+        self, goal_name: str, content: str, data: dict[str, Any] | None = None
+    ) -> None:
         if not self.bot:
             return
 
         import re
+
         def clean_html(raw_html: str) -> str:
-            cleanr = re.compile('<.*?>')
-            return re.sub(cleanr, '', raw_html)
+            cleanr = re.compile("<.*?>")
+            return re.sub(cleanr, "", raw_html)
 
         def sanitize_telegram_html(text: str) -> str:
             """Remove <email@domain> patterns que o Telegram interpreta como tags invalidas."""
             # Substitui <qualquer-coisa-com-@> por versao escapada
-            return re.sub(r'<([^>]*@[^>]*)>', r'&lt;\1&gt;', text)
+            return re.sub(r"<([^>]*@[^>]*)>", r"&lt;\1&gt;", text)
 
         for uid in self.admin_chats:
             try:
@@ -678,7 +743,9 @@ class GoalNotifier:
 
                 pdf_path = (data or {}).get("pdf_path", "")
                 photo_bytes = (data or {}).get("photo_bytes", None)
-                reply_markup = (data or {}).get("reply_markup", None)  # Inline keyboard (se houver)
+                reply_markup = (data or {}).get(
+                    "reply_markup", None
+                )  # Inline keyboard (se houver)
 
                 # Sanitiza o conteudo HTML antes de qualquer envio
                 content = sanitize_telegram_html(content)
@@ -686,33 +753,65 @@ class GoalNotifier:
                 # Constrói reply_markup se data contém buttons (ex: de approval notifications)
                 if not reply_markup and (data or {}).get("buttons"):
                     buttons_data = data.get("buttons", [])
-                    buttons = [[
-                        InlineKeyboardButton(text=btn["text"], callback_data=btn["callback_data"])
-                        for btn in row
-                    ] for row in buttons_data]
+                    buttons = [
+                        [
+                            InlineKeyboardButton(
+                                text=btn["text"], callback_data=btn["callback_data"]
+                            )
+                            for btn in row
+                        ]
+                        for row in buttons_data
+                    ]
                     reply_markup = InlineKeyboardMarkup(inline_keyboard=buttons)
 
                 if pdf_path and os.path.exists(pdf_path):
                     from aiogram.types import FSInputFile
+
                     doc = FSInputFile(pdf_path)
                     if len(content) > 1000:
                         # Envia o texto completo primeiro (suporta HTML)
                         # Nota: se content > 4096, o Telegram limitará, mas dossiês costumam ter ~1500-2500
                         try:
-                            await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                            await self.bot.send_message(
+                                uid,
+                                content,
+                                parse_mode=ParseMode.HTML,
+                                reply_markup=reply_markup,
+                            )
                         except Exception as e:
-                            log.warning(f"Erro ao enviar mensagem longa (HTML): {e}. Tentando fallback sem HTML.")
-                            await self.bot.send_message(uid, clean_html(content)[:4000], reply_markup=reply_markup)
-                        
+                            log.warning(
+                                f"Erro ao enviar mensagem longa (HTML): {e}. Tentando fallback sem HTML."
+                            )
+                            await self.bot.send_message(
+                                uid,
+                                clean_html(content)[:4000],
+                                reply_markup=reply_markup,
+                            )
+
                         # Envia o PDF logo em seguida
-                        await self.bot.send_document(uid, doc, caption="📄 Dossiê Anexo")
+                        await self.bot.send_document(
+                            uid, doc, caption="📄 Dossiê Anexo"
+                        )
                     else:
-                        await self.bot.send_document(uid, doc, caption=content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                        await self.bot.send_document(
+                            uid,
+                            doc,
+                            caption=content,
+                            parse_mode=ParseMode.HTML,
+                            reply_markup=reply_markup,
+                        )
                 elif photo_bytes:
                     from aiogram.types import BufferedInputFile
+
                     photo = BufferedInputFile(photo_bytes, filename="watch_alert.png")
-                    safe_caption = clean_html(content)[:1000] + "..." if len(content) > 1000 else clean_html(content)
-                    await self.bot.send_photo(uid, photo, caption=safe_caption, reply_markup=reply_markup)
+                    safe_caption = (
+                        clean_html(content)[:1000] + "..."
+                        if len(content) > 1000
+                        else clean_html(content)
+                    )
+                    await self.bot.send_photo(
+                        uid, photo, caption=safe_caption, reply_markup=reply_markup
+                    )
                 else:
                     if len(content) > 4000:
                         parts = []
@@ -727,24 +826,43 @@ class GoalNotifier:
                                 cut = remaining.rfind("\n", 0, 4000)
                             if cut == -1 or cut < 2000:
                                 cut = 4000
-                                
+
                             parts.append(remaining[:cut].rstrip())
                             remaining = remaining[cut:].lstrip()
-                            
+
                         for i, part in enumerate(parts):
                             markup = reply_markup if i == len(parts) - 1 else None
                             try:
-                                await self.bot.send_message(uid, part, parse_mode=ParseMode.HTML, reply_markup=markup)
+                                await self.bot.send_message(
+                                    uid,
+                                    part,
+                                    parse_mode=ParseMode.HTML,
+                                    reply_markup=markup,
+                                )
                             except Exception as e:
-                                if "can't parse entities" in str(e).lower() or "html" in str(e).lower():
-                                    log.warning(f"Fallback to plain text for chunk {i} due to HTML parse error: {e}")
-                                    await self.bot.send_message(uid, clean_html(part), reply_markup=markup)
+                                if (
+                                    "can't parse entities" in str(e).lower()
+                                    or "html" in str(e).lower()
+                                ):
+                                    log.warning(
+                                        f"Fallback to plain text for chunk {i} due to HTML parse error: {e}"
+                                    )
+                                    await self.bot.send_message(
+                                        uid, clean_html(part), reply_markup=markup
+                                    )
                                 else:
                                     raise e
                     else:
-                        await self.bot.send_message(uid, content, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
+                        await self.bot.send_message(
+                            uid,
+                            content,
+                            parse_mode=ParseMode.HTML,
+                            reply_markup=reply_markup,
+                        )
             except Exception as e:
-                log.error(f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True)
+                log.error(
+                    f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True
+                )
 
     async def _send_email(self, goal_name: str, content: str) -> None:
         if not self.email_client or not self.email_recipients:

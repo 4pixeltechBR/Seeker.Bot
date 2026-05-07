@@ -15,6 +15,7 @@ log = logging.getLogger("seeker.analytics.forecaster")
 @dataclass
 class PrevisaoCustos:
     """Previsão de custos futuros"""
+
     data: datetime
     custo_estimado: float
     intervalo_confianca: tuple  # (min, max)
@@ -40,7 +41,7 @@ class Forecaster:
     async def prever_custos_7d(self) -> List[PrevisaoCustos]:
         """Prevê custos para os próximos 7 dias"""
         historico = self.cost_tracker.obter_gastos_diarios(dias=self.tamanho_historico)
-        custos = [v for v in sorted(historico.items())[-self.tamanho_historico:]]
+        custos = [v for v in sorted(historico.items())[-self.tamanho_historico :]]
 
         if not custos:
             return []
@@ -52,7 +53,11 @@ class Forecaster:
         data_proxima = datas[-1] + timedelta(days=1)
 
         # Modelo 1: Média móvel simples (SMA) com ponderação
-        sma_5d = statistics.mean(valores[-5:]) if len(valores) >= 5 else statistics.mean(valores)
+        sma_5d = (
+            statistics.mean(valores[-5:])
+            if len(valores) >= 5
+            else statistics.mean(valores)
+        )
         sma_10d = statistics.mean(valores[-10:]) if len(valores) >= 10 else sma_5d
 
         # Calcular tendência
@@ -76,7 +81,7 @@ class Forecaster:
 
         log.info(
             f"[forecaster] Previsoes geradas para 7 dias: "
-            f"custo_estimado_medio=${sum(p.custo_estimado for p in predicoes)/7:.2f}"
+            f"custo_estimado_medio=${sum(p.custo_estimado for p in predicoes) / 7:.2f}"
         )
 
         return predicoes
@@ -84,7 +89,7 @@ class Forecaster:
     async def prever_custos_30d(self) -> List[PrevisaoCustos]:
         """Prevê custos para os próximos 30 dias"""
         historico = self.cost_tracker.obter_gastos_diarios(dias=self.tamanho_historico)
-        custos = [v for v in sorted(historico.items())[-self.tamanho_historico:]]
+        custos = [v for v in sorted(historico.items())[-self.tamanho_historico :]]
 
         if not custos:
             return []
@@ -118,10 +123,7 @@ class Forecaster:
 
             # Intervalo de confiança aumenta com distância
             margem = 0.15 + (i * 0.01)
-            intervalo = (
-                valor_previsto * (1 - margem),
-                valor_previsto * (1 + margem)
-            )
+            intervalo = (valor_previsto * (1 - margem), valor_previsto * (1 + margem))
 
             predicao = PrevisaoCustos(
                 data=data_proxima + timedelta(days=i),
@@ -136,7 +138,7 @@ class Forecaster:
         log.info(
             f"[forecaster] Previsao 30d: "
             f"custo_estimado_total=${custo_total_30d:.2f}, "
-            f"media_diaria=${custo_total_30d/30:.2f}"
+            f"media_diaria=${custo_total_30d / 30:.2f}"
         )
 
         return predicoes

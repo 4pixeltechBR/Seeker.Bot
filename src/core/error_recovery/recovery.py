@@ -2,8 +2,7 @@
 
 import logging
 from enum import Enum
-from typing import Optional, Dict, Callable, Any
-from datetime import datetime
+from typing import Optional, Dict
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerState
 from .telemetry import ErrorTelemetry, ErrorCategory, ErrorSeverity, ErrorAlert
@@ -14,10 +13,11 @@ log = logging.getLogger("seeker.error_recovery")
 
 class RecoveryStrategy(Enum):
     """Recovery strategies"""
-    RETRY = "retry"                    # Retry with backoff
-    FALLBACK = "fallback"              # Try alternative provider
-    DEGRADE = "degrade"                # Reduce functionality
-    CIRCUIT_BREAK = "circuit_break"    # Stop calling provider
+
+    RETRY = "retry"  # Retry with backoff
+    FALLBACK = "fallback"  # Try alternative provider
+    DEGRADE = "degrade"  # Reduce functionality
+    CIRCUIT_BREAK = "circuit_break"  # Stop calling provider
 
 
 class ErrorRecoveryManager:
@@ -33,12 +33,12 @@ class ErrorRecoveryManager:
 
         # Recovery strategy mapping
         self._recovery_strategies: Dict[int, RecoveryStrategy] = {
-            429: RecoveryStrategy.RETRY,         # Too Many Requests
-            500: RecoveryStrategy.RETRY,         # Server error
-            503: RecoveryStrategy.RETRY,         # Service Unavailable
-            401: RecoveryStrategy.FALLBACK,      # Unauthorized
-            404: RecoveryStrategy.FALLBACK,      # Not Found
-            408: RecoveryStrategy.RETRY,         # Request Timeout
+            429: RecoveryStrategy.RETRY,  # Too Many Requests
+            500: RecoveryStrategy.RETRY,  # Server error
+            503: RecoveryStrategy.RETRY,  # Service Unavailable
+            401: RecoveryStrategy.FALLBACK,  # Unauthorized
+            404: RecoveryStrategy.FALLBACK,  # Not Found
+            408: RecoveryStrategy.RETRY,  # Request Timeout
         }
 
         log.info("[recovery] ErrorRecoveryManager initialized")
@@ -126,9 +126,13 @@ class ErrorRecoveryManager:
 
         # Escalate to minimal degradation on alert
         if alert.severity == ErrorSeverity.CRITICAL:
-            self._degradation.set_provider_status(provider=alert.provider, level=DegradationLevel.OFFLINE)
+            self._degradation.set_provider_status(
+                provider=alert.provider, level=DegradationLevel.OFFLINE
+            )
         elif alert.severity == ErrorSeverity.HIGH:
-            self._degradation.set_provider_status(provider=alert.provider, level=DegradationLevel.MINIMAL)
+            self._degradation.set_provider_status(
+                provider=alert.provider, level=DegradationLevel.MINIMAL
+            )
 
     def get_recovery_status(self) -> dict:
         """Get comprehensive recovery status"""

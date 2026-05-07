@@ -3,15 +3,18 @@ import logging
 import urllib.request
 import urllib.error
 import subprocess
-import os
 import time
 
 from src.core.goals.protocol import (
-    AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel
+    GoalBudget,
+    GoalResult,
+    GoalStatus,
+    NotificationChannel,
 )
 from src.core.pipeline import SeekerPipeline
 
 log = logging.getLogger("seeker.health")
+
 
 class SystemHealthMonitor:
     """
@@ -47,29 +50,33 @@ class SystemHealthMonitor:
 
     async def run_cycle(self) -> GoalResult:
         self._status = GoalStatus.RUNNING
-        
+
         alerts = []
-        
+
         # 1. Checagem de Recursos Físicos
         cpu_usage = psutil.cpu_percent(interval=1.0)
         if cpu_usage > 95.0:
             alerts.append(f"🔥 CPU em nível crítico: {cpu_usage}%")
-            
+
         ram = psutil.virtual_memory()
         if ram.percent > 95.0:
-            alerts.append(f"🧠 RAM quase esgotada: {ram.percent}% (Livre: {ram.available / (1024**3):.1f} GB)")
+            alerts.append(
+                f"🧠 RAM quase esgotada: {ram.percent}% (Livre: {ram.available / (1024**3):.1f} GB)"
+            )
 
         # Checa disco primário e drives estendidos
-        for disk in ['C:\\', 'D:\\', 'E:\\', 'H:\\']:
+        for disk in ["C:\\", "D:\\", "E:\\", "H:\\"]:
             try:
                 usage = psutil.disk_usage(disk)
                 free_gb = usage.free / (1024**3)
-                
+
                 # C: tem threshold menor (4GB), outros drivers maior (15GB)
-                threshold = 4.0 if disk.upper().startswith('C') else 15.0
-                
+                threshold = 4.0 if disk.upper().startswith("C") else 15.0
+
                 if free_gb < threshold:
-                    alerts.append(f"💾 Disco {disk} com pouco espaço: {free_gb:.1f} GB livres")
+                    alerts.append(
+                        f"💾 Disco {disk} com pouco espaço: {free_gb:.1f} GB livres"
+                    )
             except Exception:
                 pass  # Ignora se o drive não existir
 
@@ -92,10 +99,12 @@ class SystemHealthMonitor:
                     subprocess.Popen(
                         "ollama serve",
                         shell=True,
-                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
                     )
                     self._last_ollama_restart = now
-                    alerts.append("🔴 Ollama caiu. Disparei o processo de auto-cura (ollama serve).")
+                    alerts.append(
+                        "🔴 Ollama caiu. Disparei o processo de auto-cura (ollama serve)."
+                    )
                 except Exception as e:
                     alerts.append(f"🔴 Ollama caiu e falha na auto-cura: {e}")
             else:
@@ -104,18 +113,20 @@ class SystemHealthMonitor:
         self._status = GoalStatus.IDLE
 
         if alerts:
-            alert_text = "<b>🚨 ALERTA DE SAÚDE DO SISTEMA</b>\n\n" + "\n".join([f"• {a}" for a in alerts])
+            alert_text = "<b>🚨 ALERTA DE SAÚDE DO SISTEMA</b>\n\n" + "\n".join(
+                [f"• {a}" for a in alerts]
+            )
             return GoalResult(
                 success=True,
                 summary=f"Disparou {len(alerts)} alertas do sistema.",
                 notification=alert_text,
-                cost_usd=0.0
+                cost_usd=0.0,
             )
 
         return GoalResult(
             success=True,
             summary="Sistema operando nominalmente (CPU/RAM/Disco/Ollama OK).",
-            cost_usd=0.0
+            cost_usd=0.0,
         )
 
     def serialize_state(self) -> dict:

@@ -30,18 +30,20 @@ log = logging.getLogger("seeker.cascade")
 
 class CascadeRole(str, Enum):
     """Roles mapeados para Seeker.Bot tasks."""
-    PLAN = "planning"           # Task decomposition
-    REASONING = "reasoning"     # Deep thinking (DeepSeek Reasoner)
-    CODING = "coding"          # Code generation
-    VISION = "vision"          # Image understanding
-    CREATIVE = "creative"      # Copywriting, content
-    FAST = "fast"              # Quick classifications
+
+    PLAN = "planning"  # Task decomposition
+    REASONING = "reasoning"  # Deep thinking (DeepSeek Reasoner)
+    CODING = "coding"  # Code generation
+    VISION = "vision"  # Image understanding
+    CREATIVE = "creative"  # Copywriting, content
+    FAST = "fast"  # Quick classifications
     EXTRACTION = "extraction"  # Fact/data extraction
 
 
 @dataclass
 class CascadeState:
     """Tracks cascade execution."""
+
     role: CascadeRole
     tier: int
     provider: str
@@ -63,28 +65,28 @@ class CascadeAdapter:
         # Routing por role (simplificado para Seeker.Bot)
         self.role_routes = {
             CascadeRole.PLAN: [
-                CognitiveRole.SYNTHESIS,      # DeepSeek (primo de OpenAI)
-                CognitiveRole.SYNTHESIS,      # Fallback to secondary
+                CognitiveRole.SYNTHESIS,  # DeepSeek (primo de OpenAI)
+                CognitiveRole.SYNTHESIS,  # Fallback to secondary
             ],
             CascadeRole.REASONING: [
-                CognitiveRole.SYNTHESIS,      # Deep reasoner
+                CognitiveRole.SYNTHESIS,  # Deep reasoner
             ],
             CascadeRole.CODING: [
                 CognitiveRole.SYNTHESIS,
                 CognitiveRole.FAST,
             ],
             CascadeRole.VISION: [
-                CognitiveRole.FAST,           # Gemini Flash (vision doesn't need deep reasoning)
+                CognitiveRole.FAST,  # Gemini Flash (vision doesn't need deep reasoning)
             ],
             CascadeRole.CREATIVE: [
-                CognitiveRole.FAST,           # Groq (rápido)
-                CognitiveRole.SYNTHESIS,      # Fallback
+                CognitiveRole.FAST,  # Groq (rápido)
+                CognitiveRole.SYNTHESIS,  # Fallback
             ],
             CascadeRole.FAST: [
-                CognitiveRole.FAST,           # Groq/Llama
+                CognitiveRole.FAST,  # Groq/Llama
             ],
             CascadeRole.EXTRACTION: [
-                CognitiveRole.FAST,           # Rápido é suficiente
+                CognitiveRole.FAST,  # Rápido é suficiente
                 CognitiveRole.SYNTHESIS,
             ],
         }
@@ -118,6 +120,7 @@ class CascadeAdapter:
     def get_health_status(self) -> dict:
         """Compatibility stub para /cascade_status funcionar sem crashar."""
         from datetime import datetime
+
         return {
             "timestamp": datetime.now().isoformat(),
             "overall_health": "100% (Simulado)",
@@ -128,9 +131,9 @@ class CascadeAdapter:
                     "avg_latency_ms": 0,
                     "avg_cost_usd": 0.0,
                     "fallback_count": 0,
-                    "last_error": ""
+                    "last_error": "",
                 }
-            }
+            },
         }
 
     def get_cost_analysis(self) -> dict:
@@ -140,9 +143,8 @@ class CascadeAdapter:
             "total_cost_usd": 0.0,
             "average_cost_per_call": 0.0,
             "estimated_savings_vs_nim": "$0.00",
-            "error_breakdown": {}
+            "error_breakdown": {},
         }
-
 
     def _is_circuit_open(self, provider: str) -> bool:
         """Verifica se provider está em circuit breaker."""
@@ -202,7 +204,9 @@ class CascadeAdapter:
                 role = CascadeRole.FAST
 
         t0 = time.perf_counter()
-        route = self.role_routes.get(role, [CognitiveRole.SYNTHESIS, CognitiveRole.FAST])
+        route = self.role_routes.get(
+            role, [CognitiveRole.SYNTHESIS, CognitiveRole.FAST]
+        )
 
         # Monta request uma vez
         req = LLMRequest(
@@ -221,7 +225,9 @@ class CascadeAdapter:
                 tier += 1
 
                 if self._is_circuit_open(provider):
-                    log.debug(f"[cascade] Tier {tier}: {provider} em circuit breaker, pulando")
+                    log.debug(
+                        f"[cascade] Tier {tier}: {provider} em circuit breaker, pulando"
+                    )
                     continue
 
                 log.info(
@@ -239,7 +245,9 @@ class CascadeAdapter:
                 if result:
                     self._record_success(provider)
                     elapsed_ms = int((time.perf_counter() - t0) * 1000)
-                    log.info(f"[cascade] ✅ Tier {tier} ({provider}) respondeu em {elapsed_ms}ms")
+                    log.info(
+                        f"[cascade] ✅ Tier {tier} ({provider}) respondeu em {elapsed_ms}ms"
+                    )
                     return {
                         "content": result.text,
                         "provider": provider,
@@ -249,7 +257,9 @@ class CascadeAdapter:
                     }
                 else:
                     self._record_failure(provider)
-                    log.debug(f"[cascade] Tier {tier}: {provider} falhou, tentando próximo")
+                    log.debug(
+                        f"[cascade] Tier {tier}: {provider} falhou, tentando próximo"
+                    )
 
         # Fallback final: sem resposta
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
@@ -276,7 +286,11 @@ class CascadeAdapter:
                 return None
             # Alguns modelos (ex: Nemotron) retornam só <think> — extrair conteúdo raw
             if not resp.text and resp.raw:
-                raw_content = resp.raw.get("choices", [{}])[0].get("message", {}).get("content", "")
+                raw_content = (
+                    resp.raw.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
                 if raw_content:
                     resp.text = raw_content
             return resp if resp.text else None

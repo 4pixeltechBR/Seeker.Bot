@@ -8,9 +8,8 @@ ActionHandler:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
 
-from .models import ActionStep, ExecutionResult, ActionStatus
+from .models import ActionStep, ExecutionResult
 
 logger = logging.getLogger("seeker.executor.base")
 
@@ -135,33 +134,59 @@ class ExecutorPolicy:
 
         # Bash whitelist (action type → commands)
         self.bash_whitelist_l2_silent = [
-            "ls", "cat", "grep", "find", "head", "tail", "wc",
-            "git status", "git log", "git diff", "npm list"
+            "ls",
+            "cat",
+            "grep",
+            "find",
+            "head",
+            "tail",
+            "wc",
+            "git status",
+            "git log",
+            "git diff",
+            "npm list",
         ]
         self.bash_whitelist_l1_logged = [
-            "mkdir", "touch", "cp", "mv", "echo", "git add", "git commit"
+            "mkdir",
+            "touch",
+            "cp",
+            "mv",
+            "echo",
+            "git add",
+            "git commit",
         ]
         self.bash_blacklist_l0_manual = [
-            "rm", "rmdir", "del", "chmod", "chown", "dd", "format",
-            "git reset --hard", "git push --force"
+            "rm",
+            "rmdir",
+            "del",
+            "chmod",
+            "chown",
+            "dd",
+            "format",
+            "git reset --hard",
+            "git push --force",
         ]
 
 
 class SafetyViolation(Exception):
     """Raised when action violates safety policy."""
+
     pass
 
 
 class ExecutionError(Exception):
     """Raised when action execution fails."""
+
     pass
 
 
 class ApprovalRequired(Exception):
     """Raised when L0_MANUAL action needs user approval."""
+
     pass
 
 
 class TimeoutError(ExecutionError):
     """Raised when action exceeds timeout."""
+
     pass

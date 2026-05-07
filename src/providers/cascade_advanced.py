@@ -16,7 +16,7 @@ import logging
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Tuple, Dict, List
+from typing import Optional, Dict, List
 from collections import deque, defaultdict
 from enum import Enum
 import time
@@ -26,6 +26,7 @@ log = logging.getLogger("seeker.cascade")
 
 class CascadeTier(Enum):
     """Tiers de fallback no Cascade"""
+
     TIER1_NIM = "nvidia_nim"
     TIER2_GROQ = "groq"
     TIER3_GEMINI = "gemini"
@@ -36,6 +37,7 @@ class CascadeTier(Enum):
 
 class ErrorType(Enum):
     """Tipos de erro que causam fallback"""
+
     TIMEOUT = "timeout"
     RATE_LIMIT = "rate_limit"
     CONNECTION = "connection"
@@ -48,6 +50,7 @@ class ErrorType(Enum):
 @dataclass
 class CascadeMetrics:
     """Métricas de um tier — rastreia performance e saúde"""
+
     tier: CascadeTier
     total_calls: int = 0
     successful_calls: int = 0
@@ -100,6 +103,7 @@ class CascadeMetrics:
 @dataclass
 class CascadeResult:
     """Resultado de uma chamada em cascade"""
+
     response: str
     tier_used: CascadeTier
     latency_ms: float
@@ -139,8 +143,7 @@ class CascadeAdapter:
 
         # Métricas de cada tier
         self.metrics: Dict[CascadeTier, CascadeMetrics] = {
-            tier: CascadeMetrics(tier=tier)
-            for tier in CascadeTier
+            tier: CascadeMetrics(tier=tier) for tier in CascadeTier
         }
 
         # Histórico de chamadas (últimas 100)
@@ -176,7 +179,11 @@ class CascadeAdapter:
         error_str = str(error).lower()
         error_type = type(error).__name__.lower()
 
-        if "timeout" in error_str or "asyncio.timeout" in error_str or "timeouterror" in error_type:
+        if (
+            "timeout" in error_str
+            or "asyncio.timeout" in error_str
+            or "timeouterror" in error_type
+        ):
             return ErrorType.TIMEOUT
         elif "429" in error_str or "rate" in error_str:
             return ErrorType.RATE_LIMIT
@@ -197,7 +204,7 @@ class CascadeAdapter:
         Define a ordem ideal de tiers para cada função específica.
         """
         role = role.upper()
-        
+
         # Ordem para tarefas rápidas/classificação
         if role == "FAST":
             return [
@@ -208,7 +215,7 @@ class CascadeAdapter:
                 CascadeTier.TIER5_OLLAMA,
                 CascadeTier.TIER6_DEGRADED,
             ]
-        
+
         # Ordem para raciocínio profundo
         elif role in ["DEEP", "REASONING"]:
             return [
@@ -219,16 +226,18 @@ class CascadeAdapter:
                 CascadeTier.TIER5_OLLAMA,
                 CascadeTier.TIER6_DEGRADED,
             ]
-        
+
         # Ordem para visão/OCR
         elif role == "VISION":
             # Proteção de VRAM: Se o sistema estiver ocupado, Gemini sobe para TIER 1
             if self._is_system_busy():
-                log.info("[cascade] Sistema ocupado (VRAM guardrail). Promovendo Gemini para Vision.")
+                log.info(
+                    "[cascade] Sistema ocupado (VRAM guardrail). Promovendo Gemini para Vision."
+                )
                 return [
                     CascadeTier.TIER3_GEMINI,
                     CascadeTier.TIER1_NIM,
-                    CascadeTier.TIER5_OLLAMA, # Ollama cai para última opção
+                    CascadeTier.TIER5_OLLAMA,  # Ollama cai para última opção
                     CascadeTier.TIER6_DEGRADED,
                 ]
             return [
@@ -237,7 +246,7 @@ class CascadeAdapter:
                 CascadeTier.TIER1_NIM,
                 CascadeTier.TIER6_DEGRADED,
             ]
-        
+
         # Padrão: BALANCED
         return [
             CascadeTier.TIER3_GEMINI,
@@ -254,6 +263,7 @@ class CascadeAdapter:
         Como não temos pynvml, checamos a fila de produção como proxy.
         """
         import os
+
         # Caminho relativo ao root do projeto Seeker/ViralClip
         # Ajustar se necessário para o caminho absoluto correto
         fila_path = os.path.join(os.getcwd(), "fila_producao.json")
@@ -290,7 +300,9 @@ class CascadeAdapter:
         for attempt, tier in enumerate(tiers_to_try):
             # Pular tiers unhealthy (roteamento inteligente)
             if not self.metrics[tier].is_healthy and tier != CascadeTier.TIER6_DEGRADED:
-                log.debug(f"[cascade] Pulando {tier.value} (unhealthy, success_rate={self.metrics[tier].success_rate:.0f}%)")
+                log.debug(
+                    f"[cascade] Pulando {tier.value} (unhealthy, success_rate={self.metrics[tier].success_rate:.0f}%)"
+                )
                 fallbacks_count += 1
                 continue
 
@@ -313,8 +325,8 @@ class CascadeAdapter:
                 self.metrics[tier].total_calls += 1
                 self.metrics[tier].latency_history.append(tier_latency_ms)
                 self.metrics[tier].avg_latency_ms = (
-                    (self.metrics[tier].avg_latency_ms + tier_latency_ms) / 2
-                )
+                    self.metrics[tier].avg_latency_ms + tier_latency_ms
+                ) / 2
                 self.metrics[tier].avg_cost_usd = result["cost"]
                 self.metrics[tier].last_health_check = datetime.utcnow()
 
@@ -395,8 +407,7 @@ class CascadeAdapter:
             if not provider:
                 raise RuntimeError("NVIDIA NIM não disponível")
             return await asyncio.wait_for(
-                provider.call(prompt, timeout=timeout),
-                timeout=timeout
+                provider.call(prompt, timeout=timeout), timeout=timeout
             )
 
         elif tier == CascadeTier.TIER2_GROQ:
@@ -404,8 +415,7 @@ class CascadeAdapter:
             if not provider:
                 raise RuntimeError("Groq não disponível")
             return await asyncio.wait_for(
-                provider.call(prompt, timeout=timeout),
-                timeout=timeout
+                provider.call(prompt, timeout=timeout), timeout=timeout
             )
 
         elif tier == CascadeTier.TIER3_GEMINI:
@@ -413,8 +423,7 @@ class CascadeAdapter:
             if not provider:
                 raise RuntimeError("Gemini não disponível")
             return await asyncio.wait_for(
-                provider.call(prompt, timeout=timeout),
-                timeout=timeout
+                provider.call(prompt, timeout=timeout), timeout=timeout
             )
 
         elif tier == CascadeTier.TIER4_DEEPSEEK:
@@ -422,8 +431,7 @@ class CascadeAdapter:
             if not provider:
                 raise RuntimeError("DeepSeek não disponível")
             return await asyncio.wait_for(
-                provider.call(prompt, timeout=timeout),
-                timeout=timeout
+                provider.call(prompt, timeout=timeout), timeout=timeout
             )
 
         elif tier == CascadeTier.TIER5_OLLAMA:
@@ -431,8 +439,7 @@ class CascadeAdapter:
             if not provider:
                 raise RuntimeError("Ollama local não disponível")
             return await asyncio.wait_for(
-                provider.call(prompt, timeout=timeout),
-                timeout=timeout
+                provider.call(prompt, timeout=timeout), timeout=timeout
             )
 
         elif tier == CascadeTier.TIER6_DEGRADED:
@@ -441,7 +448,6 @@ class CascadeAdapter:
                 "response": self._get_degraded_response(prompt),
                 "cost": 0.0,
             }
-
 
     def _get_degraded_response(self, prompt: str) -> str:
         """Gera resposta em modo degradado (sem LLM)"""
@@ -520,9 +526,8 @@ class CascadeAdapter:
             try:
                 # Tentar chamada simples rápida
                 test_prompt = "OK"
-                result = await asyncio.wait_for(
-                    self._call_tier(test_prompt, tier, timeout=5),
-                    timeout=5
+                await asyncio.wait_for(
+                    self._call_tier(test_prompt, tier, timeout=5), timeout=5
                 )
 
                 # Sucesso — atualizar último health check
@@ -554,7 +559,7 @@ class CascadeAdapter:
             return {
                 "total_calls": 0,
                 "total_cost_usd": 0.0,
-                "note": "Sem chamadas ainda"
+                "note": "Sem chamadas ainda",
             }
 
         average_tier_cost = total_cost / total_calls

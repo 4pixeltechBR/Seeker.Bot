@@ -1,16 +1,20 @@
 """AFK Protocol — User Status Tracking & Escalation (Track B3)"""
+
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
 
 log = logging.getLogger("executor.afk_protocol")
 
+
 class UserStatus(Enum):
     """Status do usuário"""
-    ONLINE = "online"          # Respondendo ativamente
-    IDLE = "idle"              # Offline mas sem ação manual necessária
-    AWAY = "away"              # AFK > 30 min
-    SLEEP = "sleep"            # AFK > 8h
+
+    ONLINE = "online"  # Respondendo ativamente
+    IDLE = "idle"  # Offline mas sem ação manual necessária
+    AWAY = "away"  # AFK > 30 min
+    SLEEP = "sleep"  # AFK > 8h
+
 
 class AFKProtocol:
     """Rastreia status do usuário e escalona ações quando AFK"""
@@ -91,7 +95,9 @@ class AFKProtocol:
 
         return False
 
-    async def escalate_if_needed(self, telegram_client, action_id: str, approval_tier: str):
+    async def escalate_if_needed(
+        self, telegram_client, action_id: str, approval_tier: str
+    ):
         """Escalona para Telegram se ação precisa aprovação manual"""
         if approval_tier == "l0_manual":
             msg = f"⚠️ Ação {action_id} requer aprovação manual. Responda com 'sim' ou 'não'"

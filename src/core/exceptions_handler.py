@@ -14,26 +14,29 @@ Pattern guidelines:
 """
 
 import logging
-from typing import Optional, Callable, Any, TypeVar
+from typing import Callable, TypeVar
 import asyncio
 
 log = logging.getLogger("seeker.exceptions")
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class CommandExecutionError(Exception):
     """Command execution failed with user-friendly message"""
+
     pass
 
 
 class PipelineError(Exception):
     """Pipeline operation failed"""
+
     pass
 
 
 class ServiceError(Exception):
     """External service operation failed"""
+
     pass
 
 
@@ -67,9 +70,10 @@ async def safe_command_execution(
         # Se é callable mas não coroutine, chamar
         if callable(operation) and not asyncio.iscoroutine(operation):
             result = await asyncio.wait_for(
-                asyncio.create_task(operation()) if asyncio.iscoroutinefunction(operation) else
-                asyncio.to_thread(operation),
-                timeout=timeout
+                asyncio.create_task(operation())
+                if asyncio.iscoroutinefunction(operation)
+                else asyncio.to_thread(operation),
+                timeout=timeout,
             )
         else:
             result = await asyncio.wait_for(operation, timeout=timeout)
@@ -79,7 +83,7 @@ async def safe_command_execution(
     except asyncio.TimeoutError:
         log.warning(
             f"[{operation_name}] Timeout após {timeout}s",
-            extra={"context": operation_name}
+            extra={"context": operation_name},
         )
         return False, f"⏱️ Timeout: operação demorou mais de {timeout}s"
 
@@ -87,7 +91,7 @@ async def safe_command_execution(
         log.error(
             f"[{operation_name}] Erro de validação: {e}",
             exc_info=True,
-            extra={"context": operation_name, "error_type": "ValueError"}
+            extra={"context": operation_name, "error_type": "ValueError"},
         )
         return False, f"❌ Erro de validação: {str(e)[:100]}"
 
@@ -95,17 +99,17 @@ async def safe_command_execution(
         log.error(
             f"[{operation_name}] Chave não encontrada: {e}",
             exc_info=True,
-            extra={"context": operation_name, "error_type": "KeyError"}
+            extra={"context": operation_name, "error_type": "KeyError"},
         )
-        return False, f"❌ Erro de configuração: chave não encontrada"
+        return False, "❌ Erro de configuração: chave não encontrada"
 
     except AttributeError as e:
         log.error(
             f"[{operation_name}] Atributo não encontrado: {e}",
             exc_info=True,
-            extra={"context": operation_name, "error_type": "AttributeError"}
+            extra={"context": operation_name, "error_type": "AttributeError"},
         )
-        return False, f"❌ Erro de estrutura: recurso não disponível"
+        return False, "❌ Erro de estrutura: recurso não disponível"
 
     except asyncio.CancelledError:
         log.info(f"[{operation_name}] Operação cancelada")
@@ -115,7 +119,7 @@ async def safe_command_execution(
         log.error(
             f"[{operation_name}] Erro de I/O: {e}",
             exc_info=True,
-            extra={"context": operation_name, "error_type": type(e).__name__}
+            extra={"context": operation_name, "error_type": type(e).__name__},
         )
         return False, "❌ Erro ao acessar arquivo ou recurso"
 
@@ -124,7 +128,7 @@ async def safe_command_execution(
         log.critical(
             f"[{operation_name}] Erro inesperado: {e}",
             exc_info=True,
-            extra={"context": operation_name, "error_type": type(e).__name__}
+            extra={"context": operation_name, "error_type": type(e).__name__},
         )
         return False, f"{default_response}: {str(e)[:80]}"
 
@@ -142,6 +146,7 @@ def handle_command_error(
           result = await pipeline.test_email()
           return "✅ Email testado com sucesso"
     """
+
     def decorator(func: Callable) -> Callable:
         async def wrapper(*args, **kwargs) -> str:
             try:
@@ -150,14 +155,13 @@ def handle_command_error(
             except (ValueError, KeyError) as e:
                 log.error(
                     f"[{operation_name}] Erro de validação/configuração: {e}",
-                    exc_info=True
+                    exc_info=True,
                 )
                 return f"{user_facing_message}: {str(e)[:100]}"
 
             except AttributeError as e:
                 log.error(
-                    f"[{operation_name}] Recurso não disponível: {e}",
-                    exc_info=True
+                    f"[{operation_name}] Recurso não disponível: {e}", exc_info=True
                 )
                 return f"{user_facing_message}: Recurso não configurado"
 
@@ -166,11 +170,9 @@ def handle_command_error(
                 return "⏱️ Timeout: a operação demorou muito tempo"
 
             except Exception as e:
-                log.critical(
-                    f"[{operation_name}] Erro inesperado: {e}",
-                    exc_info=True
-                )
+                log.critical(f"[{operation_name}] Erro inesperado: {e}", exc_info=True)
                 return f"{user_facing_message}"
 
         return wrapper
+
     return decorator

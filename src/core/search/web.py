@@ -61,13 +61,13 @@ class SearchResponse:
 
 class SearchBackend(ABC):
     @abstractmethod
-    async def search(self, query: str, max_results: int = 5) -> SearchResponse:
-        ...
+    async def search(self, query: str, max_results: int = 5) -> SearchResponse: ...
 
 
 # ─────────────────────────────────────────────────────────────────────
 # TAVILY — PRIMARY: AI-native search
 # ─────────────────────────────────────────────────────────────────────
+
 
 class TavilyBackend(SearchBackend):
     """
@@ -100,14 +100,16 @@ class TavilyBackend(SearchBackend):
 
                 results = []
                 for i, r in enumerate(data.get("results", [])):
-                    results.append(SearchResult(
-                        title=r.get("title", ""),
-                        url=r.get("url", ""),
-                        snippet=r.get("content", ""),
-                        source="tavily",
-                        position=i + 1,
-                        score=r.get("score", 0.0),
-                    ))
+                    results.append(
+                        SearchResult(
+                            title=r.get("title", ""),
+                            url=r.get("url", ""),
+                            snippet=r.get("content", ""),
+                            source="tavily",
+                            position=i + 1,
+                            score=r.get("score", 0.0),
+                        )
+                    )
 
                 return SearchResponse(query=query, results=results, backend="tavily")
         except Exception as e:
@@ -118,6 +120,7 @@ class TavilyBackend(SearchBackend):
 # ─────────────────────────────────────────────────────────────────────
 # BRAVE — FALLBACK: índice independente
 # ─────────────────────────────────────────────────────────────────────
+
 
 class BraveBackend(SearchBackend):
     """
@@ -147,13 +150,15 @@ class BraveBackend(SearchBackend):
 
                 results = []
                 for i, r in enumerate(data.get("web", {}).get("results", [])):
-                    results.append(SearchResult(
-                        title=r.get("title", ""),
-                        url=r.get("url", ""),
-                        snippet=r.get("description", ""),
-                        source="brave",
-                        position=i + 1,
-                    ))
+                    results.append(
+                        SearchResult(
+                            title=r.get("title", ""),
+                            url=r.get("url", ""),
+                            snippet=r.get("description", ""),
+                            source="brave",
+                            position=i + 1,
+                        )
+                    )
 
                 return SearchResponse(query=query, results=results, backend="brave")
         except Exception as e:
@@ -165,11 +170,13 @@ class BraveBackend(SearchBackend):
 # PAGE FETCHER
 # ─────────────────────────────────────────────────────────────────────
 
+
 async def fetch_page_text(url: str, max_chars: int = 5000) -> str:
     """Busca conteúdo textual de uma URL."""
     try:
         async with httpx.AsyncClient(
-            timeout=15.0, follow_redirects=True,
+            timeout=15.0,
+            follow_redirects=True,
             headers={"User-Agent": "SeekerBot/1.0 (research agent)"},
         ) as client:
             resp = await client.get(url)
@@ -179,6 +186,7 @@ async def fetch_page_text(url: str, max_chars: int = 5000) -> str:
 
             import re
             import html as html_mod
+
             text = resp.text
             text = re.sub(r"<script[^>]*>.*?</script>", "", text, flags=re.DOTALL)
             text = re.sub(r"<style[^>]*>.*?</style>", "", text, flags=re.DOTALL)
@@ -194,10 +202,11 @@ async def fetch_page_text(url: str, max_chars: int = 5000) -> str:
 # WEB SEARCHER — Tavily → Brave
 # ─────────────────────────────────────────────────────────────────────
 
+
 class WebSearcher:
     """
     Tavily (primary) → Brave (fallback).
-    
+
     Uso:
         searcher = WebSearcher(tavily_key="tvly-...", brave_key="BSA...")
         results = await searcher.search("MCP Anthropic 2026")
@@ -233,11 +242,13 @@ class WebSearcher:
         return SearchResponse(query=query)
 
     async def search_multiple(
-        self, queries: list[str], max_results_per_query: int = 3,
+        self,
+        queries: list[str],
+        max_results_per_query: int = 3,
     ) -> list[SearchResponse]:
-        return await asyncio.gather(*[
-            self.search(q, max_results_per_query) for q in queries
-        ])
+        return await asyncio.gather(
+            *[self.search(q, max_results_per_query) for q in queries]
+        )
 
     async def fetch(self, url: str, max_chars: int = 5000) -> str:
         return await fetch_page_text(url, max_chars)

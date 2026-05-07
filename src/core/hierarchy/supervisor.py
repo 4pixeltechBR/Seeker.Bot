@@ -8,9 +8,7 @@ import asyncio
 import logging
 import time
 from typing import Optional, Any
-from datetime import datetime
 
-from langgraph.graph import StateGraph, START, END
 
 from ..router.cognitive_load import CognitiveLoadRouter, CognitiveDepth
 from .interfaces import (
@@ -98,12 +96,27 @@ class Supervisor:
 
     def _should_use_vision(self, text: str) -> bool:
         """Detect if vision crew is needed"""
-        vision_keywords = ["screenshot", "tela", "imagem", "image", "ocr", "read screen", "visual"]
+        vision_keywords = [
+            "screenshot",
+            "tela",
+            "imagem",
+            "image",
+            "ocr",
+            "read screen",
+            "visual",
+        ]
         return any(kw in text.lower() for kw in vision_keywords)
 
     def _should_use_admin(self, text: str) -> bool:
         """Detect if admin crew is needed"""
-        admin_keywords = ["config", "configuração", "optimize", "otimiza", "skill", "criar agent"]
+        admin_keywords = [
+            "config",
+            "configuração",
+            "optimize",
+            "otimiza",
+            "skill",
+            "criar agent",
+        ]
         return any(kw in text.lower() for kw in admin_keywords)
 
     async def _node_execute_crews(self, state_dict: dict) -> dict[str, Any]:
@@ -252,9 +265,7 @@ class Supervisor:
 
             # Calculate totals
             total_cost = sum(r.cost_usd for r in crew_results.values())
-            max_latency = max(
-                (r.latency_ms for r in crew_results.values()), default=0
-            )
+            max_latency = max((r.latency_ms for r in crew_results.values()), default=0)
 
         log.debug(
             f"Compiled response: cost=${total_cost:.3f}, "

@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from collections import deque
 from statistics import median, quantiles
-from datetime import datetime, timedelta
+from datetime import datetime
 
 log = logging.getLogger("seeker.sprint11")
 
@@ -20,6 +20,7 @@ log = logging.getLogger("seeker.sprint11")
 @dataclass
 class LatencyMetrics:
     """Métricas de latência com percentis"""
+
     measurements: deque = field(default_factory=lambda: deque(maxlen=1000))
 
     def record(self, latency_ms: float) -> None:
@@ -75,13 +76,14 @@ class LatencyMetrics:
             "avg": f"{self.avg:.1f}ms",
             "min": f"{self.min:.1f}ms",
             "max": f"{self.max:.1f}ms",
-            "samples": len(self.measurements)
+            "samples": len(self.measurements),
         }
 
 
 @dataclass
 class CacheMetrics:
     """Métricas de cache LRU"""
+
     total_lookups: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
@@ -116,6 +118,7 @@ class CacheMetrics:
 @dataclass
 class CascadeMetrics:
     """Métricas de cascade fallback"""
+
     tier1_calls: int = 0  # NVIDIA
     tier1_success: int = 0
     tier2_calls: int = 0  # Groq
@@ -138,12 +141,27 @@ class CascadeMetrics:
     @property
     def fallback_frequency(self) -> float:
         """% de chamadas que precisou fallback (não Tier 1)"""
-        total = sum([self.tier1_calls, self.tier2_calls, self.tier3_calls,
-                     self.tier4_calls, self.tier5_calls, self.tier6_calls])
+        total = sum(
+            [
+                self.tier1_calls,
+                self.tier2_calls,
+                self.tier3_calls,
+                self.tier4_calls,
+                self.tier5_calls,
+                self.tier6_calls,
+            ]
+        )
         if total == 0:
             return 0.0
-        fallback = sum([self.tier2_calls, self.tier3_calls, self.tier4_calls,
-                        self.tier5_calls, self.tier6_calls])
+        fallback = sum(
+            [
+                self.tier2_calls,
+                self.tier3_calls,
+                self.tier4_calls,
+                self.tier5_calls,
+                self.tier6_calls,
+            ]
+        )
         return (fallback / total) * 100
 
     def get_stats(self) -> dict:
@@ -163,6 +181,7 @@ class CascadeMetrics:
 @dataclass
 class BatchMetrics:
     """Métricas de batch consolidation"""
+
     total_operations: int = 0
     successful_operations: int = 0
     failed_operations: int = 0
@@ -199,22 +218,27 @@ class BatchMetrics:
 @dataclass
 class RemoteExecutorMetrics:
     """Métricas do Remote Executor — execução de ações autônomas"""
-    total_plans: int = 0                    # Planos criados
-    successful_executions: int = 0          # Execuções bem-sucedidas
-    failed_executions: int = 0              # Execuções falhadas
-    rollback_executions: int = 0            # Ações com rollback
-    l0_manual_enqueued: int = 0             # Ações L0 enfileiradas
-    l0_manual_approved: int = 0             # Ações L0 aprovadas
-    l0_manual_rejected: int = 0             # Ações L0 rejeitadas
-    l1_logged_executed: int = 0             # Ações L1 auto-executadas
-    l2_silent_executed: int = 0             # Ações L2 auto-executadas
-    total_cost_usd: float = 0.0             # Custo total acumulado
+
+    total_plans: int = 0  # Planos criados
+    successful_executions: int = 0  # Execuções bem-sucedidas
+    failed_executions: int = 0  # Execuções falhadas
+    rollback_executions: int = 0  # Ações com rollback
+    l0_manual_enqueued: int = 0  # Ações L0 enfileiradas
+    l0_manual_approved: int = 0  # Ações L0 aprovadas
+    l0_manual_rejected: int = 0  # Ações L0 rejeitadas
+    l1_logged_executed: int = 0  # Ações L1 auto-executadas
+    l2_silent_executed: int = 0  # Ações L2 auto-executadas
+    total_cost_usd: float = 0.0  # Custo total acumulado
     execution_latency_ms: deque = field(default_factory=lambda: deque(maxlen=500))
 
     @property
     def total_executed(self) -> int:
         """Total de ações executadas (sucesso + falha + rollback)"""
-        return self.successful_executions + self.failed_executions + self.rollback_executions
+        return (
+            self.successful_executions
+            + self.failed_executions
+            + self.rollback_executions
+        )
 
     @property
     def execution_success_rate(self) -> float:
@@ -337,7 +361,9 @@ class Sprint11Tracker:
         """Registra um novo plano criado"""
         self.remote_executor.total_plans += 1
 
-    def record_remote_executor_execution(self, success: bool, execution_status: str, latency_ms: float, cost_usd: float) -> None:
+    def record_remote_executor_execution(
+        self, success: bool, execution_status: str, latency_ms: float, cost_usd: float
+    ) -> None:
         """
         Registra execução de ação.
 
@@ -394,28 +420,23 @@ class Sprint11Tracker:
 
         lines = [
             "🚀 <b>SPRINT 11 OPTIMIZATION METRICS</b>\n",
-            f"⏱️ Uptime: {uptime//3600}h {(uptime%3600)//60}m\n",
-
+            f"⏱️ Uptime: {uptime // 3600}h {(uptime % 3600) // 60}m\n",
             "<b>📊 LATÊNCIA (Percentis):</b>",
             f"  p50: {report['latency']['p50']} | p95: {report['latency']['p95']} | p99: {report['latency']['p99']}",
             f"  avg: {report['latency']['avg']} (samples: {report['latency']['samples']})\n",
-
             "<b>💾 CACHE (LRU):</b>",
             f"  Hit Rate: {report['cache']['hit_rate']}",
             f"  Hits: {report['cache']['cache_hits']} | Misses: {report['cache']['cache_misses']}",
             f"  Evictions: {report['cache']['total_evictions']}\n",
-
             "<b>🎯 CASCADE FALLBACK:</b>",
             f"  Tier 1 Success: {report['cascade']['tier1_success_rate']}",
             f"  Fallback Frequency: {report['cascade']['fallback_frequency']}",
             f"  Tier1: {report['cascade']['tier1_total']} | T2: {report['cascade']['tier2_total']} | T3: {report['cascade']['tier3_total']}\n",
-
             "<b>⚡ BATCH CONSOLIDATION:</b>",
             f"  Success Rate: {report['batch']['success_rate']}",
             f"  Consolidated: {report['batch']['commits_consolidated']} commits",
             f"  Commits Avoided: {report['batch']['commits_avoided']}",
             f"  Avg Latency: {report['batch']['avg_latency_per_batch']}\n",
-
             "<b>🤖 REMOTE EXECUTOR:</b>",
             f"  Plans: {report['remote_executor']['total_plans']}",
             f"  Executed: {report['remote_executor']['total_executed']} (Success: {report['remote_executor']['success_rate']})",

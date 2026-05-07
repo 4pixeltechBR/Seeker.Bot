@@ -29,10 +29,10 @@ log = logging.getLogger("seeker.search.headless")
 class HeadlessScraper:
     """Scraper headless via Playwright para extração de contatos."""
 
-    INSTAGRAM_TIMEOUT = 12_000   # ms
-    LINKTREE_TIMEOUT  = 10_000   # ms
-    JS_RENDER_WAIT    = 2_500    # ms — aguarda hydration do React/Next
-    LINKTREE_WAIT     = 2_000    # ms
+    INSTAGRAM_TIMEOUT = 12_000  # ms
+    LINKTREE_TIMEOUT = 10_000  # ms
+    JS_RENDER_WAIT = 2_500  # ms — aguarda hydration do React/Next
+    LINKTREE_WAIT = 2_000  # ms
 
     # User-Agent real para evitar detecção como bot
     USER_AGENT = (
@@ -54,14 +54,15 @@ class HeadlessScraper:
         try:
             from playwright.async_api import async_playwright
         except ImportError:
-            log.error("[headless] Playwright não instalado. Execute: pip install playwright && playwright install chromium")
+            log.error(
+                "[headless] Playwright não instalado. Execute: pip install playwright && playwright install chromium"
+            )
             return {"_erro": "playwright_not_installed"}
 
         handle = handle.lstrip("@").strip()
         if not handle:
             return {"_erro": "handle_vazio"}
 
-        url = f"https://www.instagram.com/{handle}/"
         result: dict = {
             "whatsapp": None,
             "email": None,
@@ -75,31 +76,31 @@ class HeadlessScraper:
         try:
             import os
             from src.core.search.web import WebSearcher
-            
+
             tavily_key = os.getenv("TAVILY_API_KEY", "")
             brave_key = os.getenv("BRAVE_API_KEY", "")
             searcher = WebSearcher(tavily_key=tavily_key, brave_key=brave_key)
-            
+
             query = f'site:instagram.com "@{handle}"'
             resp = await searcher.search(query, max_results=3)
-            
+
             bio_raw = ""
             for item in resp.results:
                 # O Instagram usa o título como "Name (@handle) • Instagram photos and videos"
                 # E o snippet como a bio. Vamos concatenar os snippets relevantes.
                 if handle.lower() in item.url.lower():
                     bio_raw += item.snippet + " "
-                    
+
             result["bio_raw"] = bio_raw.strip()
-            
+
             # --- Fallback regex sobre bio_raw (snippet OSINT) ---
             bio = result["bio_raw"]
-            
+
             # Tenta achar linktree na bio_raw do snippet
-            linktree_match = re.search(r'(linktr\.ee/[a-zA-Z0-9_\-]+)', bio)
+            linktree_match = re.search(r"(linktr\.ee/[a-zA-Z0-9_\-]+)", bio)
             if linktree_match:
                 result["linktree_url"] = f"https://{linktree_match.group(1)}"
-            
+
             if not result["email"] and bio:
                 found = re.findall(r"[\w.+\-]+@[\w\-]+\.[a-z]{2,}", bio)
                 if found:
@@ -118,11 +119,15 @@ class HeadlessScraper:
                         if not clean.startswith("55"):
                             clean = "55" + clean
                         result["whatsapp"] = f"https://wa.me/{clean}"
-                        
+
             # Se encontrou linktree, o extract_contacts_from_url fará o Playwright
             if result["linktree_url"]:
-                log.info(f"[headless] @{handle} -> Linktree encontrado ({result['linktree_url']}). Extraindo botões...")
-                linktree_data = await self.extract_contacts_from_url(result["linktree_url"])
+                log.info(
+                    f"[headless] @{handle} -> Linktree encontrado ({result['linktree_url']}). Extraindo botões..."
+                )
+                linktree_data = await self.extract_contacts_from_url(
+                    result["linktree_url"]
+                )
                 for key, val in linktree_data.items():
                     if val and not result.get(key):
                         result[key] = val
@@ -176,7 +181,15 @@ class HeadlessScraper:
                 elif href.startswith("mailto:"):
                     contacts["email"] = href.replace("mailto:", "").split("?")[0]
                 elif href.startswith("http") and any(
-                    k in text for k in ["site", "contato", "email", "fale", "orcamento", "orçamento"]
+                    k in text
+                    for k in [
+                        "site",
+                        "contato",
+                        "email",
+                        "fale",
+                        "orcamento",
+                        "orçamento",
+                    ]
                 ):
                     if not contacts["site"]:
                         contacts["site"] = href
@@ -199,10 +212,16 @@ class HeadlessScraper:
         try:
             async with async_playwright() as pw:
                 browser = await pw.chromium.launch(headless=True)
-                ctx = await browser.new_context(user_agent=self.USER_AGENT, locale="pt-BR")
+                ctx = await browser.new_context(
+                    user_agent=self.USER_AGENT, locale="pt-BR"
+                )
                 page = await ctx.new_page()
                 try:
-                    await page.goto(url, timeout=self.LINKTREE_TIMEOUT, wait_until="domcontentloaded")
+                    await page.goto(
+                        url,
+                        timeout=self.LINKTREE_TIMEOUT,
+                        wait_until="domcontentloaded",
+                    )
                     await page.wait_for_timeout(self.LINKTREE_WAIT)
                     # Extrai diretamente na página atual (sem re-navegar)
                     contacts = await self._extract_links_from_current_page(page)
@@ -241,7 +260,11 @@ class HeadlessScraper:
             handle_clean = handle.lstrip("@")
             score = (scores or {}).get(handle_clean, 10.0)
             if score < score_threshold:
-                log.debug(f"[headless] Pulando @{handle_clean} (score {score} < {score_threshold})")
+                log.debug(
+                    f"[headless] Pulando @{handle_clean} (score {score} < {score_threshold})"
+                )
                 continue
-            results[handle_clean] = await self.extract_contacts_from_instagram(handle_clean)
+            results[handle_clean] = await self.extract_contacts_from_instagram(
+                handle_clean
+            )
         return results

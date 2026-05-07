@@ -23,6 +23,7 @@ log = logging.getLogger("seeker.safety")
 
 class AutonomyTier(int, Enum):
     """Níveis de autonomia permitida."""
+
     L1 = 1  # Manual approval
     L2 = 2  # Reversible (write) → auto, irreversible → manual
     L3 = 3  # Autonomous (com proteções)
@@ -30,17 +31,19 @@ class AutonomyTier(int, Enum):
 
 class ActionType(str, Enum):
     """Tipos de ação com diferentes riscos."""
-    READ = "read"                  # Sem risco
-    WRITE = "write"                # Reversível
-    DELETE = "delete"              # Irreversível
-    EXEC = "exec"                  # Execução (scripts)
-    TRANSFER = "transfer"          # Transferência de dados
-    CONFIG = "config"              # Mudança de configuração
+
+    READ = "read"  # Sem risco
+    WRITE = "write"  # Reversível
+    DELETE = "delete"  # Irreversível
+    EXEC = "exec"  # Execução (scripts)
+    TRANSFER = "transfer"  # Transferência de dados
+    CONFIG = "config"  # Mudança de configuração
 
 
 @dataclass
 class ActionContext:
     """Contexto de uma ação para validação."""
+
     action: ActionType
     tier: AutonomyTier
     reason: str
@@ -72,8 +75,8 @@ class SafetyLayer:
 
         # Blacklist: ações NUNCA permitidas
         self._never_allowed = [
-            ActionType.DELETE,      # Deletion requer manual approval
-            ActionType.TRANSFER,    # Money transfer requer manual approval
+            ActionType.DELETE,  # Deletion requer manual approval
+            ActionType.TRANSFER,  # Money transfer requer manual approval
         ]
 
     def enable_kill_switch(self) -> None:
@@ -109,7 +112,7 @@ class SafetyLayer:
         if isinstance(tier, int):
             tier = AutonomyTier(tier)
 
-        ctx = ActionContext(
+        ActionContext(
             action=action,
             tier=tier,
             reason=reason,

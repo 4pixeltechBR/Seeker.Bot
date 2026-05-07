@@ -3,24 +3,24 @@
 from dataclasses import dataclass, field
 from typing import Dict
 from datetime import datetime
-from collections import deque
 
 
 @dataclass
 class RateLimitMetrics:
     """Métricas de uma tentativa de rate limit"""
+
     timestamp: datetime = field(default_factory=datetime.utcnow)
     provider: str = ""
     model: str = ""
 
     # Timing
     request_time: float = 0.0  # Quando foi requisitado
-    wait_time: float = 0.0      # Quanto aguardou (0 se nenhum)
-    retry_count: int = 0        # Quantas vezes foi retentado
+    wait_time: float = 0.0  # Quanto aguardou (0 se nenhum)
+    retry_count: int = 0  # Quantas vezes foi retentado
     backoff_delays: list = field(default_factory=list)  # Delays de cada retry
 
     # Headers
-    retry_after: float = 0.0    # Retry-After header value (segundos)
+    retry_after: float = 0.0  # Retry-After header value (segundos)
 
     # Status
     success: bool = True
@@ -46,6 +46,7 @@ class RateLimitMetrics:
 @dataclass
 class RateLimitStats:
     """Agregação de estatísticas de rate limiting"""
+
     provider: str
     model: str = ""
 
@@ -57,17 +58,17 @@ class RateLimitStats:
     total_failures: int = 0
 
     # Timing
-    total_wait_time: float = 0.0       # Segundos
+    total_wait_time: float = 0.0  # Segundos
     avg_wait_time: float = 0.0
     max_wait_time: float = 0.0
     total_backoff_time: float = 0.0
     avg_backoff_time: float = 0.0
 
     # Retry-After
-    max_retry_after: float = 0.0       # Maior Retry-After visto
+    max_retry_after: float = 0.0  # Maior Retry-After visto
 
     # Queue metrics
-    max_queue_size: int = 0            # Maior tamanho da queue observado
+    max_queue_size: int = 0  # Maior tamanho da queue observado
 
     @property
     def success_rate(self) -> float:

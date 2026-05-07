@@ -16,27 +16,36 @@ class SecretMasker:
     # Padrões de secrets a mascarar
     SECRET_PATTERNS = [
         # API Keys
-        (r'api[_-]?key\s*[=:]\s*["\']?([^\s"\']+)', 'api_key'),
-        (r'apikey\s*[=:]\s*["\']?([^\s"\']+)', 'api_key'),
+        (r'api[_-]?key\s*[=:]\s*["\']?([^\s"\']+)', "api_key"),
+        (r'apikey\s*[=:]\s*["\']?([^\s"\']+)', "api_key"),
         # Tokens
-        (r'token\s*[=:]\s*["\']?([^\s"\']{20,})', 'token'),
-        (r'bearer\s+([^\s]+)', 'bearer_token'),
+        (r'token\s*[=:]\s*["\']?([^\s"\']{20,})', "token"),
+        (r"bearer\s+([^\s]+)", "bearer_token"),
         # Database URLs
-        (r'postgresql://([^:]+):([^@]+)@', 'postgres_url'),
-        (r'mongodb://[^/]+:([^@]+)@', 'mongo_url'),
+        (r"postgresql://([^:]+):([^@]+)@", "postgres_url"),
+        (r"mongodb://[^/]+:([^@]+)@", "mongo_url"),
         # AWS Keys
-        (r'AKIA[0-9A-Z]{16}', 'aws_key_id'),
-        (r'aws_secret_access_key\s*[=:]\s*["\']?([^\s"\']+)', 'aws_secret'),
+        (r"AKIA[0-9A-Z]{16}", "aws_key_id"),
+        (r'aws_secret_access_key\s*[=:]\s*["\']?([^\s"\']+)', "aws_secret"),
         # Google API Keys
-        (r'AIza[0-9A-Za-z\-_]{35}', 'google_api_key'),
+        (r"AIza[0-9A-Za-z\-_]{35}", "google_api_key"),
         # JWT Tokens
-        (r'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}', 'jwt_token'),
+        (r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}", "jwt_token"),
         # Email addresses (partial masking)
-        (r'([a-zA-Z0-9._%+-]{1,3})[a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', 'email'),
+        (
+            r"([a-zA-Z0-9._%+-]{1,3})[a-zA-Z0-9._%+-]*@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
+            "email",
+        ),
         # Phone numbers
-        (r'\b(?:\+1|1)?[-.\s]?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b', 'phone'),
+        (
+            r"\b(?:\+1|1)?[-.\s]?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b",
+            "phone",
+        ),
         # Credit card numbers
-        (r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b', 'credit_card'),
+        (
+            r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\b",
+            "credit_card",
+        ),
     ]
 
     @classmethod
@@ -48,7 +57,9 @@ class SecretMasker:
         masked = str(message)
 
         for pattern, secret_type in cls.SECRET_PATTERNS:
-            masked = re.sub(pattern, f'***{secret_type}***', masked, flags=re.IGNORECASE)
+            masked = re.sub(
+                pattern, f"***{secret_type}***", masked, flags=re.IGNORECASE
+            )
 
         return masked
 
@@ -57,14 +68,23 @@ class SecretMasker:
         """Mascara secrets em um dicionário"""
         result = {}
         sensitive_keys = {
-            'password', 'secret', 'token', 'api_key', 'apikey',
-            'auth', 'credential', 'credentials', 'api_secret',
-            'aws_secret_access_key', 'private_key', 'key'
+            "password",
+            "secret",
+            "token",
+            "api_key",
+            "apikey",
+            "auth",
+            "credential",
+            "credentials",
+            "api_secret",
+            "aws_secret_access_key",
+            "private_key",
+            "key",
         }
 
         for key, value in data.items():
             if any(sensitive in key.lower() for sensitive in sensitive_keys):
-                result[key] = '***REDACTED***'
+                result[key] = "***REDACTED***"
             elif isinstance(value, str):
                 result[key] = cls.mask(value)
             elif isinstance(value, dict):

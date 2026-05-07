@@ -1,7 +1,6 @@
 """System Profiler - Collect and Aggregate Performance Metrics"""
 
 import cProfile
-import pstats
 import psutil
 import asyncio
 import logging
@@ -32,9 +31,7 @@ class SystemProfiler:
             start_time = asyncio.get_running_loop().time()
 
         metric = PerformanceMetrics(
-            goal_id=goal_id,
-            phase_name=phase_name,
-            start_time=start_time
+            goal_id=goal_id, phase_name=phase_name, start_time=start_time
         )
 
         # Iniciar cProfile
@@ -43,7 +40,7 @@ class SystemProfiler:
         self.active_profiles[f"{goal_id}_{phase_name}"] = {
             "profile": pr,
             "metric": metric,
-            "memory_start": self.process.memory_info().rss / 1024 / 1024
+            "memory_start": self.process.memory_info().rss / 1024 / 1024,
         }
 
         return metric
@@ -59,7 +56,7 @@ class SystemProfiler:
         provider: str = "",
         model: str = "",
         success: bool = True,
-        error_msg: str = ""
+        error_msg: str = "",
     ) -> Optional[PerformanceMetrics]:
         """Finaliza profiling e retorna métricas"""
 
@@ -83,7 +80,9 @@ class SystemProfiler:
             end_time = asyncio.get_running_loop().time()
 
         metric.end_time = end_time
-        metric.memory_mb = self.process.memory_info().rss / 1024 / 1024 - prof_data["memory_start"]
+        metric.memory_mb = (
+            self.process.memory_info().rss / 1024 / 1024 - prof_data["memory_start"]
+        )
         try:
             metric.cpu_percent = self.process.cpu_percent(interval=0.01)
         except:
@@ -115,10 +114,7 @@ class SystemProfiler:
         goal_id = metric.goal_id
 
         if goal_id not in self.goal_metrics:
-            self.goal_metrics[goal_id] = GoalMetrics(
-                goal_id=goal_id,
-                goal_name=goal_id
-            )
+            self.goal_metrics[goal_id] = GoalMetrics(goal_id=goal_id, goal_name=goal_id)
 
         goal = self.goal_metrics[goal_id]
         goal.cycles_total += 1
@@ -140,19 +136,23 @@ class SystemProfiler:
 
         # Provider breakdown
         if metric.provider:
-            goal.provider_costs[metric.provider] = goal.provider_costs.get(metric.provider, 0) + metric.cost_usd
-            goal.provider_calls[metric.provider] = goal.provider_calls.get(metric.provider, 0) + 1
+            goal.provider_costs[metric.provider] = (
+                goal.provider_costs.get(metric.provider, 0) + metric.cost_usd
+            )
+            goal.provider_calls[metric.provider] = (
+                goal.provider_calls.get(metric.provider, 0) + 1
+            )
 
         # Phase breakdown
         if metric.phase_name:
             goal.phase_latencies[metric.phase_name] = metric.latency_ms
 
-    def get_worst_offenders(self, limit: int = 10, metric: str = "latency_ms") -> List[PerformanceMetrics]:
+    def get_worst_offenders(
+        self, limit: int = 10, metric: str = "latency_ms"
+    ) -> List[PerformanceMetrics]:
         """Retorna as piores métricas (latência mais alta, etc)"""
         sorted_history = sorted(
-            self.history,
-            key=lambda m: getattr(m, metric, 0),
-            reverse=True
+            self.history, key=lambda m: getattr(m, metric, 0), reverse=True
         )
         return sorted_history[:limit]
 

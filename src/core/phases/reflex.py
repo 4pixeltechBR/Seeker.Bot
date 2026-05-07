@@ -27,9 +27,31 @@ class ReflexPhase:
         # Respostas de sistema — zero LLM
         if ctx.decision.forced_module == "system_time":
             from datetime import datetime
+
             now = datetime.now()
-            dias = ["segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado", "domingo"]
-            meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"]
+            dias = [
+                "segunda-feira",
+                "terça-feira",
+                "quarta-feira",
+                "quinta-feira",
+                "sexta-feira",
+                "sábado",
+                "domingo",
+            ]
+            meses = [
+                "janeiro",
+                "fevereiro",
+                "março",
+                "abril",
+                "maio",
+                "junho",
+                "julho",
+                "agosto",
+                "setembro",
+                "outubro",
+                "novembro",
+                "dezembro",
+            ]
             resposta = (
                 f"Hoje é {dias[now.weekday()]}, "
                 f"{now.day} de {meses[now.month - 1]} de {now.year}. "

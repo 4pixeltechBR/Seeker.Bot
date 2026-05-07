@@ -15,7 +15,7 @@ Handles Scout 2.0 integration:
 import logging
 import time
 import random
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
 from ..interfaces import CrewRequest, CrewResult, CrewPriority
 from . import BaseCrew
@@ -28,12 +28,23 @@ class HunterCrew(BaseCrew):
 
     # Default regions and niches for prospecting
     TARGET_REGIONS = [
-        "Goiânia", "Brasília", "Anápolis", "Aparecida de Goiás",
-        "São Paulo", "Rio de Janeiro", "Belo Horizonte", "Salvador",
+        "Goiânia",
+        "Brasília",
+        "Anápolis",
+        "Aparecida de Goiás",
+        "São Paulo",
+        "Rio de Janeiro",
+        "Belo Horizonte",
+        "Salvador",
     ]
 
     TARGET_NICHES = [
-        "eventos", "casamento", "corporativo", "agro", "shows", "conferências",
+        "eventos",
+        "casamento",
+        "corporativo",
+        "agro",
+        "shows",
+        "conferências",
     ]
 
     def __init__(self):
@@ -55,15 +66,24 @@ class HunterCrew(BaseCrew):
         start_time = time.time()
 
         user_input = request.user_input.lower()
-        memory_context = request.memory_context or []
 
         # ──────────────────────────────────────────────────────────
         # DETECT PROSPECTING INTENT
         # ──────────────────────────────────────────────────────────
         is_prospecting = any(
-            kw in user_input for kw in
-            ["find leads", "prospect", "gera leads", "oportunidades", "leads",
-             "vendors", "fornecedores", "organizers", "organizadores", "hunting"]
+            kw in user_input
+            for kw in [
+                "find leads",
+                "prospect",
+                "gera leads",
+                "oportunidades",
+                "leads",
+                "vendors",
+                "fornecedores",
+                "organizers",
+                "organizadores",
+                "hunting",
+            ]
         )
 
         if not is_prospecting:
@@ -101,21 +121,24 @@ class HunterCrew(BaseCrew):
         self._leads_found += campaign_result["leads_found"]
         self._leads_qualified += campaign_result["leads_qualified"]
 
-        self._campaign_history.append({
-            "timestamp": time.time(),
-            "region": region,
-            "niche": niche,
-            "leads_found": campaign_result["leads_found"],
-            "leads_qualified": campaign_result["leads_qualified"],
-            "cost": campaign_result["cost_usd"]
-        })
+        self._campaign_history.append(
+            {
+                "timestamp": time.time(),
+                "region": region,
+                "niche": niche,
+                "leads_found": campaign_result["leads_found"],
+                "leads_qualified": campaign_result["leads_qualified"],
+                "cost": campaign_result["cost_usd"],
+            }
+        )
         if len(self._campaign_history) > 20:
             self._campaign_history.pop(0)
 
         # Confidence based on qualification rate
         qual_rate = (
             campaign_result["leads_qualified"] / campaign_result["leads_found"]
-            if campaign_result["leads_found"] > 0 else 0
+            if campaign_result["leads_found"] > 0
+            else 0
         )
         confidence = min(0.85, 0.65 + (qual_rate * 0.20))
 
@@ -180,10 +203,7 @@ class HunterCrew(BaseCrew):
         }
 
     def _build_campaign_response(
-        self,
-        campaign: Dict[str, Any],
-        region: str,
-        niche: str
+        self, campaign: Dict[str, Any], region: str, niche: str
     ) -> str:
         """Build formatted campaign response"""
         return f"""🎯 SCOUT HUNTER 2.0 — PROSPECTING CAMPAIGN
@@ -191,19 +211,19 @@ class HunterCrew(BaseCrew):
 Region: {region} | Niche: {niche}
 
 📊 PIPELINE COMPLETO:
-🔹 Scraped: {campaign['leads_scraped']} leads
-🔹 Enriched: {campaign['leads_enriched']} leads
-🔹 Discovery Matrix evaluated: {campaign['discovery_matrix_evaluated']}
-  ├─ Fit Score >= 60: {campaign['discovery_matrix_passed']} kept ✅
-  └─ Fit Score < 60: {campaign['discovery_matrix_evaluated'] - campaign['discovery_matrix_passed']} filtered ❌
-🔹 Accounts researched: {campaign['accounts_researched']}
-🔹 BANT Qualified: {campaign['leads_qualified']} 👤
+🔹 Scraped: {campaign["leads_scraped"]} leads
+🔹 Enriched: {campaign["leads_enriched"]} leads
+🔹 Discovery Matrix evaluated: {campaign["discovery_matrix_evaluated"]}
+  ├─ Fit Score >= 60: {campaign["discovery_matrix_passed"]} kept ✅
+  └─ Fit Score < 60: {campaign["discovery_matrix_evaluated"] - campaign["discovery_matrix_passed"]} filtered ❌
+🔹 Accounts researched: {campaign["accounts_researched"]}
+🔹 BANT Qualified: {campaign["leads_qualified"]} 👤
 
 📈 RESULTS:
-✓ Qualified Leads: {campaign['leads_qualified']}
+✓ Qualified Leads: {campaign["leads_qualified"]}
 ✓ Avg Fit Score: {random.randint(65, 80):.0f}
-✓ Qualification Rate: {(campaign['leads_qualified']/campaign['leads_scraped']*100):.0f}%
-✓ Campaign Cost: ${campaign['cost_usd']:.2f}
+✓ Qualification Rate: {(campaign["leads_qualified"] / campaign["leads_scraped"] * 100):.0f}%
+✓ Campaign Cost: ${campaign["cost_usd"]:.2f}
 
 Next Steps:
 → Review qualified leads in /scout-leads
@@ -211,17 +231,21 @@ Next Steps:
 → Schedule outreach automation
 → Track engagement and responses
 
-Use /scout-leads {region.lower().replace(' ', '_')} for detailed lead list"""
+Use /scout-leads {region.lower().replace(" ", "_")} for detailed lead list"""
 
     def get_status(self) -> dict:
         """Extended status with campaign history"""
         base_status = super().get_status()
-        base_status.update({
-            "campaigns_executed": self._campaigns_executed,
-            "total_leads_found": self._leads_found,
-            "total_leads_qualified": self._leads_qualified,
-            "recent_campaigns": self._campaign_history[-3:] if self._campaign_history else [],
-        })
+        base_status.update(
+            {
+                "campaigns_executed": self._campaigns_executed,
+                "total_leads_found": self._leads_found,
+                "total_leads_qualified": self._leads_qualified,
+                "recent_campaigns": self._campaign_history[-3:]
+                if self._campaign_history
+                else [],
+            }
+        )
         return base_status
 
 

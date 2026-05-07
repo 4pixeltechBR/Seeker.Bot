@@ -21,10 +21,8 @@ Uso:
     due_goals = await manager.get_due_goals()
 """
 
-import asyncio
 import json
 import logging
-import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -36,6 +34,7 @@ log = logging.getLogger("seeker.goal_manager")
 @dataclass
 class Goal:
     """Modelo unificado de Goal."""
+
     goal_id: str
     title: str
     description: str
@@ -134,10 +133,20 @@ class GoalManager:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                goal_id, title, description, tier, priority, schedule,
-                max_actions_per_cycle, enabled, json.dumps(tools or []),
-                datetime.now().isoformat(), next_eval,
-                0, "active", json.dumps(context)
+                goal_id,
+                title,
+                description,
+                tier,
+                priority,
+                schedule,
+                max_actions_per_cycle,
+                enabled,
+                json.dumps(tools or []),
+                datetime.now().isoformat(),
+                next_eval,
+                0,
+                "active",
+                json.dumps(context),
             ),
         )
         await self.memory._db.commit()
@@ -185,8 +194,15 @@ class GoalManager:
     async def update_goal(self, goal_id: str, updates: dict) -> Optional[Goal]:
         """Atualiza campos de um goal."""
         allowed_fields = {
-            "title", "description", "tier", "priority", "schedule",
-            "max_actions_per_cycle", "enabled", "tools", "status"
+            "title",
+            "description",
+            "tier",
+            "priority",
+            "schedule",
+            "max_actions_per_cycle",
+            "enabled",
+            "tools",
+            "status",
         }
         updates = {k: v for k, v in updates.items() if k in allowed_fields}
 
@@ -342,7 +358,7 @@ class GoalManager:
         )
         count = await self._db.execute(
             "SELECT COUNT(*) FROM goal_actions_log WHERE timestamp >= ?",
-            (datetime.now().isoformat(),)
+            (datetime.now().isoformat(),),
         )
         await self.memory._db.commit()
         log.critical("[goal_manager] ⚠️ EMERGENCY STOP ATIVADO")
@@ -368,7 +384,9 @@ class GoalManager:
             time_str = schedule.replace("daily ", "")
             try:
                 hour, minute = map(int, time_str.split(":"))
-                next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                next_run = now.replace(
+                    hour=hour, minute=minute, second=0, microsecond=0
+                )
                 if next_run <= now:
                     next_run += timedelta(days=1)
                 return next_run.isoformat()
@@ -376,7 +394,9 @@ class GoalManager:
                 pass
 
         # Fallback
-        log.warning(f"[goal_manager] Schedule desconhecido: '{schedule}'. Usando fallback 1h")
+        log.warning(
+            f"[goal_manager] Schedule desconhecido: '{schedule}'. Usando fallback 1h"
+        )
         return (now + timedelta(hours=1)).isoformat()
 
     def _row_to_goal(self, row) -> Goal:

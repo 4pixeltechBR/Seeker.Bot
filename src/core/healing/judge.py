@@ -31,29 +31,31 @@ log = logging.getLogger("seeker.healing.judge")
 
 
 class Verdict(str, Enum):
-    APPROVED     = "approved"      # Resposta confiável, sem ressalvas
-    CAUTIOUS     = "cautious"      # Maioria OK, mas tem pontos a verificar
-    FLAGGED      = "flagged"       # Problemas significativos encontrados
-    UNRELIABLE   = "unreliable"    # Resposta não deveria ser enviada como está
+    APPROVED = "approved"  # Resposta confiável, sem ressalvas
+    CAUTIOUS = "cautious"  # Maioria OK, mas tem pontos a verificar
+    FLAGGED = "flagged"  # Problemas significativos encontrados
+    UNRELIABLE = "unreliable"  # Resposta não deveria ser enviada como está
 
 
 @dataclass
 class FlaggedClaim:
     """Uma claim que o juiz considerou duvidosa."""
+
     claim: str
-    issue: str           # O que está errado ou duvidoso
-    severity: str        # "low", "medium", "high"
-    suggestion: str      # O que fazer pra verificar
+    issue: str  # O que está errado ou duvidoso
+    severity: str  # "low", "medium", "high"
+    suggestion: str  # O que fazer pra verificar
 
 
 @dataclass
 class JudgeVerdict:
     """Resultado completo da verificação."""
+
     verdict: Verdict
-    confidence: float                               # 0.0-1.0
+    confidence: float  # 0.0-1.0
     flagged_claims: list[FlaggedClaim] = field(default_factory=list)
-    reasoning: str = ""                             # Por que o juiz decidiu isso
-    model_used: str = ""                            # Qual modelo julgou
+    reasoning: str = ""  # Por que o juiz decidiu isso
+    model_used: str = ""  # Qual modelo julgou
 
     @property
     def has_flags(self) -> bool:
@@ -68,12 +70,16 @@ class JudgeVerdict:
         if self.verdict == Verdict.CAUTIOUS:
             lines.append("⚠️ **Verificação:** alguns pontos merecem checagem adicional:")
         elif self.verdict == Verdict.FLAGGED:
-            lines.append("⚠️ **Atenção:** o verificador independente identificou problemas:")
+            lines.append(
+                "⚠️ **Atenção:** o verificador independente identificou problemas:"
+            )
         elif self.verdict == Verdict.UNRELIABLE:
             lines.append("🔴 **Aviso:** confiabilidade baixa nesta resposta:")
 
         for fc in self.flagged_claims:
-            severity_icon = {"low": "·", "medium": "⚠️", "high": "🔴"}.get(fc.severity, "·")
+            severity_icon = {"low": "·", "medium": "⚠️", "high": "🔴"}.get(
+                fc.severity, "·"
+            )
             lines.append(f"  {severity_icon} {fc.issue}")
 
         if self.reasoning:
@@ -144,7 +150,7 @@ REGRAS:
 class VerificationGate:
     """
     Juiz independente que valida respostas antes de enviar ao usuário.
-    
+
     Uso:
         gate = VerificationGate(router, api_keys)
         verdict = await gate.verify(user_input, response_text, evidence)
@@ -170,26 +176,32 @@ class VerificationGate:
     ) -> JudgeVerdict:
         """
         Verifica uma resposta usando modelo independente.
-        
+
         O modelo JUDGE é propositalmente diferente do executor —
         diversidade de dados de treino é o que dá valor à verificação.
         """
         try:
             # Trunca pra não explodir o contexto
             response_truncated = response_text[:3000]
-            evidence_truncated = evidence_context[:2000] if evidence_context else "Sem evidências adicionais."
+            evidence_truncated = (
+                evidence_context[:2000]
+                if evidence_context
+                else "Sem evidências adicionais."
+            )
 
             result = await invoke_with_fallback(
                 role=CognitiveRole.JUDGE,
                 request=LLMRequest(
-                    messages=[{
-                        "role": "user",
-                        "content": JUDGE_PROMPT.format(
-                            user_input=user_input[:500],
-                            response=response_truncated,
-                            evidence_context=evidence_truncated,
-                        ),
-                    }],
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": JUDGE_PROMPT.format(
+                                user_input=user_input[:500],
+                                response=response_truncated,
+                                evidence_context=evidence_truncated,
+                            ),
+                        }
+                    ],
                     max_tokens=800,
                     temperature=0.0,
                     response_format="json",
@@ -230,12 +242,14 @@ class VerificationGate:
             flags = []
             for fc in data.get("flagged_claims", []):
                 if isinstance(fc, dict) and fc.get("claim"):
-                    flags.append(FlaggedClaim(
-                        claim=fc.get("claim", "")[:200],
-                        issue=fc.get("issue", "")[:200],
-                        severity=fc.get("severity", "low"),
-                        suggestion=fc.get("suggestion", "")[:200],
-                    ))
+                    flags.append(
+                        FlaggedClaim(
+                            claim=fc.get("claim", "")[:200],
+                            issue=fc.get("issue", "")[:200],
+                            severity=fc.get("severity", "low"),
+                            suggestion=fc.get("suggestion", "")[:200],
+                        )
+                    )
 
             # Parse verdict
             verdict_str = data.get("verdict", "cautious").lower()
@@ -263,6 +277,5 @@ class VerificationGate:
     def should_warn(self, verdict: JudgeVerdict) -> bool:
         """Decide se deve anexar aviso na resposta."""
         return (
-            verdict.verdict != Verdict.APPROVED
-            or verdict.confidence < self.threshold
+            verdict.verdict != Verdict.APPROVED or verdict.confidence < self.threshold
         )

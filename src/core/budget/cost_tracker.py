@@ -8,9 +8,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Tuple
-from src.core.budget.metrics import (
-    CustoMetrica, CustoAgregado, EstatisticasProveedor
-)
+from src.core.budget.metrics import CustoMetrica, CustoAgregado, EstatisticasProveedor
 
 log = logging.getLogger("seeker.budget.cost_tracker")
 
@@ -18,6 +16,7 @@ log = logging.getLogger("seeker.budget.cost_tracker")
 @dataclass
 class AlertaCusto:
     """Alerta quando limite é excedido"""
+
     timestamp: datetime
     tipo_alerta: str  # "diario", "mensal", "anomalia"
     provedor: str
@@ -119,10 +118,7 @@ class RastreadorCustos:
                 f"${custo_usd:.4f} ({tokens_entrada}+{tokens_saida} tokens)"
             )
         else:
-            log.warning(
-                f"[custo] {provider}/{modelo}: "
-                f"ERRO - {mensagem_erro}"
-            )
+            log.warning(f"[custo] {provider}/{modelo}: ERRO - {mensagem_erro}")
 
         return alerta
 
@@ -153,19 +149,15 @@ class RastreadorCustos:
             # Atualizar latência
             if metrica.tempo_latencia_ms > 0:
                 agg.tempo_latencia_min_ms = min(
-                    agg.tempo_latencia_min_ms,
-                    metrica.tempo_latencia_ms
+                    agg.tempo_latencia_min_ms, metrica.tempo_latencia_ms
                 )
                 agg.tempo_latencia_max_ms = max(
-                    agg.tempo_latencia_max_ms,
-                    metrica.tempo_latencia_ms
+                    agg.tempo_latencia_max_ms, metrica.tempo_latencia_ms
                 )
-                total_ms = (agg.tempo_latencia_medio_ms *
-                           (agg.total_chamadas - 1))
+                total_ms = agg.tempo_latencia_medio_ms * (agg.total_chamadas - 1)
                 agg.tempo_latencia_medio_ms = (
-                    (total_ms + metrica.tempo_latencia_ms) /
-                    agg.total_chamadas
-                )
+                    total_ms + metrica.tempo_latencia_ms
+                ) / agg.total_chamadas
 
             # Atualizar custo min/max
             agg.custo_min = min(agg.custo_min, metrica.custo_usd)
@@ -198,13 +190,13 @@ class RastreadorCustos:
         prov.custo_por_fase[metrica.fase] += metrica.custo_usd
 
         # Taxa de sucesso
-        total_sucesso = sum(1 for m in self._historico
-                           if m.provider == metrica.provider and m.sucesso)
+        total_sucesso = sum(
+            1 for m in self._historico if m.provider == metrica.provider and m.sucesso
+        )
         prov.taxa_sucesso = (total_sucesso / prov.total_chamadas) * 100
 
         # Latência média
-        metricas_prov = [m for m in self._historico
-                        if m.provider == metrica.provider]
+        metricas_prov = [m for m in self._historico if m.provider == metrica.provider]
         if metricas_prov:
             prov.tempo_latencia_medio_ms = sum(
                 m.tempo_latencia_ms for m in metricas_prov
@@ -214,9 +206,7 @@ class RastreadorCustos:
         prov.ultimas_chamadas.append(metrica)
 
     def _verificar_limites(
-        self,
-        provider: str,
-        agora: datetime
+        self, provider: str, agora: datetime
     ) -> Optional[AlertaCusto]:
         """Verifica se limites diários/mensais foram excedidos"""
         data_chave = agora.strftime("%Y-%m-%d")
@@ -293,10 +283,7 @@ class RastreadorCustos:
 
     def obter_todas_estatisticas(self) -> Dict[str, dict]:
         """Retorna estatísticas de todos provedores"""
-        return {
-            prov: stats.para_dict()
-            for prov, stats in self._provedores.items()
-        }
+        return {prov: stats.para_dict() for prov, stats in self._provedores.items()}
 
     def obter_agregado(self, chave: str) -> Optional[dict]:
         """Retorna agregado para uma chave específica"""
@@ -308,15 +295,17 @@ class RastreadorCustos:
         """Retorna últimos N alertas"""
         alertas = []
         for alerta in list(self._alertas)[-limite:]:
-            alertas.append({
-                "timestamp": alerta.timestamp.isoformat(),
-                "tipo": alerta.tipo_alerta,
-                "provedor": alerta.provedor,
-                "mensagem": alerta.mensagem,
-                "custo_atual": round(alerta.custo_atual, 2),
-                "limite": round(alerta.limite, 2),
-                "porcentagem": round(alerta.porcentagem_limite, 1),
-            })
+            alertas.append(
+                {
+                    "timestamp": alerta.timestamp.isoformat(),
+                    "tipo": alerta.tipo_alerta,
+                    "provedor": alerta.provedor,
+                    "mensagem": alerta.mensagem,
+                    "custo_atual": round(alerta.custo_atual, 2),
+                    "limite": round(alerta.limite, 2),
+                    "porcentagem": round(alerta.porcentagem_limite, 1),
+                }
+            )
         return alertas
 
     def obter_resumo_diario(self) -> dict:
@@ -329,9 +318,7 @@ class RastreadorCustos:
             "data": data_chave,
             "custo_total": round(custo_hoje, 2),
             "limite": self.limite_diario_usd,
-            "porcentagem_limite": round(
-                (custo_hoje / self.limite_diario_usd) * 100, 1
-            ),
+            "porcentagem_limite": round((custo_hoje / self.limite_diario_usd) * 100, 1),
             "provedores": {
                 prov: stats["total_custo_usd"]
                 for prov, stats in self.obter_todas_estatisticas().items()
@@ -346,9 +333,7 @@ class RastreadorCustos:
             "mes": mes_chave,
             "custo_total": round(custo, 2),
             "limite": self.limite_mensal_usd,
-            "porcentagem_limite": round(
-                (custo / self.limite_mensal_usd) * 100, 1
-            ),
+            "porcentagem_limite": round((custo / self.limite_mensal_usd) * 100, 1),
             "provedores": {
                 prov: stats["total_custo_usd"]
                 for prov, stats in self.obter_todas_estatisticas().items()
@@ -376,9 +361,7 @@ class RastreadorCustos:
 
         linhas.append("<b>GASTOS POR PROVEDOR (HOJE)</b>")
         for prov, custo in sorted(
-            resumo_diario['provedores'].items(),
-            key=lambda x: x[1],
-            reverse=True
+            resumo_diario["provedores"].items(), key=lambda x: x[1], reverse=True
         ):
             if custo > 0:
                 linhas.append(f"  {prov}: ${custo:.4f}")

@@ -7,6 +7,7 @@ from src.core.metrics.sprint11_tracker import (
     CascadeMetrics,
     BatchMetrics,
 )
+from src.core.metrics.integrity import IntegrityMonitor
 
 __all__ = [
     "Sprint11Tracker",
@@ -14,4 +15,5 @@ __all__ = [
     "CacheMetrics",
     "CascadeMetrics",
     "BatchMetrics",
+    "IntegrityMonitor",
 ]

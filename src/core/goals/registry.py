@@ -37,7 +37,9 @@ SKILLS_DIR = os.path.join(
 )
 
 CONFIG_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    ),
     "config",
 )
 
@@ -53,6 +55,7 @@ def _load_skills_deny_list() -> set[str]:
 
     try:
         import yaml
+
         with open(skills_yaml, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f) or {}
 
@@ -65,14 +68,20 @@ def _load_skills_deny_list() -> set[str]:
                         disabled.add(skill_name)
 
         if disabled:
-            log.info(f"[registry] skills.yaml: {len(disabled)} skills desabilitadas: {disabled}")
+            log.info(
+                f"[registry] skills.yaml: {len(disabled)} skills desabilitadas: {disabled}"
+            )
         return disabled
 
     except ImportError:
-        log.warning("[registry] PyYAML não instalado — skills.yaml ignorado. Execute: pip install pyyaml")
+        log.warning(
+            "[registry] PyYAML não instalado — skills.yaml ignorado. Execute: pip install pyyaml"
+        )
         return set()
     except Exception as e:
-        log.warning(f"[registry] Erro ao ler skills.yaml: {e} — carregando todas as skills")
+        log.warning(
+            f"[registry] Erro ao ler skills.yaml: {e} — carregando todas as skills"
+        )
         return set()
 
 
@@ -83,12 +92,12 @@ def discover_goals(
 ) -> list[AutonomousGoal]:
     """
     Escaneia src/skills/*/goal.py procurando create_goal(pipeline).
-    
+
     Args:
         pipeline: SeekerPipeline (passado pra cada factory)
         deny_list: nomes de goals a ignorar (ex: {"revenue_hunter"})
         skills_dir: override do diretório de skills (pra testes)
-    
+
     Returns:
         Lista de goals instanciados e prontos pro scheduler.
     """

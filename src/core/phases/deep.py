@@ -8,7 +8,7 @@ O que é NOVO aqui vs o pipeline original:
   Research Loops — quando o arbitrage detecta conflitos entre modelos,
   em vez de apenas marcar "⚠️ conflito", gera query específica,
   busca fonte primária na web, e tenta resolver.
-  
+
   "⚠️ conflito detectado" → "🔍 investigado → ✅/❌ resolvido"
 
 Controlado com MAX_RESEARCH_LOOPS = 2 pra não explodir custo.
@@ -32,7 +32,7 @@ log = logging.getLogger("seeker.phases.deep")
 class DeepPhase:
     """
     Pipeline completo de análise profunda.
-    
+
     4 fases + research loops:
       1. Evidence Arbitrage (modelos divergem onde?)
       2. Web Search (fontes primárias reais)
@@ -92,8 +92,7 @@ class DeepPhase:
             )
             try:
                 web_context = await asyncio.wait_for(
-                    self._resolve_conflicts(arb, web_context),
-                    timeout=60.0
+                    self._resolve_conflicts(arb, web_context), timeout=60.0
                 )
             except asyncio.TimeoutError:
                 log.warning("[deep] Research Loops falhou por timeout (60s)")
@@ -124,33 +123,42 @@ class DeepPhase:
             try:
                 response = await asyncio.wait_for(
                     invoke_with_fallback(
-                        role=CognitiveRole.ADVERSARIAL if ctx.decision.god_mode else CognitiveRole.SYNTHESIS,
+                        role=CognitiveRole.ADVERSARIAL
+                        if ctx.decision.god_mode
+                        else CognitiveRole.SYNTHESIS,
                         request=LLMRequest(
                             messages=[{"role": "user", "content": ctx.user_input}],
                             system=system,
                             max_tokens=6000,
-                            temperature=0.2 if refinement_loops == 0 else 0.4, # Aumenta temp no refinement
+                            temperature=0.2
+                            if refinement_loops == 0
+                            else 0.4,  # Aumenta temp no refinement
                         ),
                         router=self.router,
                         api_keys=self.api_keys,
                     ),
-                    timeout=60.0
+                    timeout=60.0,
                 )
                 total_cost += response.cost_usd
                 llm_calls += 1
                 current_response_text = response.text
 
                 # Se não for headless ou já atingiu o limite, para aqui
-                if ctx.execution_mode != "headless" or refinement_loops >= max_refinement:
+                if (
+                    ctx.execution_mode != "headless"
+                    or refinement_loops >= max_refinement
+                ):
                     break
 
                 # ── Loop de Refinamento (Headless Only) ──────
-                log.info(f"[deep] Auto-Refinamento: Loop {refinement_loops + 1}/{max_refinement}...")
+                log.info(
+                    f"[deep] Auto-Refinamento: Loop {refinement_loops + 1}/{max_refinement}..."
+                )
                 critique_prompt = build_refinement_prompt(
                     original_input=ctx.user_input,
                     draft_response=current_response_text,
                     evidence_context=evidence,
-                    web_context=web_context
+                    web_context=web_context,
                 )
 
                 critique_resp = await invoke_with_fallback(
@@ -158,21 +166,28 @@ class DeepPhase:
                     request=LLMRequest(
                         messages=[{"role": "user", "content": critique_prompt}],
                         max_tokens=1000,
-                        temperature=0.0
+                        temperature=0.0,
                     ),
                     router=self.router,
-                    api_keys=self.api_keys
+                    api_keys=self.api_keys,
                 )
                 total_cost += critique_resp.cost_usd
                 llm_calls += 1
 
                 try:
                     critique_json = parse_llm_json(critique_resp.text)
-                    if critique_json.get("pass") is True and critique_json.get("score", 0) >= 9:
-                        log.info(f"[deep] Refinamento aprovado com nota {critique_json.get('score')}. Saindo do loop.")
+                    if (
+                        critique_json.get("pass") is True
+                        and critique_json.get("score", 0) >= 9
+                    ):
+                        log.info(
+                            f"[deep] Refinamento aprovado com nota {critique_json.get('score')}. Saindo do loop."
+                        )
                         break
-                    
-                    log.info(f"[deep] Refinamento necessário (Nota {critique_json.get('score')}: {critique_json.get('action')})")
+
+                    log.info(
+                        f"[deep] Refinamento necessário (Nota {critique_json.get('score')}: {critique_json.get('action')})"
+                    )
                     critique_context = (
                         f"\n\n━━━ CRÍTICA INTERNA (Refinamento {refinement_loops + 1}) ━━━\n"
                         f"Problemas encontrados: {critique_json.get('critique')}\n"
@@ -181,11 +196,15 @@ class DeepPhase:
                     )
                     refinement_loops += 1
                 except Exception as e:
-                    log.warning(f"[deep] Falha ao parsear crítica: {e}. Abortando refinamento.")
+                    log.warning(
+                        f"[deep] Falha ao parsear crítica: {e}. Abortando refinamento."
+                    )
                     break
 
             except asyncio.TimeoutError:
-                log.error("[deep] Síntese/Refinamento sofreu timeout (60s)", exc_info=True)
+                log.error(
+                    "[deep] Síntese/Refinamento sofreu timeout (60s)", exc_info=True
+                )
                 if not current_response_text:
                     return PhaseResult(
                         response="[Seeker] Pipeline abortado por timeout na fase de síntese.",
@@ -195,7 +214,9 @@ class DeepPhase:
                     )
                 break
             except Exception as e:
-                log.error(f"[deep] Síntese principal falhou fatalmente: {e}", exc_info=True)
+                log.error(
+                    f"[deep] Síntese principal falhou fatalmente: {e}", exc_info=True
+                )
                 raise
 
         response_to_verify = current_response_text
@@ -214,7 +235,7 @@ class DeepPhase:
                     response_text=response_to_verify,
                     evidence_context=all_evidence,
                 ),
-                timeout=20.0
+                timeout=20.0,
             )
             llm_calls += 1
 
@@ -252,9 +273,7 @@ class DeepPhase:
     async def _safe_web_search(self, user_input: str) -> str:
         """Wrapper com timeout e error handling pro gather."""
         try:
-            return await asyncio.wait_for(
-                self._web_search(user_input), timeout=25.0
-            )
+            return await asyncio.wait_for(self._web_search(user_input), timeout=25.0)
         except asyncio.TimeoutError:
             log.warning("[deep] Web search falhou por timeout (25s)")
             return ""
@@ -265,6 +284,7 @@ class DeepPhase:
     async def _web_search(self, user_input: str) -> str:
         """Gera queries determinísticas e busca na web."""
         from src.core.phases.deliberate import DeliberatePhase
+
         try:
             # Cria instância de DeliberatePhase pra acessar _generate_search_queries
             deliberate = DeliberatePhase(self.router, self.api_keys, self.searcher)
@@ -272,7 +292,9 @@ class DeepPhase:
             search_results = await self.searcher.search_multiple(
                 search_queries, max_results_per_query=3
             )
-            parts = [sr.to_context(max_results=3) for sr in search_results if sr.results]
+            parts = [
+                sr.to_context(max_results=3) for sr in search_results if sr.results
+            ]
             return "\n\n".join(parts) if parts else ""
         except Exception as e:
             log.warning(f"[deep] Web search falhou: {e}")
@@ -285,13 +307,13 @@ class DeepPhase:
     ) -> str:
         """
         RESEARCH LOOPS — resolve conflitos da arbitragem com fontes primárias.
-        
+
         Quando a arbitragem detecta conflitos entre modelos:
         1. Gera query de busca ESPECÍFICA para o tópico em conflito
         2. Busca na web por fonte primária
         3. Adiciona o resultado ao contexto web
         4. Marca o conflito como "investigado"
-        
+
         Max 2 loops para controlar custo (~$0.002 por loop).
         """
         resolved = 0
@@ -307,7 +329,7 @@ class DeepPhase:
 
             # Query específica para o conflito
             query = f"{zone.topic} official documentation 2025 2026"
-            log.info(f"[deep] Research loop {i+1}: buscando '{query[:60]}...'")
+            log.info(f"[deep] Research loop {i + 1}: buscando '{query[:60]}...'")
 
             try:
                 results = await self.searcher.search(query, max_results=3)
@@ -317,14 +339,18 @@ class DeepPhase:
                         f"\n\n━━━ INVESTIGAÇÃO DE CONFLITO: {zone.topic} ━━━\n"
                         f"{context_part}"
                     )
-                    zone.resolution = f"Investigado via web ({len(results.results)} fontes)"
+                    zone.resolution = (
+                        f"Investigado via web ({len(results.results)} fontes)"
+                    )
                     zone.needs_primary_source = False
                     resolved += 1
             except Exception as e:
                 log.warning(f"[deep] Research loop falhou para '{zone.topic}': {e}")
 
         if resolved > 0:
-            log.info(f"[deep] Research loops: {resolved}/{len(arb.conflict_zones)} conflitos investigados")
+            log.info(
+                f"[deep] Research loops: {resolved}/{len(arb.conflict_zones)} conflitos investigados"
+            )
 
         return existing_web
 

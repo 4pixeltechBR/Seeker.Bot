@@ -14,6 +14,7 @@ from .models import EvidenceEntry, DecisionTrace, ProvenanceNode
 
 log = logging.getLogger("seeker.evidence")
 
+
 class EvidenceStore:
     """Gerencia persistência e query de Evidence entries"""
 
@@ -49,7 +50,9 @@ class EvidenceStore:
                         evidence_id=entry.evidence_id,
                         feature=entry.feature,
                         decision=entry.decision,
-                        parents=[entry.parent_evidence_id] if entry.parent_evidence_id else []
+                        parents=[entry.parent_evidence_id]
+                        if entry.parent_evidence_id
+                        else [],
                     )
                     self._provenance_graph[entry.evidence_id] = node
 
@@ -73,7 +76,9 @@ class EvidenceStore:
                 evidence_id=evidence.evidence_id,
                 feature=evidence.feature,
                 decision=evidence.decision,
-                parents=[evidence.parent_evidence_id] if evidence.parent_evidence_id else []
+                parents=[evidence.parent_evidence_id]
+                if evidence.parent_evidence_id
+                else [],
             )
             self._provenance_graph[evidence.evidence_id] = node
 
@@ -157,7 +162,9 @@ class EvidenceStore:
             "features": features,
             "total_cost_usd": round(total_cost, 4),
             "avg_latency_ms": int(total_latency / len(entries)) if entries else 0,
-            "avg_confidence": round(total_confidence / len(entries), 3) if entries else 0.0,
+            "avg_confidence": round(total_confidence / len(entries), 3)
+            if entries
+            else 0.0,
         }
 
     @staticmethod
@@ -190,7 +197,9 @@ class EvidenceStore:
         """Converte dict para EvidenceEntry"""
         return EvidenceEntry(
             evidence_id=data.get("evidence_id", ""),
-            timestamp=datetime.fromisoformat(data.get("timestamp", datetime.utcnow().isoformat())),
+            timestamp=datetime.fromisoformat(
+                data.get("timestamp", datetime.utcnow().isoformat())
+            ),
             feature=data.get("feature", ""),
             decision=data.get("decision", ""),
             inputs=data.get("inputs", {}),
@@ -213,6 +222,7 @@ class EvidenceStore:
 
 # Singleton global
 _evidence_store: Optional[EvidenceStore] = None
+
 
 def get_evidence_store() -> EvidenceStore:
     """Retorna instância global do EvidenceStore"""

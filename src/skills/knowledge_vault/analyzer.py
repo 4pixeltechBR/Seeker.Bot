@@ -1,16 +1,22 @@
 """
 Analyzer v2.0 — Roteamento por tipo de fonte, markdown especializado.
 """
+
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import List
 from dataclasses import dataclass
 from .prompts import (
-    ANALYSIS_PROMPT_SYSTEM, ANALYSIS_PROMPT_USER,
-    IDEA_PROMPT_SYSTEM, IDEA_PROMPT_USER,
-    YOUTUBE_PROMPT_SYSTEM, YOUTUBE_PROMPT_USER,
-    SITE_PROMPT_SYSTEM, SITE_PROMPT_USER,
-    OCR_ENRICH_PROMPT_SYSTEM, OCR_ENRICH_PROMPT_USER,
+    ANALYSIS_PROMPT_SYSTEM,
+    ANALYSIS_PROMPT_USER,
+    IDEA_PROMPT_SYSTEM,
+    IDEA_PROMPT_USER,
+    YOUTUBE_PROMPT_SYSTEM,
+    YOUTUBE_PROMPT_USER,
+    SITE_PROMPT_SYSTEM,
+    SITE_PROMPT_USER,
+    OCR_ENRICH_PROMPT_SYSTEM,
+    OCR_ENRICH_PROMPT_USER,
 )
 from .vault_searcher import VaultSearcher
 
@@ -26,7 +32,7 @@ class NoteData:
     category: str
     related_topics: List[str]
     content_body: str = ""  # Final markdown body
-    source_type: str = ""   # Preservado para o writer usar prefixos
+    source_type: str = ""  # Preservado para o writer usar prefixos
 
 
 class KnowledgeAnalyzer:
@@ -59,7 +65,9 @@ class KnowledgeAnalyzer:
             return await self._analyze_ocr(raw_text, extra_meta)
         else:
             # Fallback generico (nota de texto, etc.)
-            return await self._analyze_generic(raw_text, source_type, source_url, user_hint)
+            return await self._analyze_generic(
+                raw_text, source_type, source_url, user_hint
+            )
 
     # ── Especialistas ─────────────────────────────────────────────────
 
@@ -84,7 +92,9 @@ class KnowledgeAnalyzer:
         note.content_body = self._build_idea_body(note)
         return note
 
-    async def _analyze_youtube(self, raw_text: str, source_url: str, meta: dict) -> NoteData:
+    async def _analyze_youtube(
+        self, raw_text: str, source_url: str, meta: dict
+    ) -> NoteData:
         """Curador de videos do YouTube."""
         prompt_user = YOUTUBE_PROMPT_USER.format(
             raw_text=raw_text[:10000],
@@ -107,7 +117,9 @@ class KnowledgeAnalyzer:
         note.content_body = self._build_youtube_body(note, source_url, meta)
         return note
 
-    async def _analyze_site(self, raw_text: str, source_url: str, meta: dict) -> NoteData:
+    async def _analyze_site(
+        self, raw_text: str, source_url: str, meta: dict
+    ) -> NoteData:
         """Pesquisador web para artigos."""
         prompt_user = SITE_PROMPT_USER.format(
             raw_text=raw_text[:12000],
@@ -148,7 +160,7 @@ class KnowledgeAnalyzer:
                     source_url="",
                     user_hint="",
                     raw_text=raw_text[:8000],
-                )
+                ),
             )
 
         note = NoteData(
@@ -163,7 +175,9 @@ class KnowledgeAnalyzer:
         note.content_body = self._build_generic_body(note)
         return note
 
-    async def _analyze_generic(self, raw_text: str, source_type: str, source_url: str, user_hint: str) -> NoteData:
+    async def _analyze_generic(
+        self, raw_text: str, source_type: str, source_url: str, user_hint: str
+    ) -> NoteData:
         """Fallback generico."""
         prompt_user = ANALYSIS_PROMPT_USER.format(
             source_type=source_type,
@@ -196,7 +210,11 @@ class KnowledgeAnalyzer:
         response = ""
         try:
             response_dict = await self.cascade.call(role="fast", messages=messages)
-            response = response_dict.get("content", "") if isinstance(response_dict, dict) else ""
+            response = (
+                response_dict.get("content", "")
+                if isinstance(response_dict, dict)
+                else ""
+            )
 
             cleaned = response.strip()
             if cleaned.startswith("```json"):
@@ -209,12 +227,16 @@ class KnowledgeAnalyzer:
             return json.loads(cleaned.strip())
 
         except json.JSONDecodeError as e:
-            log.error(f"[analyzer] JSON invalido do LLM: {e}. Response: {response[:200]}")
+            log.error(
+                f"[analyzer] JSON invalido do LLM: {e}. Response: {response[:200]}"
+            )
             # Fallback defensivo — o LLM retornou texto explicativo em vez de JSON
             # (ex: VLM falhou e o LLM nao tem OCR real para processar)
             return {
                 "title": "Nota sem titulo",
-                "summary": response[:500] if response else "Conteudo nao pode ser extraido.",
+                "summary": response[:500]
+                if response
+                else "Conteudo nao pode ser extraido.",
                 "tags": [],
                 "key_insights": [],
                 "category": "Geral",
@@ -341,7 +363,9 @@ class KnowledgeAnalyzer:
             lines.append("")
 
         if note.related_topics:
-            lines.append(f"**Topicos Relacionados:** {', '.join(note.related_topics)}\n")
+            lines.append(
+                f"**Topicos Relacionados:** {', '.join(note.related_topics)}\n"
+            )
 
         connections = self._find_connections(note)
         if connections:

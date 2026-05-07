@@ -11,7 +11,6 @@ Substituir/estender safety_layer.py existente
 
 import logging
 from enum import Enum
-from dataclasses import dataclass
 from typing import Optional, Set
 
 log = logging.getLogger("seeker.safety")
@@ -19,13 +18,15 @@ log = logging.getLogger("seeker.safety")
 
 class AutonomyTier(Enum):
     """Níveis de autonomia para goals e actions (valores decrescentes em restrição)"""
-    L0_MANUAL = 100     # Requer aprovação manual antes de executar (mais restritivo)
-    L1_LOGGED = 50      # Executa automaticamente mas com auditoria completa
-    L2_SILENT = 0       # Executa silenciosamente (menos restritivo)
+
+    L0_MANUAL = 100  # Requer aprovação manual antes de executar (mais restritivo)
+    L1_LOGGED = 50  # Executa automaticamente mas com auditoria completa
+    L2_SILENT = 0  # Executa silenciosamente (menos restritivo)
 
 
 class ActionType(Enum):
     """Tipos de ações que podem ser executadas"""
+
     # Leitura (sempre permitido)
     READ_DATA = "read_data"
     READ_FILE = "read_file"
@@ -56,16 +57,13 @@ class SafetyPolicy:
             ActionType.READ_DATA: AutonomyTier.L2_SILENT,
             ActionType.READ_FILE: AutonomyTier.L2_SILENT,
             ActionType.READ_API: AutonomyTier.L2_SILENT,
-
             ActionType.WRITE_DATA: AutonomyTier.L1_LOGGED,
             ActionType.WRITE_FILE: AutonomyTier.L1_LOGGED,
             ActionType.API_CALL: AutonomyTier.L1_LOGGED,
             ActionType.SEND_MESSAGE: AutonomyTier.L1_LOGGED,
-
             ActionType.DELETE_FILE: AutonomyTier.L0_MANUAL,
             ActionType.DELETE_DATA: AutonomyTier.L0_MANUAL,
             ActionType.MODIFY_SYSTEM: AutonomyTier.L0_MANUAL,
-
             ActionType.TRANSFER_FUNDS: AutonomyTier.L0_MANUAL,
             ActionType.SEND_EMAIL_EXTERNAL: AutonomyTier.L1_LOGGED,
         }
@@ -108,9 +106,11 @@ class SafetyPolicy:
         )
 
         # 4. Goals trusted podem fazer ações L0 com L1 (check antes de tier)
-        if (required_tier == AutonomyTier.L0_MANUAL and
-            goal_name in self.trusted_goals and
-            current_tier == AutonomyTier.L1_LOGGED):
+        if (
+            required_tier == AutonomyTier.L0_MANUAL
+            and goal_name in self.trusted_goals
+            and current_tier == AutonomyTier.L1_LOGGED
+        ):
             return True, "Ação permitida (goal em whitelist de confiança)"
 
         # 5. Verificar tier atual vs requerido

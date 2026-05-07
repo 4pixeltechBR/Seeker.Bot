@@ -1,8 +1,10 @@
 """SafetyGate — Approval & Policy Enforcement (Track B3)"""
+
 import logging
 from src.core.executor.models import ActionStep, ApprovalTier, SafetyGateDecision
 
 log = logging.getLogger("executor.safety")
+
 
 class SafetyGate:
     """Avalia e aprova/bloqueia ações baseado em policy"""
@@ -28,16 +30,18 @@ class SafetyGate:
 
     # AFK window enforcement (hours)
     AFK_WINDOWS = {
-        ApprovalTier.L2_SILENT: 24,      # 24h for silent actions
-        ApprovalTier.L1_LOGGED: 6,       # 6h for logged, then escalate
-        ApprovalTier.L0_MANUAL: 0.083,   # 5 min for manual, then pause
+        ApprovalTier.L2_SILENT: 24,  # 24h for silent actions
+        ApprovalTier.L1_LOGGED: 6,  # 6h for logged, then escalate
+        ApprovalTier.L0_MANUAL: 0.083,  # 5 min for manual, then pause
     }
 
     def __init__(self):
         self.cycle_cost = 0.0
         self.day_cost = 0.0
 
-    async def evaluate(self, step: ActionStep, user_afk_hours: float = 0.0) -> SafetyGateDecision:
+    async def evaluate(
+        self, step: ActionStep, user_afk_hours: float = 0.0
+    ) -> SafetyGateDecision:
         """
         Avalia se ação deve ser executada, bloqueada, ou pedir aprovação.
 
@@ -54,7 +58,7 @@ class SafetyGate:
                 action_id=step.id,
                 approved=False,
                 approval_tier=ApprovalTier.L0_MANUAL,
-                reason=f"Custo {step.estimated_cost_usd:.2f} excede máximo {self.MAX_COST_PER_ACTION}"
+                reason=f"Custo {step.estimated_cost_usd:.2f} excede máximo {self.MAX_COST_PER_ACTION}",
             )
 
         if (self.cycle_cost + step.estimated_cost_usd) > self.MAX_COST_PER_CYCLE:
@@ -62,7 +66,7 @@ class SafetyGate:
                 action_id=step.id,
                 approved=False,
                 approval_tier=ApprovalTier.L0_MANUAL,
-                reason=f"Custo de ciclo excedido (${self.cycle_cost:.2f} + ${step.estimated_cost_usd:.2f})"
+                reason=f"Custo de ciclo excedido (${self.cycle_cost:.2f} + ${step.estimated_cost_usd:.2f})",
             )
 
         # 2. Bash whitelist check
@@ -72,7 +76,7 @@ class SafetyGate:
                     action_id=step.id,
                     approved=False,
                     approval_tier=ApprovalTier.L0_MANUAL,
-                    reason=f"Comando bash bloqueado por whitelist: {step.command}"
+                    reason=f"Comando bash bloqueado por whitelist: {step.command}",
                 )
 
         # 3. AFK window enforcement
@@ -82,7 +86,7 @@ class SafetyGate:
                 action_id=step.id,
                 approved=False,
                 approval_tier=ApprovalTier.L0_MANUAL,
-                reason=f"User AFK {user_afk_hours:.1f}h > máximo {max_afk_hours}h para {step.approval_tier.value}"
+                reason=f"User AFK {user_afk_hours:.1f}h > máximo {max_afk_hours}h para {step.approval_tier.value}",
             )
 
         # 4. Aprovado!
@@ -91,7 +95,7 @@ class SafetyGate:
             action_id=step.id,
             approved=True,
             approval_tier=step.approval_tier,
-            reason=f"Aprovado por policy ({step.approval_tier.value})"
+            reason=f"Aprovado por policy ({step.approval_tier.value})",
         )
 
     def _is_bash_whitelisted(self, command: str, tier: ApprovalTier) -> bool:
@@ -116,7 +120,9 @@ class SafetyGate:
 
         # L1_LOGGED permite L2+L1
         if tier == ApprovalTier.L1_LOGGED:
-            allowed = self.BASH_WHITELIST.get("L2_SILENT", []) + self.BASH_WHITELIST.get("L1_LOGGED", [])
+            allowed = self.BASH_WHITELIST.get(
+                "L2_SILENT", []
+            ) + self.BASH_WHITELIST.get("L1_LOGGED", [])
             return main_cmd in allowed
 
         # L0_MANUAL permite tudo

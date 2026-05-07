@@ -60,9 +60,7 @@ class SessionCompressor:
         self.keep_recent_turns = keep_recent_turns
         self._summaries: dict[str, str] = {}
 
-    async def maybe_compress(
-        self, session_id: str, turns: list[dict]
-    ) -> list[dict]:
+    async def maybe_compress(self, session_id: str, turns: list[dict]) -> list[dict]:
         """
         Se turns > threshold, comprime antigos e retorna lista reduzida.
         Senão, retorna original sem mudança.
@@ -70,8 +68,8 @@ class SessionCompressor:
         if len(turns) <= self.compress_after_turns:
             return turns
 
-        recent = turns[-self.keep_recent_turns:]
-        old = turns[:-self.keep_recent_turns]
+        recent = turns[-self.keep_recent_turns :]
+        old = turns[: -self.keep_recent_turns]
 
         history_text = self._format_for_compression(old)
 
@@ -106,8 +104,10 @@ class SessionCompressor:
             max_tokens=256,
         )
         resp = await invoke_with_fallback(
-            CognitiveRole.FAST, req,
-            self.model_router, self.api_keys,
+            CognitiveRole.FAST,
+            req,
+            self.model_router,
+            self.api_keys,
         )
         return resp.text.strip()
 

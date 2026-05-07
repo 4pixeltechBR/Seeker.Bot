@@ -24,13 +24,13 @@ from enum import Enum
 
 
 class CognitiveRole(str, Enum):
-    FAST       = "fast"
-    LOCAL      = "local"
-    DEEP       = "deep"
+    FAST = "fast"
+    LOCAL = "local"
+    DEEP = "deep"
     ADVERSARIAL = "adversarial"
-    SYNTHESIS  = "synthesis"
-    JUDGE      = "judge"
-    EMBEDDING  = "embedding"
+    SYNTHESIS = "synthesis"
+    JUDGE = "judge"
+    EMBEDDING = "embedding"
 
 
 @dataclass(frozen=True)
@@ -157,7 +157,8 @@ GEMINI_31_FLASH_LITE = ModelConfig(
     context_window=128_000,
     supports_tool_use=True,
     training_data_cutoff="2025-01",
-    rpm_limit=15, rpd_limit=500,
+    rpm_limit=15,
+    rpd_limit=500,
 )
 
 GEMINI_3_FLASH = ModelConfig(
@@ -168,7 +169,8 @@ GEMINI_3_FLASH = ModelConfig(
     context_window=1_000_000,
     supports_tool_use=True,
     training_data_cutoff="2025-01",
-    rpm_limit=5, rpd_limit=20,
+    rpm_limit=5,
+    rpd_limit=20,
 )
 
 GEMINI_25_FLASH = ModelConfig(
@@ -179,7 +181,8 @@ GEMINI_25_FLASH = ModelConfig(
     context_window=1_000_000,
     supports_tool_use=True,
     training_data_cutoff="2025-03",
-    rpm_limit=5, rpd_limit=20,
+    rpm_limit=5,
+    rpd_limit=20,
 )
 
 GEMINI_EMBEDDING_2 = ModelConfig(
@@ -188,7 +191,8 @@ GEMINI_EMBEDDING_2 = ModelConfig(
     display_name="Gemini Embedding 2",
     max_tokens=0,
     context_window=8192,
-    rpm_limit=100, rpd_limit=1000,
+    rpm_limit=100,
+    rpd_limit=1000,
 )
 
 
@@ -232,7 +236,8 @@ GROQ_LLAMA = ModelConfig(
     max_tokens=4096,
     context_window=128_000,
     training_data_cutoff="2025-08",
-    rpm_limit=30, rpd_limit=14_400,
+    rpm_limit=30,
+    rpd_limit=14_400,
 )
 
 MISTRAL_FREE = ModelConfig(
@@ -280,6 +285,7 @@ OLLAMA_GEMMA_4 = ModelConfig(
 # ROTEAMENTO PADRÃO
 # ─────────────────────────────────────────────────────────────────────
 
+
 def build_default_router() -> ModelRouter:
     """
     Roteamento reavaliado pós-teste de carga (15 goals paralelos).
@@ -313,41 +319,43 @@ def build_default_router() -> ModelRouter:
       → Groq Llama 4
       → Mistral
     """
-    return ModelRouter(routes={
-        CognitiveRole.FAST: [
-            GEMINI_31_FLASH_LITE,
-            GROQ_LLAMA,
-            NVIDIA_DEEPSEEK_V32,
-        ],
-        CognitiveRole.LOCAL: [
-            OLLAMA_GEMMA_4,
-            OLLAMA_QWEN,
-            GEMINI_31_FLASH_LITE,
-        ],
-        CognitiveRole.DEEP: [
-            NVIDIA_DEEPSEEK_V32,
-            GEMINI_3_FLASH,
-            NVIDIA_NEMOTRON_ULTRA,
-            DEEPSEEK_CHAT,
-        ],
-        CognitiveRole.ADVERSARIAL: [
-            NVIDIA_GEMMA_4_31B,  # Perspectiva "Google" sem gastar cota do Gemini API
-            NVIDIA_QWQ_32B,
-            DEEPSEEK_REASONER,
-            GEMINI_3_FLASH,
-        ],
-        CognitiveRole.SYNTHESIS: [
-            GEMINI_31_FLASH_LITE,
-            NVIDIA_DEEPSEEK_V32,
-            DEEPSEEK_CHAT,
-        ],
-        CognitiveRole.JUDGE: [
-            NVIDIA_GEMMA_4_31B,  # O melhor árbitro divergente e denso
-            GEMINI_3_FLASH,
-            GROQ_LLAMA,
-            MISTRAL_FREE,
-        ],
-        CognitiveRole.EMBEDDING: [
-            GEMINI_EMBEDDING_2,
-        ],
-    })
+    return ModelRouter(
+        routes={
+            CognitiveRole.FAST: [
+                GEMINI_31_FLASH_LITE,
+                GROQ_LLAMA,
+                NVIDIA_DEEPSEEK_V32,
+            ],
+            CognitiveRole.LOCAL: [
+                OLLAMA_GEMMA_4,
+                OLLAMA_QWEN,
+                GEMINI_31_FLASH_LITE,
+            ],
+            CognitiveRole.DEEP: [
+                NVIDIA_DEEPSEEK_V32,
+                GEMINI_3_FLASH,
+                NVIDIA_NEMOTRON_ULTRA,
+                DEEPSEEK_CHAT,
+            ],
+            CognitiveRole.ADVERSARIAL: [
+                NVIDIA_GEMMA_4_31B,  # Perspectiva "Google" sem gastar cota do Gemini API
+                NVIDIA_QWQ_32B,
+                DEEPSEEK_REASONER,
+                GEMINI_3_FLASH,
+            ],
+            CognitiveRole.SYNTHESIS: [
+                GEMINI_31_FLASH_LITE,
+                NVIDIA_DEEPSEEK_V32,
+                DEEPSEEK_CHAT,
+            ],
+            CognitiveRole.JUDGE: [
+                NVIDIA_GEMMA_4_31B,  # O melhor árbitro divergente e denso
+                GEMINI_3_FLASH,
+                GROQ_LLAMA,
+                MISTRAL_FREE,
+            ],
+            CognitiveRole.EMBEDDING: [
+                GEMINI_EMBEDDING_2,
+            ],
+        }
+    )

@@ -14,10 +14,9 @@ Metrics tracked:
 - Routing decisions logged for analysis
 """
 
-import asyncio
 import logging
 import time
-from typing import Dict, Optional
+from typing import Dict
 
 from .task_classifier import TaskClassifier, TaskType
 from .glm_ocr_client import GlmOcrClient
@@ -107,7 +106,11 @@ class VLMRouter:
         log.debug(f"[router] Task classified as {task_type.value}")
 
         # Route based on task type
-        routed_to = "glm_ocr" if (task_type == TaskType.OCR and self.glm_ocr_enabled and self.glm_ocr) else "primary"
+        routed_to = (
+            "glm_ocr"
+            if (task_type == TaskType.OCR and self.glm_ocr_enabled and self.glm_ocr)
+            else "primary"
+        )
 
         if routed_to == "glm_ocr":
             result = await self._route_to_glm_ocr(image_path)
@@ -124,7 +127,11 @@ class VLMRouter:
             decision=f"routed_to_{routed_to}",
             inputs={
                 "image_path": image_path,
-                "aspect_ratio": self.classifier._get_aspect_ratio(self.classifier._load_image(image_path)) if self.classifier._load_image(image_path) is not None else 0.0,
+                "aspect_ratio": self.classifier._get_aspect_ratio(
+                    self.classifier._load_image(image_path)
+                )
+                if self.classifier._load_image(image_path) is not None
+                else 0.0,
                 "task_type_detected": task_type.value,
             },
             output={
@@ -236,22 +243,26 @@ class VLMRouter:
 
         # Calculate averages
         if metrics["latencies"]["glm_ocr"]:
-            metrics["avg_glm_ocr_latency_ms"] = (
-                sum(metrics["latencies"]["glm_ocr"]) / len(metrics["latencies"]["glm_ocr"])
-            )
+            metrics["avg_glm_ocr_latency_ms"] = sum(
+                metrics["latencies"]["glm_ocr"]
+            ) / len(metrics["latencies"]["glm_ocr"])
         if metrics["latencies"]["primary"]:
-            metrics["avg_primary_latency_ms"] = (
-                sum(metrics["latencies"]["primary"]) / len(metrics["latencies"]["primary"])
-            )
+            metrics["avg_primary_latency_ms"] = sum(
+                metrics["latencies"]["primary"]
+            ) / len(metrics["latencies"]["primary"])
         if metrics["latencies"]["classifier"]:
-            metrics["avg_classifier_latency_ms"] = (
-                sum(metrics["latencies"]["classifier"]) / len(metrics["latencies"]["classifier"])
-            )
+            metrics["avg_classifier_latency_ms"] = sum(
+                metrics["latencies"]["classifier"]
+            ) / len(metrics["latencies"]["classifier"])
 
         # Calculate routing percentages
         if metrics["total_routed"] > 0:
-            metrics["glm_ocr_pct"] = 100 * metrics["routed_to_glm_ocr"] / metrics["total_routed"]
-            metrics["primary_pct"] = 100 * metrics["routed_to_primary"] / metrics["total_routed"]
+            metrics["glm_ocr_pct"] = (
+                100 * metrics["routed_to_glm_ocr"] / metrics["total_routed"]
+            )
+            metrics["primary_pct"] = (
+                100 * metrics["routed_to_primary"] / metrics["total_routed"]
+            )
 
         return metrics
 

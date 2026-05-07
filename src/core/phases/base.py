@@ -5,7 +5,7 @@ src/core/phases/base.py
 Tipos compartilhados por todas as fases do pipeline.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from src.core.router.cognitive_load import RoutingDecision
 from src.core.evidence.arbitrage import ArbitrageResult
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 @dataclass
 class PhaseContext:
     """Tudo que uma fase precisa para executar."""
+
     user_input: str
     decision: RoutingDecision
     memory_prompt: str
@@ -31,6 +32,7 @@ class PhaseContext:
 @dataclass
 class PhaseResult:
     """Output padronizado de qualquer fase."""
+
     response: str
     cost_usd: float = 0.0
     llm_calls: int = 0

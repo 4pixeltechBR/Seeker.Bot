@@ -39,11 +39,15 @@ import os
 import re
 import time
 import uuid
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Iterator
+from datetime import datetime
 
-from .reward_collector import RewardEvent, RewardSignal, SignalSource, RewardSign, REWARD_DB_PATH
+from .reward_collector import (
+    RewardEvent,
+    RewardSignal,
+    SignalSource,
+    RewardSign,
+    REWARD_DB_PATH,
+)
 
 log = logging.getLogger("seeker.rl.backfill")
 
@@ -88,6 +92,7 @@ _RE_TS = re.compile(r"^(\d{2}:\d{2}:\d{2})")
 # ─────────────────────────────────────────────────────────────────────────────
 # PARSER
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _parse_time(time_str: str, base_date: datetime) -> float:
     """Converte HH:MM:SS + data base em epoch float."""
@@ -144,7 +149,6 @@ class LogBackfill:
         # Janela deslizante: guarda contexto para parear routing → resultado
         pending_routing: dict[str, dict] = {}  # ts → {depth, ts}
         last_routing_ts: float | None = None
-        last_routing_depth: str | None = None
 
         with open(self.log_file, "r", encoding="utf-8", errors="replace") as f:
             for line in f:
@@ -156,7 +160,6 @@ class LogBackfill:
                         continue
                     depth = m.group(2).lower()
                     last_routing_ts = ts
-                    last_routing_depth = depth
                     pending_routing[str(ts)] = {
                         "depth": depth,
                         "ts": ts,
@@ -221,7 +224,9 @@ class LogBackfill:
                 with open(self.output_path, "a", encoding="utf-8") as f:
                     for ev in events_written:
                         f.write(json.dumps(ev.to_dict(), ensure_ascii=False) + "\n")
-                log.info(f"[backfill] ✅ {events_generated} eventos escritos em {self.output_path}")
+                log.info(
+                    f"[backfill] ✅ {events_generated} eventos escritos em {self.output_path}"
+                )
             except Exception as e:
                 log.error(f"[backfill] Falha ao escrever: {e}")
         elif dry_run:
@@ -236,10 +241,7 @@ class LogBackfill:
         window: float = 30.0,
     ) -> dict | None:
         """Encontra o routing mais recente que precedeu ts dentro de window segundos."""
-        candidates = [
-            r for r in pending.values()
-            if 0 < (ts - r["ts"]) < window
-        ]
+        candidates = [r for r in pending.values() if 0 < (ts - r["ts"]) < window]
         if not candidates:
             return None
         return max(candidates, key=lambda r: r["ts"])
@@ -250,9 +252,9 @@ class LogBackfill:
         Baseado em tier como proxy de provider (tier1=deepseek, tier2=groq, etc).
         """
         tier_costs = {
-            1: 0.015,   # DeepSeek R1 — mais caro
-            2: 0.002,   # Groq Llama — barato e rápido
-            3: 0.001,   # Gemini Flash — muito barato
+            1: 0.015,  # DeepSeek R1 — mais caro
+            2: 0.002,  # Groq Llama — barato e rápido
+            3: 0.001,  # Gemini Flash — muito barato
             4: 0.0005,  # Local/Ollama — quase gratuito
         }
         return tier_costs.get(tier, 0.005)
@@ -278,43 +280,51 @@ class LogBackfill:
         )
 
         # Sinal de sucesso/falha
-        event.add_signal(RewardSignal(
-            source=SignalSource.TECHNICAL,
-            sign=RewardSign.POSITIVE if success else RewardSign.NEGATIVE,
-            value=1.0 if success else -1.0,
-            reason=f"[backfill] {'sucesso' if success else 'falha'} tier={tier}",
-            timestamp=created_at,
-        ))
+        event.add_signal(
+            RewardSignal(
+                source=SignalSource.TECHNICAL,
+                sign=RewardSign.POSITIVE if success else RewardSign.NEGATIVE,
+                value=1.0 if success else -1.0,
+                reason=f"[backfill] {'sucesso' if success else 'falha'} tier={tier}",
+                timestamp=created_at,
+            )
+        )
 
         # Sinal de custo
         if cost_usd > 0:
-            event.add_signal(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.NEGATIVE,
-                value=-min(1.0, cost_usd * 50),
-                reason=f"[backfill] cost ${cost_usd:.4f}",
-                timestamp=created_at,
-            ))
+            event.add_signal(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-min(1.0, cost_usd * 50),
+                    reason=f"[backfill] cost ${cost_usd:.4f}",
+                    timestamp=created_at,
+                )
+            )
 
         # Sinal de latência
         if latency_ms > 0:
-            event.add_signal(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.NEGATIVE,
-                value=-min(0.5, latency_ms * 0.0001),
-                reason=f"[backfill] latency {latency_ms:.0f}ms",
-                timestamp=created_at,
-            ))
+            event.add_signal(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.NEGATIVE,
+                    value=-min(0.5, latency_ms * 0.0001),
+                    reason=f"[backfill] latency {latency_ms:.0f}ms",
+                    timestamp=created_at,
+                )
+            )
 
         # Bonus por usar tier baixo (barato) com sucesso
         if success and tier >= 2:
-            event.add_signal(RewardSignal(
-                source=SignalSource.TECHNICAL,
-                sign=RewardSign.POSITIVE,
-                value=+0.3,
-                reason=f"[backfill] tier eficiente (tier={tier})",
-                timestamp=created_at,
-            ))
+            event.add_signal(
+                RewardSignal(
+                    source=SignalSource.TECHNICAL,
+                    sign=RewardSign.POSITIVE,
+                    value=+0.3,
+                    reason=f"[backfill] tier eficiente (tier={tier})",
+                    timestamp=created_at,
+                )
+            )
 
         return event
 
@@ -322,6 +332,7 @@ class LogBackfill:
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def main():
     logging.basicConfig(

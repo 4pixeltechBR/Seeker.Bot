@@ -3,7 +3,6 @@ Seeker.Bot — SenseNews Prompts
 src/skills/sense_news/prompts.py
 """
 
-import json
 import logging
 import os
 
@@ -62,7 +61,10 @@ NICHES = {
     },
 }
 
-ANALYSIS_PROMPT = """Você é um analista experiente preparando dados para o "SenseNews — """ + ASSISTANT_NAME + """".
+ANALYSIS_PROMPT = (
+    """Você é um analista experiente preparando dados para o "SenseNews — """
+    + ASSISTANT_NAME
+    + """".
 
 NICHO DE BUSCA: {niche_name}
 OBJETIVO DESTE NICHO: {niche_objective}
@@ -85,8 +87,12 @@ Responda APENAS neste JSON válido:
   ]
 }}
 """
+)
 
-REPORT_PROMPT = """Você é o “SenseNews — """ + ASSISTANT_NAME + """”, meu analista diário do ecossistema de IA.
+REPORT_PROMPT = (
+    """Você é o “SenseNews — """
+    + ASSISTANT_NAME
+    + """”, meu analista diário do ecossistema de IA.
 
 OBJETIVO
 Fazer uma única pesquisa diária e entregar um único relatório, curto e útil, cobrindo:
@@ -167,6 +173,7 @@ Direto, técnico sem pedantismo, resumido, didático e sem repetição.
 *   💡 **1 ideia para anotar:** [...]
 *   ⚠️ **1 risco para monitorar:** [...]
 """
+)
 
 
 def get_niches_for_user(user_niches: list[str] | None) -> dict:
@@ -192,4 +199,3 @@ def get_niches_for_user(user_niches: list[str] | None) -> dict:
             log.warning(f"[sensenews] Nicho desconhecido: {niche_name}")
 
     return filtered if filtered else NICHES  # Fallback se nenhum niche for reconhecido
-

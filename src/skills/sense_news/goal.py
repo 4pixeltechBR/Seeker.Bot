@@ -6,7 +6,6 @@ Curadoria diária de notícias nos nichos escolhidos pelo usuário.
 Gera relatório em PDF e envia como anexo no Telegram às 10:00.
 """
 
-import asyncio
 import logging
 import os
 import random
@@ -16,12 +15,19 @@ from src.core.pipeline import SeekerPipeline
 from src.core.utils import parse_llm_json
 from src.providers.base import LLMRequest, invoke_with_fallback
 from src.core.goals.protocol import (
-    AutonomousGoal, GoalBudget, GoalResult, GoalStatus, NotificationChannel,
+    GoalBudget,
+    GoalResult,
+    GoalStatus,
+    NotificationChannel,
 )
-from src.skills.sense_news.prompts import NICHES, ANALYSIS_PROMPT, REPORT_PROMPT, get_niches_for_user
+from src.skills.sense_news.prompts import (
+    NICHES,
+    ANALYSIS_PROMPT,
+    REPORT_PROMPT,
+    get_niches_for_user,
+)
 from src.skills.sense_news.pdf_builder import build_sense_news_pdf
 from config.models import CognitiveRole
-import os
 
 log = logging.getLogger("seeker.sensenews")
 
@@ -56,8 +62,10 @@ class SenseNewsGoal:
     def interval_seconds(self) -> int:
         now = datetime.now()
         target = now.replace(
-            hour=self.target_hour, minute=self.target_minute,
-            second=0, microsecond=0,
+            hour=self.target_hour,
+            minute=self.target_minute,
+            second=0,
+            microsecond=0,
         )
         if now >= target:
             target += timedelta(days=1)
@@ -78,13 +86,15 @@ class SenseNewsGoal:
     def serialize_state(self) -> dict:
         return {
             "last_run_date": self._last_run_date,
-            "history": self._history[-self.MAX_HISTORY:],
+            "history": self._history[-self.MAX_HISTORY :],
         }
 
     def load_state(self, state: dict) -> None:
         self._last_run_date = state.get("last_run_date", "")
         self._history = state.get("history", [])
-        log.info(f"[sensenews] Estado carregado: {len(self._history)} temas no histórico")
+        log.info(
+            f"[sensenews] Estado carregado: {len(self._history)} temas no histórico"
+        )
 
     # ── Core ──────────────────────────────────────────────
 
@@ -94,11 +104,15 @@ class SenseNewsGoal:
 
         if self._last_run_date == today_str:
             self._status = GoalStatus.IDLE
-            return GoalResult(success=True, summary="SenseNews já executado hoje", cost_usd=0.0)
+            return GoalResult(
+                success=True, summary="SenseNews já executado hoje", cost_usd=0.0
+            )
 
         target_today = now.replace(
-            hour=self.target_hour, minute=self.target_minute,
-            second=0, microsecond=0,
+            hour=self.target_hour,
+            minute=self.target_minute,
+            second=0,
+            microsecond=0,
         )
         if now < target_today:
             self._status = GoalStatus.IDLE
@@ -123,7 +137,9 @@ class SenseNewsGoal:
                 user_id = int(allowed_users_str.split(",")[0].strip())
                 user_niches = await self.pipeline.memory.get_user_niches(user_id)
                 if user_niches:
-                    log.info(f"[sensenews] Usando nichos personalizados do usuário: {user_niches}")
+                    log.info(
+                        f"[sensenews] Usando nichos personalizados do usuário: {user_niches}"
+                    )
         except Exception as e:
             log.debug(f"[sensenews] Não conseguiu carregar preferências: {e}")
             # Continua com defaults
@@ -134,13 +150,17 @@ class SenseNewsGoal:
         # Varre os nichos
         for niche_name, niche_config in niches_to_use.items():
             try:
-                analyses, cost = await self._research_niche(niche_name, niche_config, year)
+                analyses, cost = await self._research_niche(
+                    niche_name, niche_config, year
+                )
                 total_cost += cost
 
                 # Dedup
                 new_analyses = [
-                    a for a in analyses
-                    if a.get("title", "").lower() not in {h.lower() for h in self._history}
+                    a
+                    for a in analyses
+                    if a.get("title", "").lower()
+                    not in {h.lower() for h in self._history}
                 ]
 
                 # Mínimo 2 por nicho — se tiver menos, loga mas não bloqueia
@@ -186,7 +206,7 @@ class SenseNewsGoal:
             title = a.get("title", "")
             if title:
                 self._history.append(title)
-        self._history = self._history[-self.MAX_HISTORY:]
+        self._history = self._history[-self.MAX_HISTORY :]
 
         self._last_run_date = today_str
         self._status = GoalStatus.IDLE
@@ -204,7 +224,7 @@ class SenseNewsGoal:
         for niche, count in niche_counts.items():
             emoji = NICHES.get(niche, {}).get("emoji", "📰")
             notification += f"  {emoji} {niche}: {count} temas\n"
-        notification += f"\n<i>Relatório PDF em anexo.</i>"
+        notification += "\n<i>Relatório PDF em anexo.</i>"
 
         return GoalResult(
             success=True,
@@ -226,10 +246,7 @@ class SenseNewsGoal:
             min(3, len(niche_config["search_queries"])),
         )
         # Injeta ano apenas se a query ainda não o contém
-        queries = [
-            q if year_str in q else f"{q} {year}"
-            for q in raw_queries
-        ]
+        queries = [q if year_str in q else f"{q} {year}" for q in raw_queries]
 
         all_results = []
         for q in queries:
@@ -252,8 +269,7 @@ class SenseNewsGoal:
                 unique.append(r)
 
         contexto = "\n".join(
-            f"- [{r.title[:80]}] {r.snippet[:250]} ({r.url})"
-            for r in unique[:10]
+            f"- [{r.title[:80]}] {r.snippet[:250]} ({r.url})" for r in unique[:10]
         )
 
         prompt = ANALYSIS_PROMPT.format(
@@ -271,8 +287,10 @@ class SenseNewsGoal:
         )
 
         resp = await invoke_with_fallback(
-            CognitiveRole.FAST, req,
-            self.pipeline.model_router, self.pipeline.api_keys,
+            CognitiveRole.FAST,
+            req,
+            self.pipeline.model_router,
+            self.pipeline.api_keys,
         )
 
         try:
@@ -286,9 +304,7 @@ class SenseNewsGoal:
 
     # ── Relatório ─────────────────────────────────────────
 
-    async def _generate_report(
-        self, analyses: list[dict]
-    ) -> tuple[str, float]:
+    async def _generate_report(self, analyses: list[dict]) -> tuple[str, float]:
         """Gera relatório markdown consolidado via LLM."""
         analyses_text = "\n".join(
             f"[{a.get('niche', '?')}] {a.get('title', '?')}\n"
@@ -312,8 +328,10 @@ class SenseNewsGoal:
         )
 
         resp = await invoke_with_fallback(
-            CognitiveRole.SYNTHESIS, req,
-            self.pipeline.model_router, self.pipeline.api_keys,
+            CognitiveRole.SYNTHESIS,
+            req,
+            self.pipeline.model_router,
+            self.pipeline.api_keys,
         )
 
         return resp.text, resp.cost_usd

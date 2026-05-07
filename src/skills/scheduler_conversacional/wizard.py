@@ -37,7 +37,8 @@ class SchedulerWizard:
             chat_id=chat_id,
             user_id=user_id,
             state=WizardState.COLLECTING_TITLE,
-            expires_at=datetime.utcnow() + timedelta(minutes=self.WIZARD_TIMEOUT_MINUTES),
+            expires_at=datetime.utcnow()
+            + timedelta(minutes=self.WIZARD_TIMEOUT_MINUTES),
         )
 
         await self.store.create_wizard_session(session)
@@ -97,7 +98,9 @@ class SchedulerWizard:
 
         return False, "❌ Estado desconhecido", None
 
-    async def back_step(self, chat_id: int) -> Tuple[bool, str, Optional[WizardSession]]:
+    async def back_step(
+        self, chat_id: int
+    ) -> Tuple[bool, str, Optional[WizardSession]]:
         """Volta um passo no wizard"""
         session = await self.get_session(chat_id)
         if session is None:
@@ -136,7 +139,9 @@ class SchedulerWizard:
     # Collection Methods
     # ────────────────────────────────────────────────────────
 
-    async def _collect_title(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_title(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta título da tarefa"""
         title = user_input.strip()
 
@@ -162,7 +167,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _collect_schedule_type(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_schedule_type(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta tipo de periodicidade"""
         choice = user_input.strip().lower()
 
@@ -199,7 +206,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _collect_day_of_week(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_day_of_week(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta dia da semana (0-6: seg-dom)"""
         try:
             day = int(user_input.strip())
@@ -220,7 +229,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _collect_day_of_month(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_day_of_month(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta dia do mês (1-31)"""
         try:
             day = int(user_input.strip())
@@ -241,7 +252,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _collect_month_day(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_month_day(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta mês e dia para anual"""
         try:
             parts = user_input.strip().split("/")
@@ -267,7 +280,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _collect_hour(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_hour(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta hora (0-23)"""
         try:
             hour = int(user_input.strip())
@@ -288,7 +303,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _collect_instruction(self, session: WizardSession, user_input: str) -> Tuple[bool, str, WizardSession]:
+    async def _collect_instruction(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, WizardSession]:
         """Coleta texto da instrução"""
         instruction = user_input.strip()
 
@@ -314,7 +331,9 @@ class SchedulerWizard:
         msg = self._prompt_for_state(session)
         return True, msg, session
 
-    async def _confirm(self, session: WizardSession, user_input: str) -> Tuple[bool, str, Optional[WizardSession]]:
+    async def _confirm(
+        self, session: WizardSession, user_input: str
+    ) -> Tuple[bool, str, Optional[WizardSession]]:
         """Confirma criação ou cancela"""
         choice = user_input.strip().lower()
 
@@ -356,12 +375,12 @@ class SchedulerWizard:
 
         elif session.state == WizardState.COLLECTING_SCHEDULE_TYPE:
             return (
-                f"⏰ **Frequência:**\n"
-                f"1️⃣ Diária\n"
-                f"2️⃣ Semanal\n"
-                f"3️⃣ Mensal\n"
-                f"4️⃣ Anual\n"
-                f"\nDigite o número:"
+                "⏰ **Frequência:**\n"
+                "1️⃣ Diária\n"
+                "2️⃣ Semanal\n"
+                "3️⃣ Mensal\n"
+                "4️⃣ Anual\n"
+                "\nDigite o número:"
             )
 
         elif session.state == WizardState.COLLECTING_DAY_OF_WEEK:

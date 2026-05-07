@@ -20,10 +20,9 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 
-from config.models import ModelConfig, ModelRouter, CognitiveRole, build_default_router
+from config.models import ModelConfig, ModelRouter
 from src.core.utils import parse_llm_json
 from src.providers.base import (
-    BaseProvider,
     LLMRequest,
     LLMResponse,
     create_provider,
@@ -36,16 +35,17 @@ log = logging.getLogger("seeker.evidence.arbitrage")
 # TIPOS
 # ─────────────────────────────────────────────────────────────────────
 
+
 class AgreementLevel(str, Enum):
-    CONSENSUS    = "consensus"
-    MAJORITY     = "majority"
-    SPLIT        = "split"
+    CONSENSUS = "consensus"
+    MAJORITY = "majority"
+    SPLIT = "split"
     CONTRADICTION = "contradiction"
 
 
 class VerificationDepth(int, Enum):
-    UNVERIFIED       = 0
-    CORROBORATED     = 1
+    UNVERIFIED = 0
+    CORROBORATED = 1
     PRIMARY_VERIFIED = 2
     EMPIRICALLY_TESTED = 3
 
@@ -116,7 +116,9 @@ class ArbitrageResult:
     def to_summary(self) -> str:
         lines = [f"## Arbitragem: {self.query[:80]}"]
         lines.append(f"Modelos: {', '.join(self.models_consulted)}")
-        lines.append(f"Custo: ${self.total_cost_usd:.4f} | Latência: {self.total_latency_ms}ms")
+        lines.append(
+            f"Custo: ${self.total_cost_usd:.4f} | Latência: {self.total_latency_ms}ms"
+        )
         lines.append("")
 
         if self.consensus_claims:
@@ -129,7 +131,9 @@ class ArbitrageResult:
             lines.append(f"### Conflitos ({len(self.conflict_zones)} zonas)")
             for zone in self.conflict_zones:
                 resolved = " ✅" if zone.resolution else ""
-                lines.append(f"  ⚠️ {zone.topic} [{zone.agreement_level.value}]{resolved}")
+                lines.append(
+                    f"  ⚠️ {zone.topic} [{zone.agreement_level.value}]{resolved}"
+                )
                 for claim in zone.claims:
                     lines.append(f"    - [{claim.source_provider}] {claim.text}")
                 if zone.resolution:
@@ -174,17 +178,18 @@ REGRAS:
 # COMPARADOR DE CLAIMS V2 — Embedding + Jaccard fallback
 # ─────────────────────────────────────────────────────────────────────
 
+
 class ClaimComparator:
     """
     V2: Embedding similarity via GeminiEmbedder com fallback Jaccard.
-    
+
     ANTES (V1 Jaccard):
       "API suporta tool calling" vs "Model has function calling support"
       → 0.08 → NÃO MATCH → falso conflito
-    
+
     DEPOIS (V2 Embedding):
       → 0.89 → MATCH → consenso correto
-    
+
     Custo: ~30 embed calls por arbitragem (10 claims × 3 modelos).
     Com 100 RPM no Gemini Embed, consome 30/100 slots. Aceitável.
     """
@@ -232,6 +237,7 @@ class ClaimComparator:
                 # Tenta embedding primeiro
                 if vecs_a and vecs_b and vecs_a[i] and vecs_b[j]:
                     from src.core.memory.embeddings import GeminiEmbedder
+
                     score = GeminiEmbedder.cosine_similarity(vecs_a[i], vecs_b[j])
                 else:
                     score = self._jaccard_similarity(ca.text, cb.text)
@@ -266,10 +272,40 @@ class ClaimComparator:
     def _tokenize(self, text: str) -> set[str]:
         words = text.lower().split()
         stopwords = {
-            "o", "a", "os", "as", "de", "do", "da", "dos", "das",
-            "em", "no", "na", "um", "uma", "e", "é", "que", "para",
-            "com", "por", "the", "is", "of", "and", "to", "in", "a",
-            "for", "on", "with", "at", "an", "it", "its",
+            "o",
+            "a",
+            "os",
+            "as",
+            "de",
+            "do",
+            "da",
+            "dos",
+            "das",
+            "em",
+            "no",
+            "na",
+            "um",
+            "uma",
+            "e",
+            "é",
+            "que",
+            "para",
+            "com",
+            "por",
+            "the",
+            "is",
+            "of",
+            "and",
+            "to",
+            "in",
+            "a",
+            "for",
+            "on",
+            "with",
+            "at",
+            "an",
+            "it",
+            "its",
         }
         return {w for w in words if len(w) > 2 and w not in stopwords}
 
@@ -278,10 +314,11 @@ class ClaimComparator:
 # O ARBITRADOR
 # ─────────────────────────────────────────────────────────────────────
 
+
 class EvidenceArbitrage:
     """
     Triangulação epistemológica automatizada.
-    
+
     Fluxo:
     1. Recebe uma query
     2. Dispara em paralelo para N modelos (providers diferentes)
@@ -381,10 +418,12 @@ class EvidenceArbitrage:
         provider = create_provider(model, self.api_keys)
         try:
             request = LLMRequest(
-                messages=[{
-                    "role": "user",
-                    "content": EXTRACTION_PROMPT.format(query=query),
-                }],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": EXTRACTION_PROMPT.format(query=query),
+                    }
+                ],
                 max_tokens=2000,
                 temperature=0.0,
                 response_format="json",
@@ -415,13 +454,17 @@ class EvidenceArbitrage:
                     claims.append(claim)
             return claims
         except (ValueError, KeyError, TypeError) as e:
-            log.warning(f"[arbitrage] Falha ao parsear claims de {model.display_name}: {e}")
-            return [Claim(
-                text=response.text[:500],
-                source_model=model.model_id,
-                source_provider=model.provider,
-                confidence=0.3,
-            )]
+            log.warning(
+                f"[arbitrage] Falha ao parsear claims de {model.display_name}: {e}"
+            )
+            return [
+                Claim(
+                    text=response.text[:500],
+                    source_model=model.model_id,
+                    source_provider=model.provider,
+                    confidence=0.3,
+                )
+            ]
 
     async def _analyze_agreement(
         self,
@@ -481,9 +524,7 @@ class EvidenceArbitrage:
                 consensus.append(claim)
 
         for name in model_names:
-            unmatched = self.comparator.find_unmatched(
-                model_claims[name], matched_ids
-            )
+            unmatched = self.comparator.find_unmatched(model_claims[name], matched_ids)
             for claim in unmatched:
                 category = self._extract_topic(claim.text)
                 if category not in conflict_claims_by_category:
@@ -504,25 +545,43 @@ class EvidenceArbitrage:
                     consensus.append(c)
                 continue
 
-            conflicts.append(ConflictZone(
-                topic=topic,
-                claims=claims,
-                agreement_level=level,
-                needs_primary_source=level in (
-                    AgreementLevel.CONTRADICTION,
-                    AgreementLevel.SPLIT,
-                ),
-            ))
+            conflicts.append(
+                ConflictZone(
+                    topic=topic,
+                    claims=claims,
+                    agreement_level=level,
+                    needs_primary_source=level
+                    in (
+                        AgreementLevel.CONTRADICTION,
+                        AgreementLevel.SPLIT,
+                    ),
+                )
+            )
 
         return consensus, conflicts
 
     def _extract_topic(self, text: str) -> str:
         words = [
-            w for w in text.lower().split()
-            if len(w) > 3 and w not in {
-                "para", "como", "quando", "onde", "qual",
-                "este", "esta", "esse", "essa", "mais",
-                "that", "this", "with", "from", "have",
+            w
+            for w in text.lower().split()
+            if len(w) > 3
+            and w
+            not in {
+                "para",
+                "como",
+                "quando",
+                "onde",
+                "qual",
+                "este",
+                "esta",
+                "esse",
+                "essa",
+                "mais",
+                "that",
+                "this",
+                "with",
+                "from",
+                "have",
             }
         ]
         return " ".join(words[:4]) if words else "geral"

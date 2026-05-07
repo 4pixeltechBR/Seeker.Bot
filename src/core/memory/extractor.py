@@ -57,7 +57,9 @@ class FactExtractor:
         self.api_keys = api_keys
 
     async def extract(
-        self, user_input: str, response_text: str,
+        self,
+        user_input: str,
+        response_text: str,
     ) -> dict:
         """
         Retorna dicionário com:
@@ -71,13 +73,15 @@ class FactExtractor:
             response = await invoke_with_fallback(
                 role=CognitiveRole.FAST,
                 request=LLMRequest(
-                    messages=[{
-                        "role": "user",
-                        "content": EXTRACTION_PROMPT.format(
-                            user_input=user_input[:500],
-                            response_summary=response_summary,
-                        ),
-                    }],
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": EXTRACTION_PROMPT.format(
+                                user_input=user_input[:500],
+                                response_summary=response_summary,
+                            ),
+                        }
+                    ],
                     system="Você é um extrator de Knowledge Graph. Responda APENAS JSON.",
                     max_tokens=800,
                     temperature=0.0,
@@ -87,24 +91,33 @@ class FactExtractor:
                 api_keys=self.api_keys,
             )
             data = parse_llm_json(response.text)
-            
+
             return {
                 "facts": self._sanitize_facts(data.get("facts", [])),
                 "entities": data.get("entities", []),
                 "triples": data.get("triples", []),
-                "summary": data.get("response_summary", "")[:500]
+                "summary": data.get("response_summary", "")[:500],
             }
         except Exception as e:
             log.warning(f"[extractor] Falha: {e}")
-            return {"facts": [], "entities": [], "triples": [], "summary": user_input[:200]}
+            return {
+                "facts": [],
+                "entities": [],
+                "triples": [],
+                "summary": user_input[:200],
+            }
 
     def _sanitize_facts(self, facts: list) -> list[dict]:
         valid = []
         for f in facts:
             if isinstance(f, dict) and f.get("fact") and len(f["fact"]) > 5:
-                valid.append({
-                    "fact": f["fact"][:200],
-                    "category": f.get("category", "general"),
-                    "confidence": min(0.95, max(0.1, float(f.get("confidence", 0.5)))),
-                })
+                valid.append(
+                    {
+                        "fact": f["fact"][:200],
+                        "category": f.get("category", "general"),
+                        "confidence": min(
+                            0.95, max(0.1, float(f.get("confidence", 0.5)))
+                        ),
+                    }
+                )
         return valid

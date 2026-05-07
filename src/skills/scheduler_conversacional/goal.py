@@ -4,7 +4,6 @@ Scheduler Conversacional — Autonomous Goal
 Goal que faz polling de tarefas agendadas e as executa.
 """
 
-import asyncio
 import logging
 
 from src.core.pipeline import SeekerPipeline
@@ -74,12 +73,16 @@ class SchedulerConversacional(AutonomousGoal):
             if not self.store:
                 self.store = SchedulerStore(self.pipeline.memory._db)
                 await self.store.init()
-                self.dispatcher = TaskDispatcher(self.store, self.pipeline.cascade_adapter)
+                self.dispatcher = TaskDispatcher(
+                    self.store, self.pipeline.cascade_adapter
+                )
 
             # Limpar sessões wizard expiradas
             cleanup_count = await self.store.cleanup_expired_sessions()
             if cleanup_count > 0:
-                log.info(f"[scheduler] Cleaned up {cleanup_count} expired wizard sessions")
+                log.info(
+                    f"[scheduler] Cleaned up {cleanup_count} expired wizard sessions"
+                )
 
             # Executar tarefas vencidas
             dispatch_stats = await self.dispatcher.dispatch_overdue_tasks()
@@ -123,13 +126,13 @@ class SchedulerConversacional(AutonomousGoal):
 
     def _build_notification(self, stats: dict) -> str:
         """Constrói notificação Telegram"""
-        msg = f"✅ **Scheduler — Ciclo Completo**\n\n"
+        msg = "✅ **Scheduler — Ciclo Completo**\n\n"
         msg += f"Executadas: {stats['executed']}\n"
         msg += f"Puladas: {stats['skipped']}\n"
         msg += f"Erros: {stats['failed']}\n"
 
         if stats["errors"]:
-            msg += f"\n⚠️ **Erros:**\n"
+            msg += "\n⚠️ **Erros:**\n"
             for error in stats["errors"][:3]:  # Mostrar primeiros 3
                 msg += f"- {error[:100]}\n"
 

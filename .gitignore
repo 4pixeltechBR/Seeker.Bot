@@ -29,6 +29,16 @@ Credenciais/
 credentials.json
 gcp-oauth.keys.json
 *token*.json
+*.json.json
+config/credentials.json
+service-account.json
+
+# Seeker Specific
+src/core/exporters/
+src/skills/auto_retry/
+src/skills/event_radar/
+temp_bot.json
+benchmark_*.log
 
 # Ferramentas Comerciais & Scripts Temporarios
 src/skills/seeker_sales/

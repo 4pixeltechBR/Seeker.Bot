@@ -5,7 +5,6 @@ src/skills/bug_analyzer/context_collector.py
 Coleta contexto de chat e terminal para análise de bugs.
 """
 
-import asyncio
 import logging
 import re
 from datetime import datetime
@@ -24,8 +23,10 @@ class ContextCollector:
     async def collect_context(
         self,
         bug_description: str,
-        chat_history: list[dict],  # [{"timestamp": "...", "text": "...", "is_user": True/False}]
-        user_id: str = "unknown"
+        chat_history: list[
+            dict
+        ],  # [{"timestamp": "...", "text": "...", "is_user": True/False}]
+        user_id: str = "unknown",
     ) -> BugReport:
         """
         Coleta contexto completo do bug.
@@ -38,7 +39,9 @@ class ContextCollector:
         Returns:
             BugReport com contexto coletado
         """
-        log.info(f"[context_collector] Coletando contexto para bug: {bug_description[:60]}...")
+        log.info(
+            f"[context_collector] Coletando contexto para bug: {bug_description[:60]}..."
+        )
 
         # 1. Processa histórico de chat
         chat_messages = self._process_chat_history(chat_history)
@@ -91,7 +94,9 @@ class ContextCollector:
         lines = []
 
         if not self.log_file_path.exists():
-            log.warning(f"[context_collector] Log file não encontrado: {self.log_file_path}")
+            log.warning(
+                f"[context_collector] Log file não encontrado: {self.log_file_path}"
+            )
             return lines
 
         try:
@@ -106,11 +111,16 @@ class ContextCollector:
 
                 # Extrai timestamp (padrão: [HH:MM:SS])
                 timestamp_match = re.match(r"\[?(\d{2}:\d{2}:\d{2})", line)
-                timestamp = timestamp_match.group(1) if timestamp_match else datetime.now().isoformat()
+                timestamp = (
+                    timestamp_match.group(1)
+                    if timestamp_match
+                    else datetime.now().isoformat()
+                )
 
                 # Detecta se é erro/warning
                 is_error = any(
-                    kw in line.upper() for kw in ["ERROR", "EXCEPTION", "FAILED", "FATAL"]
+                    kw in line.upper()
+                    for kw in ["ERROR", "EXCEPTION", "FAILED", "FATAL"]
                 )
                 is_warning = any(
                     kw in line.upper() for kw in ["WARNING", "WARN", "DEPRECATED"]
@@ -135,12 +145,18 @@ class ContextCollector:
     def _detect_error_patterns(self, terminal_output: list[TerminalLine]) -> list[str]:
         """Detecta padrões de erro na saída do terminal"""
         patterns = []
-        error_lines = [line for line in terminal_output if line.is_error or line.is_warning]
+        error_lines = [
+            line for line in terminal_output if line.is_error or line.is_warning
+        ]
 
         # Extrai mensagens de erro mais comuns
         for line in error_lines:
             # Busca por "error: ..." ou "ERROR: ..."
-            error_match = re.search(r"(?:error|exception|failed)[\s:]*([^;]+)(?:;|$)", line.line, re.IGNORECASE)
+            error_match = re.search(
+                r"(?:error|exception|failed)[\s:]*([^;]+)(?:;|$)",
+                line.line,
+                re.IGNORECASE,
+            )
             if error_match:
                 pattern = error_match.group(1).strip()
                 if pattern and pattern not in patterns:

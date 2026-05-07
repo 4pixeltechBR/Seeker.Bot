@@ -9,25 +9,31 @@ log = logging.getLogger("seeker.vision.afk")
 class PermissionResult(Enum):
     APPROVED = auto()
     DENIED = auto()
-    AFK = auto()       # Timeout Tier 2 (segundo timeout) → auto-approve leitura
+    AFK = auto()  # Timeout Tier 2 (segundo timeout) → auto-approve leitura
     DEFERRED = auto()  # Timeout Tier 2 (primeiro timeout) → enfileira retry
-    EXPIRED = auto()   # Timeout Tier 1 → abort (Desktop Takeover)
+    EXPIRED = auto()  # Timeout Tier 1 → abort (Desktop Takeover)
 
 
 class AFKProtocol:
     """
     Gerencia hierarquia de consentimentos de Visão e Mouse no Telegram.
-    
+
     Filosofia de segurança (alinhada com Claude Code):
-    - Ações de LEITURA (screenshot, OCR, navegação): podem ser auto-aprovadas após 
+    - Ações de LEITURA (screenshot, OCR, navegação): podem ser auto-aprovadas após
       timeout escalonado (3min → retry → +30min = AFK confirmado)
     - Ações de ESCRITA (click, submit, form fill): sempre exigem aprovação explícita
     - Desktop takeover (Tier 1/L3): timeout = abort, nunca auto-approve
     """
-    FIRST_TIMEOUT_SECONDS = 180    # 3 minutos — primeira tentativa
+
+    FIRST_TIMEOUT_SECONDS = 180  # 3 minutos — primeira tentativa
     SECOND_TIMEOUT_SECONDS = 1800  # 30 minutos — confirmação de AFK real
 
-    def __init__(self, bot, telegram_allowed_users: set[int], habit_tracker: HabitTracker | None = None):
+    def __init__(
+        self,
+        bot,
+        telegram_allowed_users: set[int],
+        habit_tracker: HabitTracker | None = None,
+    ):
         self.bot = bot
         self.users = telegram_allowed_users
         self.habits = habit_tracker or HabitTracker()
@@ -73,7 +79,9 @@ class AFKProtocol:
 
         # Monta mensagem com contexto claro do que vai acontecer no timeout
         msg = f"<b>🚨 AUTORIZAÇÃO VISUAL: Tier {tier}</b>\n\n{reason}\n\n"
-        msg += f"<b>Tipo:</b> {'📖 Leitura' if action_type == 'read' else '✍️ Escrita'}\n\n"
+        msg += (
+            f"<b>Tipo:</b> {'📖 Leitura' if action_type == 'read' else '✍️ Escrita'}\n\n"
+        )
 
         # Consulta padrão de hábito antes de perguntar
         habit = self.habits.suggest(reason[:30], action_type)
@@ -137,9 +145,7 @@ class AFKProtocol:
         )
 
         try:
-            return await asyncio.wait_for(
-                future, timeout=timeout
-            )
+            return await asyncio.wait_for(future, timeout=timeout)
         except asyncio.TimeoutError:
             log.info(f"[AFK] Primeiro timeout — resultado: {timeout_result.name}")
             if timeout_result == PermissionResult.DEFERRED:
@@ -149,7 +155,9 @@ class AFKProtocol:
                 self._requests.pop(request_id, None)
             return timeout_result
 
-    async def _handle_deferred(self, reason: str, tier: int, request_id: str) -> PermissionResult:
+    async def _handle_deferred(
+        self, reason: str, tier: int, request_id: str
+    ) -> PermissionResult:
         """
         Segundo ciclo: notifica que a ação foi enfileirada e espera mais 30 minutos.
         Se o humano não responder nesse período, assume AFK real e auto-aprova leitura.
@@ -169,7 +177,10 @@ class AFKProtocol:
         markup = {
             "inline_keyboard": [
                 [
-                    {"text": "✅ Autorizar agora", "callback_data": f"vis_auth_yes_{tier}"},
+                    {
+                        "text": "✅ Autorizar agora",
+                        "callback_data": f"vis_auth_yes_{tier}",
+                    },
                     {"text": "❌ Cancelar", "callback_data": f"vis_auth_no_{tier}"},
                 ]
             ]
@@ -183,9 +194,7 @@ class AFKProtocol:
             except Exception as e:
                 log.error(f"[AFK] Falha envio deferred {uid}: {e}", exc_info=True)
 
-        log.info(
-            f"[AFK] Segundo timeout iniciado ({self.SECOND_TIMEOUT_SECONDS}s)..."
-        )
+        log.info(f"[AFK] Segundo timeout iniciado ({self.SECOND_TIMEOUT_SECONDS}s)...")
 
         try:
             return await asyncio.wait_for(
@@ -209,12 +218,16 @@ class AFKProtocol:
                 self._requests.pop(request_id, None)
             return PermissionResult.AFK
 
-    async def resolve_request(self, result: str, tier: str, goal_name: str = "", action_type: str = "read"):
+    async def resolve_request(
+        self, result: str, tier: str, goal_name: str = "", action_type: str = "read"
+    ):
         """Chamado pelo Dispatcher do Telegram Action. Protegido por lock."""
         async with self._lock:
             # Busca primeira request em fila (FIFO)
             if not self._requests:
-                log.warning(f"[AFK] resolve_request sem requests pendentes (result={result})")
+                log.warning(
+                    f"[AFK] resolve_request sem requests pendentes (result={result})"
+                )
                 return
 
             # Pega primeiro request da fila (order de criação)
@@ -222,12 +235,16 @@ class AFKProtocol:
             future = self._requests.pop(request_id)
 
             if future.done():
-                log.warning(f"[AFK] Future já completado (request_id={request_id}, result={result})")
+                log.warning(
+                    f"[AFK] Future já completado (request_id={request_id}, result={result})"
+                )
                 return
 
             approved = result == "yes"
             permission_result = (
-                PermissionResult.APPROVED if result == "yes" else PermissionResult.DENIED
+                PermissionResult.APPROVED
+                if result == "yes"
+                else PermissionResult.DENIED
             )
 
             # Set Future com resultado (thread-safe)
