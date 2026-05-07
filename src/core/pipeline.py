@@ -80,6 +80,7 @@ from src.core.budget import RastreadorCustos
 from src.core.data import ArmazemDados, Indexador, GerenciadorRetencao
 from src.core.analytics import DashboardFinanceiro, Forecaster, Reporter
 from src.core.memory.obsidian import ObsidianExporter
+from src.core.exporters.drive import GoogleDriveExporter
 
 log = logging.getLogger("seeker.pipeline")
 
@@ -205,10 +206,21 @@ class SeekerPipeline:
             limite_mensal_usd=200.0,
         )
 
-        # Obsidian Exporter
-        vault_path = os.getenv("OBSIDIAN_VAULT_PATH")
         self.obsidian_exporter = (
             ObsidianExporter(self.memory, vault_path) if vault_path else None
+        )
+
+        # Google Drive Exporter
+        drive_creds = os.getenv("GOOGLE_DRIVE_CREDENTIALS") or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "config",
+            "credentials.json.json",
+        )
+        drive_folder = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "1-G-lJ2uE-X2vX-X-X-X")
+        self.drive_exporter = (
+            GoogleDriveExporter(drive_creds, drive_folder)
+            if os.path.exists(drive_creds)
+            else None
         )
 
         # Data Manager — armazenamento eficiente de fatos semânticos

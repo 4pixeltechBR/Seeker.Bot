@@ -34,9 +34,6 @@ config/credentials.json
 service-account.json
 
 # Seeker Specific
-src/core/exporters/
-src/skills/auto_retry/
-src/skills/event_radar/
 temp_bot.json
 benchmark_*.log
 

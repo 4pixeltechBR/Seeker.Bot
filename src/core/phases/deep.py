@@ -235,7 +235,7 @@ class DeepPhase:
                     response_text=response_to_verify,
                     evidence_context=all_evidence,
                 ),
-                timeout=20.0,
+                timeout=40.0,
             )
             llm_calls += 1
 
