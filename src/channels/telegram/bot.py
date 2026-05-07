@@ -146,6 +146,9 @@ async def setup_commands(bot: Bot):
             description="📁 Google Drive: listar, criar, enviar e baixar arquivos",
         ),
         BotCommand(
+            command="/audit_sara", description="🛡️ Dashboard de Integridade (Hallucinations/SARA)"
+        ),
+        BotCommand(
             command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"
         ),
     ]
@@ -268,6 +271,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/crm — histórico de leads\n"
             "/git_backup — backup manual no GitHub\n"
             "/configure_news — personaliza notícias\n"
+            "/audit_sara — dashboard de integridade (hallucination/budget)\n"
             "/drive — 📁 acesso ao Google Drive"
         )
 

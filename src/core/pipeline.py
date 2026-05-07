@@ -214,14 +214,34 @@ class SeekerPipeline:
         drive_creds = os.getenv("GOOGLE_DRIVE_CREDENTIALS") or os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
             "config",
-            "credentials.json.json",
+            "credentials.json",
         )
-        drive_folder = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "1-G-lJ2uE-X2vX-X-X-X")
-        self.drive_exporter = (
-            GoogleDriveExporter(drive_creds, drive_folder)
-            if os.path.exists(drive_creds)
-            else None
-        )
+        # Fallback para o nome bizarro se existir
+        if not os.path.exists(drive_creds) and os.path.exists(drive_creds + ".json"):
+            drive_creds += ".json"
+
+        drive_folder = os.getenv("GOOGLE_DRIVE_FOLDER_ID")
+        self.drive_exporter = None
+        if drive_folder and os.path.exists(drive_creds):
+            # Validação rápida: service account JSON tem o campo "type": "service_account"
+            try:
+                with open(drive_creds, "r") as f:
+                    creds_data = json.load(f)
+                    if creds_data.get("type") == "service_account":
+                        self.drive_exporter = GoogleDriveExporter(
+                            drive_creds, drive_folder
+                        )
+                    else:
+                        log.warning(
+                            f"[pipeline] Arquivo {drive_creds} não é uma Service Account válida. "
+                            "O exporter de dossiês para o Drive será desativado."
+                        )
+            except Exception as e:
+                log.warning(f"[pipeline] Falha ao ler credenciais do Drive: {e}")
+        else:
+            log.debug(
+                "[pipeline] Google Drive Exporter desativado (sem folder_id ou credenciais)"
+            )
 
         # Data Manager — armazenamento eficiente de fatos semânticos
         data_db_path = os.path.join(

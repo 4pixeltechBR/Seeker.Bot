@@ -52,5 +52,10 @@ O motor S.A.R.A agora reporta sucessos e falhas diretamente ao Monitor de Integr
 - **Estabilização do Bot:** Correção de bugs em comandos críticos (`/status`, `/vault`, `/development`) que causavam falhas silenciosas.
 - **Otimização de Memória:** Melhoria no processamento de fatos semânticos e recuperação de contexto via Obsidian Vault.
 
+## 🚑 Hotfix (Pós-v3.1)
+- **Restauração de Core:** Recuperados módulos críticos (`src/core/data` e `src/skills/drive_manager`) deletados acidentalmente durante a refatoração global.
+- **Pipeline de Integração:** Corrigida instabilidade na autenticação de exportação (suporte aprimorado para credenciais OAuth) e renomeada a classe base do motor de criação de skills (`CodeGenerator`) para alinhar com o design arquitetural.
+- **Prevenção de Conflitos:** Resolvidos problemas de instâncias zumbis travando o polling do Telegram (`TelegramConflictError`).
+
 ---
 *Seeker.Bot — Always Observing, Always Orienting.*

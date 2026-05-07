@@ -17,20 +17,23 @@ from src.skills.vision.afk_protocol import AFKProtocol, PermissionResult
 log = logging.getLogger("seeker.coder")
 
 
-class SkillCreatorEngine:
+class CodeGenerator:
     """Motor de codificação autônoma do Seeker.Bot (Patcher L3)"""
 
-    @staticmethod
+    def __init__(self, pipeline):
+        self.pipeline = pipeline
+
     async def process_coding_request(
+        self,
         prompt: str,
-        afk_protocol: AFKProtocol,
-        model_router: ModelRouter,
-        api_keys: dict[str, str],
     ) -> str:
         """
         Recebe um pedido em linguagem natural, gera código via DeepSeek,
         pede aprovação via Telegram e escreve o arquivo no disco.
         """
+        afk_protocol = self.pipeline.afk_protocol
+        model_router = self.pipeline.model_router
+        api_keys = self.pipeline.api_keys
         if not afk_protocol:
             return "❌ AFKProtocol não acoplado. Impossível pedir permissão para escrever código."
 

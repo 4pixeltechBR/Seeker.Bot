@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 
 # Tags que o Telegram aceita (para sanitização)
+MAX_MSG_LENGTH = 4096
 _ALLOWED_TAGS = {"b", "i", "s", "u", "code", "pre", "a"}
 _TAG_RE = re.compile(r"<(/?)(\w+)([^>]*)>")
 
@@ -171,3 +172,38 @@ def md_to_telegram_html(text: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", text)
 
     return text.strip()
+
+
+def split_message(text: str, max_length: int = 4096) -> list[str]:
+    """
+    Divide uma mensagem longa em partes menores respeitando limites do Telegram.
+    Tenta quebrar em \n\n, depois \n, depois espaços.
+    """
+    if len(text) <= max_length:
+        return [text]
+
+    parts = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_length:
+            parts.append(remaining)
+            break
+
+        # Tenta quebrar em parágrafo
+        cut = remaining.rfind("\n\n", 0, max_length)
+        if cut == -1 or cut < max_length // 2:
+            # Tenta quebrar em linha
+            cut = remaining.rfind("\n", 0, max_length)
+
+        if cut == -1 or cut < max_length // 2:
+            # Tenta quebrar em espaço
+            cut = remaining.rfind(" ", 0, max_length)
+
+        if cut == -1:
+            # Quebra forçada
+            cut = max_length
+
+        parts.append(remaining[:cut].rstrip())
+        remaining = remaining[cut:].lstrip()
+
+    return parts

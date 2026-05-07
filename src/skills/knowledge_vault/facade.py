@@ -17,10 +17,11 @@ log = logging.getLogger("seeker.knowledge_vault.facade")
 
 
 class KnowledgeVault:
-    def __init__(self, cascade_adapter, vlm_client=None):
+    def __init__(self, cascade_adapter, vlm_client=None, web_searcher=None):
         self.writer = ObsidianWriter()
         self.analyzer = KnowledgeAnalyzer(cascade_adapter)
         self.vlm_client = vlm_client
+        self.web_searcher = web_searcher
 
     async def process_images(
         self, image_bytes_list: List[bytes], user_hint: str = ""
