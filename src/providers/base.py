@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from config.models import ModelConfig, ModelRouter, CognitiveRole
+from src.providers.gemini_cache import CachedContentManager
 
 log = logging.getLogger("seeker.providers")
 
@@ -401,6 +402,10 @@ class KimiProvider(OpenAICompatibleProvider):
 class GeminiProvider(BaseProvider):
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
+    def __init__(self, config: ModelConfig, api_key: str):
+        super().__init__(config, api_key)
+        self._cache_manager = CachedContentManager(api_key, config.model_id)
+
     async def _call(self, request: LLMRequest) -> LLMResponse:
         client = self._get_client()
         contents = []
@@ -416,6 +421,18 @@ class GeminiProvider(BaseProvider):
         }
         if request.system:
             payload["systemInstruction"] = {"parts": [{"text": request.system}]}
+            # Phase 2: Preparar cache explícito se conteúdo >= 4k tokens
+            if self._cache_manager:
+                system_tokens = self._cache_manager.estimate_tokens(request.system)
+                if system_tokens >= 4000:
+                    # TODO: Implementar caches.create() via httpx quando Gemini
+                    # liberar acesso à API de caching explícito.
+                    # Por enquanto, apenas log da oportunidade de caching.
+                    cache_info = self._cache_manager.stats()
+                    log.debug(
+                        f"[gemini] Sistema elegível para caching explícito "
+                        f"({system_tokens} tokens). Cache manager: {cache_info}"
+                    )
         if request.response_format == "json":
             payload["generationConfig"]["responseMimeType"] = "application/json"
         url = f"{self.BASE_URL}/{self.config.model_id}:generateContent"
