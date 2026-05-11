@@ -78,9 +78,17 @@ class TavilyBackend(SearchBackend):
 
     BASE_URL = "https://api.tavily.com/search"
 
+    # F-02: Circuit breaker. Apos N falhas 432 consecutivas (quota/key),
+    # pula chamadas Tavily por COOLDOWN segundos em vez de tentar 25x seguidas.
+    CIRCUIT_BREAKER_THRESHOLD = 3
+    CIRCUIT_BREAKER_COOLDOWN = 300  # 5 min
+
     def __init__(self, api_key: str):
         self.api_key = api_key
         self._client = None
+        # Circuit breaker state
+        self._consecutive_432 = 0
+        self._circuit_open_until = 0.0  # monotonic timestamp
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -99,6 +107,14 @@ class TavilyBackend(SearchBackend):
         return self._client
 
     async def search(self, query: str, max_results: int = 5) -> SearchResponse:
+        import time
+        # F-02: Circuit breaker check — pula se estamos no cooldown
+        now = time.monotonic()
+        if now < self._circuit_open_until:
+            remaining = int(self._circuit_open_until - now)
+            log.debug(f"[tavily] Circuit breaker ABERTO ({remaining}s restantes). Pulando.")
+            return SearchResponse(query=query, backend="tavily")
+
         client = self._get_client()
         try:
             resp = await client.post(
@@ -111,16 +127,33 @@ class TavilyBackend(SearchBackend):
                 },
             )
             if resp.status_code == 432:
-                log.error(f"[tavily] Erro 432 persistente. Tentando reset de cliente...")
+                # F-02: incrementa contador de falhas 432 consecutivas
+                self._consecutive_432 += 1
+                log.error(
+                    f"[tavily] Erro 432 ({self._consecutive_432}/{self.CIRCUIT_BREAKER_THRESHOLD}). "
+                    f"Tentando reset de cliente..."
+                )
+                # Abre circuit breaker se passou do threshold
+                if self._consecutive_432 >= self.CIRCUIT_BREAKER_THRESHOLD:
+                    self._circuit_open_until = now + self.CIRCUIT_BREAKER_COOLDOWN
+                    log.warning(
+                        f"[tavily] CIRCUIT BREAKER ABERTO por {self.CIRCUIT_BREAKER_COOLDOWN}s "
+                        f"(apos {self._consecutive_432}x HTTP 432). "
+                        f"Cheque quota/API key em app.tavily.com."
+                    )
                 # F-01: null-guard contra race condition entre coroutines simultaneas
-                # (segunda call podia encontrar self._client = None apos o reset da primeira)
                 if self._client is not None:
                     try:
                         await self._client.aclose()
                     except Exception as close_err:
                         log.debug(f"[tavily] erro ao fechar cliente (ignorado): {close_err}")
                     self._client = None
-            
+            else:
+                # F-02: qualquer resposta nao-432 reseta o contador (recovery)
+                if self._consecutive_432 > 0:
+                    log.info(f"[tavily] Recovery — circuit breaker RESET (status={resp.status_code})")
+                self._consecutive_432 = 0
+
             resp.raise_for_status()
             data = resp.json()
 
