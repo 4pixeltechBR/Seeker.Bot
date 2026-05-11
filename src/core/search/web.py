@@ -112,8 +112,14 @@ class TavilyBackend(SearchBackend):
             )
             if resp.status_code == 432:
                 log.error(f"[tavily] Erro 432 persistente. Tentando reset de cliente...")
-                await self._client.aclose()
-                self._client = None
+                # F-01: null-guard contra race condition entre coroutines simultaneas
+                # (segunda call podia encontrar self._client = None apos o reset da primeira)
+                if self._client is not None:
+                    try:
+                        await self._client.aclose()
+                    except Exception as close_err:
+                        log.debug(f"[tavily] erro ao fechar cliente (ignorado): {close_err}")
+                    self._client = None
             
             resp.raise_for_status()
             data = resp.json()
