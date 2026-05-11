@@ -9,7 +9,7 @@ Convenção:
         def create_goal(pipeline: SeekerPipeline) -> AutonomousGoal
 
     Exemplo:
-        src/skills/revenue_hunter/goal.py
+        src/skills/sense_news/goal.py
         src/skills/sense_news/goal.py
         src/skills/briefing/goal.py
 
@@ -95,7 +95,7 @@ def discover_goals(
 
     Args:
         pipeline: SeekerPipeline (passado pra cada factory)
-        deny_list: nomes de goals a ignorar (ex: {"revenue_hunter"})
+        deny_list: nomes de goals a ignorar (ex: {"sense_news"})
         skills_dir: override do diretório de skills (pra testes)
 
     Returns:

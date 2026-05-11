@@ -34,8 +34,8 @@ class HabitTracker:
 
     Uso:
         tracker = HabitTracker()
-        tracker.record("revenue_hunter", "read", approved=True)
-        suggestion = tracker.suggest("revenue_hunter", "read")
+        tracker.record("sense_news", "read", approved=True)
+        suggestion = tracker.suggest("sense_news", "read")
         # {"action": "auto_approve", "confidence": 0.9, "samples": 12}
     """
 

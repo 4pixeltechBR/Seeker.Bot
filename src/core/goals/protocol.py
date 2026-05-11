@@ -79,7 +79,7 @@ class AutonomousGoal(Protocol):
 
     @property
     def name(self) -> str:
-        """Identificador único do goal. Ex: 'revenue_hunter', 'sense_news'."""
+        """Identificador único do goal. Ex: 'sense_news', 'health_monitor'."""
         ...
 
     @property

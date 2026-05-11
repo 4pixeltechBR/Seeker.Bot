@@ -62,7 +62,7 @@ class GoalScheduler:
 
     Uso:
         scheduler = GoalScheduler(notifier)
-        scheduler.register(revenue_hunter, priority=GoalPriority.NORMAL)
+        scheduler.register(sense_news, priority=GoalPriority.NORMAL)
         scheduler.register(critical_alert, priority=GoalPriority.CRITICAL)
         await scheduler.start()
     """

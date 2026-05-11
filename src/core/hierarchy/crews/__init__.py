@@ -1,13 +1,12 @@
 """
 Seeker.Bot v1.0 - Crews
 
-6 specialized hierarchical crews:
+5 specialized hierarchical crews:
 1. MONITOR CREW - Always-on sensing
-2. HUNTER CREW - Seeking opportunities
-3. EXECUTOR CREW - Taking actions
-4. ANALYST CREW - Deep reasoning
-5. VISION CREW - OCR and visual analysis
-6. ADMIN CREW - Meta-skills and governance
+2. EXECUTOR CREW - Taking actions
+3. ANALYST CREW - Deep reasoning
+4. VISION CREW - OCR and visual analysis
+5. ADMIN CREW - Meta-skills and governance
 """
 
 from abc import ABC, abstractmethod
@@ -71,7 +70,6 @@ class BaseCrew(ABC, Crew):
 
 # Import crew implementations (will be empty for Phase 0)
 from . import monitor_crew
-from . import hunter_crew
 from . import executor_crew
 from . import analyst_crew
 from . import vision_crew
@@ -80,7 +78,6 @@ from . import admin_crew
 __all__ = [
     "BaseCrew",
     "monitor_crew",
-    "hunter_crew",
     "executor_crew",
     "analyst_crew",
     "vision_crew",

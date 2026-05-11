@@ -281,12 +281,7 @@ Objetivos Principais:
    ├─ Target: Implementar até 25 de Abril
    └─ Decision: Qwen3-VL-8B vs MiniCPM-V (decision em A4)
 
-3. Scout Hunter 2.0 - B2B Prospecting
-   ├─ Status: Arquitetura definida
-   ├─ Target: Integração em HunterCrew (Q2)
-   └─ Expected Impact: +40% lead quality
-
-4. Remote Executor - 24/7 Autonomy
+3. Remote Executor - 24/7 Autonomy
    ├─ Status: Design fase (B1-B5 mapeadas)
    ├─ Target: Q2/Q3
    └─ Risk: Alto (safety constraints)
@@ -295,7 +290,6 @@ Milestones:
 [ABRIL]
 ✓ 11-22: Phase 2 (Crews migration)
 ✓ 18-25: Vision 2.0 (VLM upgrade)
-□ 25-30: Scout 2.0 (integração)
 
 [MAIO]
 □ 1-15: Remote Executor foundation
