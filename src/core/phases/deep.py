@@ -19,7 +19,7 @@ import logging
 
 from config.models import ModelRouter, CognitiveRole
 from src.core.phases.base import PhaseContext, PhaseResult
-from src.core.cognition.prompts import build_deep_prompt, build_refinement_prompt
+from src.core.cognition.prompts import build_deep_prompt, build_refinement_prompt, get_date_context
 from src.core.evidence.arbitrage import EvidenceArbitrage, ArbitrageResult
 from src.core.search.web import WebSearcher
 from src.core.utils import parse_llm_json
@@ -120,6 +120,8 @@ class DeepPhase:
                 god_mode=ctx.decision.god_mode,
             )
 
+            user_message = get_date_context() + ctx.user_input
+
             try:
                 response = await asyncio.wait_for(
                     invoke_with_fallback(
@@ -127,7 +129,7 @@ class DeepPhase:
                         if ctx.decision.god_mode
                         else CognitiveRole.SYNTHESIS,
                         request=LLMRequest(
-                            messages=[{"role": "user", "content": ctx.user_input}],
+                            messages=[{"role": "user", "content": user_message}],
                             system=system,
                             max_tokens=6000,
                             temperature=0.2

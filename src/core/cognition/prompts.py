@@ -182,12 +182,18 @@ Responda APENAS em JSON com este formato:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# BUILDER — compõe o system prompt por profundidade
+# DATE CONTEXT — dinâmico, extraído para user message (cache stability)
 # ─────────────────────────────────────────────────────────────────────
 
 
-def build_reflex_prompt(*, memory_context: str = "", session_context: str = "") -> str:
-    """System prompt para REFLEX: direto, sem pipeline."""
+def get_date_context() -> str:
+    """
+    Retorna contexto de data/hora dinâmico.
+
+    CRITICAL: Este contexto NÃO deve estar no system message (que é cacheado).
+    Deve ser prepended ao primeiro user message para manter o sistema
+    message 100% estável e permitir prefix caching em DeepSeek/Gemini.
+    """
     import datetime
 
     now = datetime.datetime.now()
@@ -214,16 +220,21 @@ def build_reflex_prompt(*, memory_context: str = "", session_context: str = "") 
         "novembro",
         "dezembro",
     ]
-    date_context = (
-        f"DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
+    return (
+        f"[DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
         f"{meses[now.month - 1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
-        f"(horário de Brasília).\n"
-        f"Use esta data para contextualizar TODAS as respostas. "
-        f"Quando resultados de busca mencionarem datas relativas, "
-        f"calcule a data absoluta e apresente ao usuário."
+        f"(horário de Brasília)]\n\n"
     )
 
-    parts = [REFLEX_SYSTEM, date_context]
+
+# ─────────────────────────────────────────────────────────────────────
+# BUILDER — compõe o system prompt por profundidade
+# ─────────────────────────────────────────────────────────────────────
+
+
+def build_reflex_prompt(*, memory_context: str = "", session_context: str = "") -> str:
+    """System prompt para REFLEX: direto, sem pipeline."""
+    parts = [REFLEX_SYSTEM]
     if session_context:
         parts.append(session_context)
     if memory_context:
@@ -239,42 +250,7 @@ def build_deliberate_prompt(
     web_context: str = "",
 ) -> str:
     """System prompt para DELIBERATE: síntese com memória."""
-    import datetime
-
-    now = datetime.datetime.now()
-    dias = [
-        "segunda-feira",
-        "terça-feira",
-        "quarta-feira",
-        "quinta-feira",
-        "sexta-feira",
-        "sábado",
-        "domingo",
-    ]
-    meses = [
-        "janeiro",
-        "fevereiro",
-        "março",
-        "abril",
-        "maio",
-        "junho",
-        "julho",
-        "agosto",
-        "setembro",
-        "outubro",
-        "novembro",
-        "dezembro",
-    ]
-    date_context = (
-        f"DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
-        f"{meses[now.month - 1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
-        f"(horário de Brasília).\n"
-        f"Use esta data para contextualizar TODAS as respostas. "
-        f"Quando resultados de busca mencionarem datas relativas, "
-        f"calcule a data absoluta e apresente ao usuário."
-    )
-
-    parts = [SYSTEM_BASE, date_context]
+    parts = [SYSTEM_BASE]
     if module_context:
         parts.append(module_context)
     if session_context:
@@ -300,44 +276,8 @@ def build_deep_prompt(
         f"\n\n━━━ PESQUISA WEB (fontes reais) ━━━\n{web_context}" if web_context else ""
     )
 
-    import datetime
-
-    now = datetime.datetime.now()
-    dias = [
-        "segunda-feira",
-        "terça-feira",
-        "quarta-feira",
-        "quinta-feira",
-        "sexta-feira",
-        "sábado",
-        "domingo",
-    ]
-    meses = [
-        "janeiro",
-        "fevereiro",
-        "março",
-        "abril",
-        "maio",
-        "junho",
-        "julho",
-        "agosto",
-        "setembro",
-        "outubro",
-        "novembro",
-        "dezembro",
-    ]
-    date_context = (
-        f"DATA E HORA ATUAL: {dias[now.weekday()]}, {now.day} de "
-        f"{meses[now.month - 1]} de {now.year}, {now.hour:02d}:{now.minute:02d} "
-        f"(horário de Brasília).\n"
-        f"Use esta data para contextualizar TODAS as respostas. "
-        f"Quando resultados de busca mencionarem datas relativas, "
-        f"calcule a data absoluta e apresente ao usuário."
-    )
-
     parts = [
         SYSTEM_BASE,
-        date_context,
         DEEP_ADDENDUM.format(
             evidence_context=evidence_context,
             web_context=web_section,

@@ -12,7 +12,7 @@ import re
 
 from config.models import ModelRouter, CognitiveRole
 from src.core.phases.base import PhaseContext, PhaseResult
-from src.core.cognition.prompts import build_deliberate_prompt
+from src.core.cognition.prompts import build_deliberate_prompt, get_date_context
 from src.core.search.web import WebSearcher
 from src.core.utils import parse_llm_json
 from src.providers.base import LLMRequest, invoke_with_fallback
@@ -174,12 +174,14 @@ class DeliberatePhase:
             else CognitiveRole.SYNTHESIS
         )
 
+        user_message = get_date_context() + ctx.user_input
+
         try:
             response = await asyncio.wait_for(
                 invoke_with_fallback(
                     role=role,
                     request=LLMRequest(
-                        messages=[{"role": "user", "content": ctx.user_input}],
+                        messages=[{"role": "user", "content": user_message}],
                         system=system,
                         max_tokens=4000,
                         temperature=0.15,

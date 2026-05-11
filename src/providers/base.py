@@ -42,11 +42,17 @@ class LLMResponse:
     output_tokens: int = 0
     latency_ms: int = 0
     cost_usd: float = 0.0
+    cache_hit_tokens: int = 0
+    cache_creation_tokens: int = 0
     raw: dict = field(default_factory=dict)
 
     @property
     def total_tokens(self) -> int:
         return self.input_tokens + self.output_tokens
+
+    @property
+    def total_cached_tokens(self) -> int:
+        return self.cache_hit_tokens + self.cache_creation_tokens
 
 
 @dataclass
@@ -273,11 +279,20 @@ class BaseProvider(ABC):
                 response.latency_ms = int((time.perf_counter() - start) * 1000)
                 response.cost_usd = self._calculate_cost(response)
 
+                cache_info = ""
+                if response.total_cached_tokens > 0:
+                    cache_rate = (
+                        response.cache_hit_tokens / response.input_tokens * 100
+                        if response.input_tokens > 0
+                        else 0
+                    )
+                    cache_info = f" | cache: {response.cache_hit_tokens}hit + {response.cache_creation_tokens}create ({cache_rate:.1f}%)"
+
                 log.info(
                     f"[{self.config.provider}] {self.config.model_id} | "
                     f"{response.total_tokens} tok | "
                     f"{response.latency_ms}ms | "
-                    f"${response.cost_usd:.4f}"
+                    f"${response.cost_usd:.4f}{cache_info}"
                     f"{f' (attempt {attempt})' if attempt > 1 else ''}"
                 )
                 return response
@@ -357,6 +372,8 @@ class OpenAICompatibleProvider(BaseProvider):
             provider=self.config.provider,
             input_tokens=usage.get("prompt_tokens", 0),
             output_tokens=usage.get("completion_tokens", 0),
+            cache_hit_tokens=usage.get("cache_read_input_tokens", 0),
+            cache_creation_tokens=usage.get("cache_creation_input_tokens", 0),
             raw=data,
         )
 
@@ -424,6 +441,7 @@ class GeminiProvider(BaseProvider):
             provider="gemini",
             input_tokens=usage.get("promptTokenCount", 0),
             output_tokens=usage.get("candidatesTokenCount", 0),
+            cache_hit_tokens=usage.get("cachedContentTokenCount", 0),
             raw=data,
         )
 

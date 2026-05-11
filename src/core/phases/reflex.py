@@ -10,7 +10,7 @@ import logging
 
 from config.models import ModelRouter, CognitiveRole
 from src.core.phases.base import PhaseContext, PhaseResult
-from src.core.cognition.prompts import build_reflex_prompt
+from src.core.cognition.prompts import build_reflex_prompt, get_date_context
 from src.providers.base import LLMRequest, invoke_with_fallback
 
 log = logging.getLogger("seeker.phases.reflex")
@@ -64,10 +64,12 @@ class ReflexPhase:
             session_context=ctx.session_context,
         )
 
+        user_message = get_date_context() + ctx.user_input
+
         response = await invoke_with_fallback(
             role=CognitiveRole.FAST,
             request=LLMRequest(
-                messages=[{"role": "user", "content": ctx.user_input}],
+                messages=[{"role": "user", "content": user_message}],
                 system=system,
                 max_tokens=500,
                 temperature=0.1,
