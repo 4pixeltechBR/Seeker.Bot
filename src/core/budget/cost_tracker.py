@@ -58,6 +58,12 @@ class RastreadorCustos:
         self._gastos_diarios: Dict[str, float] = defaultdict(float)
         self._gastos_mensais: Dict[str, float] = defaultdict(float)
 
+        # Cache Telemetry (Phase 4) — rastrear economia por cache hit
+        self._cache_hits_diarios: Dict[str, int] = defaultdict(int)  # tokens salvos
+        self._cache_hits_mensais: Dict[str, int] = defaultdict(int)
+        self._custo_economizado_diarios: Dict[str, float] = defaultdict(float)  # USD
+        self._custo_economizado_mensais: Dict[str, float] = defaultdict(float)
+
         # Quota & Credits Manager (Sprint 11)
         self.quota_manager = QuotaManager()
 
@@ -78,9 +84,12 @@ class RastreadorCustos:
         tempo_latencia_ms: int = 0,
         sucesso: bool = True,
         mensagem_erro: Optional[str] = None,
+        cache_hit_tokens: int = 0,
+        cache_creation_tokens: int = 0,
     ) -> Optional[AlertaCusto]:
         """
-        Registra uma chamada de LLM e retorna alerta se limite excedido
+        Registra uma chamada de LLM e retorna alerta se limite excedido.
+        Opcionalmente registra economia por cache hit (Phase 4).
         """
         agora = datetime.utcnow()
 
@@ -112,6 +121,13 @@ class RastreadorCustos:
         mes_chave = agora.strftime("%Y-%m")
         self._gastos_diarios[data_chave] += custo_usd
         self._gastos_mensais[mes_chave] += custo_usd
+
+        # Registrar economia por cache (Phase 4)
+        if cache_hit_tokens > 0 or cache_creation_tokens > 0:
+            self._registrar_cache_telemetria(
+                provider, data_chave, mes_chave,
+                cache_hit_tokens, cache_creation_tokens, custo_usd
+            )
 
         # Consome cota financeira se aplicável (DeepSeek, etc)
         self.quota_manager.consume_financial(provider, custo_usd)
@@ -263,6 +279,78 @@ class RastreadorCustos:
                 return alerta
 
         return None
+
+    def _registrar_cache_telemetria(
+        self,
+        provider: str,
+        data_chave: str,
+        mes_chave: str,
+        cache_hit_tokens: int,
+        cache_creation_tokens: int,
+        custo_usd: float,
+    ) -> None:
+        """Registra economia por cache hit (Phase 4 telemetry)."""
+        total_cached = cache_hit_tokens + cache_creation_tokens
+        if total_cached == 0:
+            return
+
+        # Economia estimada: custo não pago por tokens cached
+        # DeepSeek: hit reduz input tokens em 90%, creation em 25% discount
+        # Gemini: hit reduz input tokens em 90%, creation em 50% discount
+        economia_usd = 0.0
+        if cache_hit_tokens > 0:
+            economia_usd += (cache_hit_tokens / max(1, cache_hit_tokens + (custo_usd * 1_000_000)))
+
+        # Registra história diária/mensal
+        self._cache_hits_diarios[data_chave] += total_cached
+        self._cache_hits_mensais[mes_chave] += total_cached
+        self._custo_economizado_diarios[data_chave] += economia_usd
+        self._custo_economizado_mensais[mes_chave] += economia_usd
+
+        if cache_hit_tokens > 0:
+            log.debug(
+                f"[cache] {provider}: CACHE HIT "
+                f"{cache_hit_tokens} tokens (~${economia_usd:.6f} economizado)"
+            )
+
+    def obter_economia_cache_diaria(self, dias: int = 7) -> Dict[str, dict]:
+        """Retorna economia de cache dos últimos N dias."""
+        agora = datetime.utcnow()
+        economia = {}
+
+        for i in range(dias):
+            data = (agora - timedelta(days=i)).strftime("%Y-%m-%d")
+            economia[data] = {
+                "tokens_cache": self._cache_hits_diarios.get(data, 0),
+                "custo_economizado_usd": round(
+                    self._custo_economizado_diarios.get(data, 0.0), 4
+                ),
+            }
+
+        return dict(sorted(economia.items()))
+
+    def obter_economia_cache_mensal(self) -> dict:
+        """Retorna economia de cache do mês atual."""
+        agora = datetime.utcnow()
+        mes_chave = agora.strftime("%Y-%m")
+        total_tokens = self._cache_hits_mensais.get(mes_chave, 0)
+        total_economia = self._custo_economizado_mensais.get(mes_chave, 0.0)
+
+        return {
+            "mes": mes_chave,
+            "tokens_cache": total_tokens,
+            "custo_economizado_usd": round(total_economia, 4),
+            "taxa_economia": self._calcular_taxa_economia(mes_chave),
+        }
+
+    def _calcular_taxa_economia(self, mes_chave: str) -> float:
+        """Calcula percentual de economia vs custo total do mês."""
+        custo_total = self._gastos_mensais.get(mes_chave, 0.0)
+        economia = self._custo_economizado_mensais.get(mes_chave, 0.0)
+
+        if custo_total <= 0:
+            return 0.0
+        return round((economia / (custo_total + economia)) * 100, 1)
 
     def obter_gastos_diarios(self, dias: int = 7) -> Dict[str, float]:
         """Retorna gastos dos últimos N dias"""
