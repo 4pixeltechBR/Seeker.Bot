@@ -8,12 +8,59 @@ Separados do pipeline porque:
 1. São iterados independentemente (tom, instruções, módulos)
 2. God Mode adiciona instruções — composição, não herança
 3. Futuramente: A/B test de prompts sem tocar no pipeline
+
+Phase 3: PromptBundle — unifica DeepSeek prefix caching (auto) + Gemini explicit caching.
+Builders retornam bundle com (stable_prefix, dynamic_suffix) para permitir granular
+caching por ambos providers.
 """
 
 import os
+from dataclasses import dataclass
 
 # Nome configurável do assistente (default: Seeker)
 ASSISTANT_NAME = os.getenv("ASSISTANT_NAME", "Seeker")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# PROMPTBUNDLE — Phase 3: Unified Caching Abstraction
+# ─────────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class PromptBundle:
+    """
+    Encapsula um prompt estruturado para cache unificado.
+
+    Estratégia:
+      - stable_prefix: Conteúdo 100% determinístico (SYSTEM_BASE, módulos)
+      - dynamic_suffix: Conteúdo que muda per-request (date_context, session)
+
+    DeepSeek (Phase 1): Cache automático dos primeiros ~3.5k tokens (stable_prefix)
+    Gemini (Phase 2): Cache explícito se |stable_prefix| >= 4000 tokens
+
+    Backward compatibility: Providers podem tratar como str(stable_prefix + dynamic_suffix)
+    """
+
+    stable_prefix: str
+    dynamic_suffix: str
+
+    def to_string(self) -> str:
+        """Concatena para uso em providers antigos."""
+        return self.stable_prefix + self.dynamic_suffix
+
+    def __str__(self) -> str:
+        """Permite usar PromptBundle onde str era esperado."""
+        return self.to_string()
+
+    @property
+    def total_length(self) -> int:
+        """Total de caracteres."""
+        return len(self.stable_prefix) + len(self.dynamic_suffix)
+
+    @property
+    def prefix_length(self) -> int:
+        """Caracteres na parte cacheável."""
+        return len(self.stable_prefix)
 
 # ─────────────────────────────────────────────────────────────────────
 # BASE — identidade e regras universais
@@ -232,14 +279,22 @@ def get_date_context() -> str:
 # ─────────────────────────────────────────────────────────────────────
 
 
-def build_reflex_prompt(*, memory_context: str = "", session_context: str = "") -> str:
+def build_reflex_prompt(
+    *, memory_context: str = "", session_context: str = ""
+) -> PromptBundle:
     """System prompt para REFLEX: direto, sem pipeline."""
-    parts = [REFLEX_SYSTEM]
+    stable_parts = [REFLEX_SYSTEM]
+    dynamic_parts = []
+
     if session_context:
-        parts.append(session_context)
+        dynamic_parts.append(session_context)
     if memory_context:
-        parts.append(memory_context)
-    return "\n\n".join(parts)
+        dynamic_parts.append(memory_context)
+
+    stable_prefix = "\n\n".join(stable_parts)
+    dynamic_suffix = ("\n\n" + "\n\n".join(dynamic_parts)) if dynamic_parts else ""
+
+    return PromptBundle(stable_prefix=stable_prefix, dynamic_suffix=dynamic_suffix)
 
 
 def build_deliberate_prompt(
@@ -248,18 +303,24 @@ def build_deliberate_prompt(
     memory_context: str = "",
     session_context: str = "",
     web_context: str = "",
-) -> str:
+) -> PromptBundle:
     """System prompt para DELIBERATE: síntese com memória."""
-    parts = [SYSTEM_BASE]
+    stable_parts = [SYSTEM_BASE]
+    dynamic_parts = []
+
     if module_context:
-        parts.append(module_context)
+        stable_parts.append(module_context)
     if session_context:
-        parts.append(session_context)
+        dynamic_parts.append(session_context)
     if memory_context:
-        parts.append(memory_context)
+        dynamic_parts.append(memory_context)
     if web_context:
-        parts.append(web_context)
-    return "\n\n".join(parts)
+        dynamic_parts.append(web_context)
+
+    stable_prefix = "\n\n".join(stable_parts)
+    dynamic_suffix = ("\n\n" + "\n\n".join(dynamic_parts)) if dynamic_parts else ""
+
+    return PromptBundle(stable_prefix=stable_prefix, dynamic_suffix=dynamic_suffix)
 
 
 def build_deep_prompt(
@@ -270,30 +331,34 @@ def build_deep_prompt(
     memory_context: str = "",
     session_context: str = "",
     god_mode: bool = False,
-) -> str:
+) -> PromptBundle:
     """System prompt para DEEP: análise profunda com triangulação."""
     web_section = (
         f"\n\n━━━ PESQUISA WEB (fontes reais) ━━━\n{web_context}" if web_context else ""
     )
 
-    parts = [
+    stable_parts = [
         SYSTEM_BASE,
         DEEP_ADDENDUM.format(
             evidence_context=evidence_context,
             web_context=web_section,
         ),
     ]
+    dynamic_parts = []
 
     if module_context:
-        parts.append(module_context)
+        stable_parts.append(module_context)
     if god_mode:
-        parts.append(GOD_MODE_ADDENDUM)
+        stable_parts.append(GOD_MODE_ADDENDUM)
     if session_context:
-        parts.append(session_context)
+        dynamic_parts.append(session_context)
     if memory_context:
-        parts.append(memory_context)
+        dynamic_parts.append(memory_context)
 
-    return "\n\n".join(parts)
+    stable_prefix = "\n\n".join(stable_parts)
+    dynamic_suffix = ("\n\n" + "\n\n".join(dynamic_parts)) if dynamic_parts else ""
+
+    return PromptBundle(stable_prefix=stable_prefix, dynamic_suffix=dynamic_suffix)
 
 
 def build_refinement_prompt(

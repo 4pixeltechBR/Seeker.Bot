@@ -59,7 +59,7 @@ class ReflexPhase:
             )
             return PhaseResult(response=resposta, cost_usd=0.0, llm_calls=0)
 
-        system = build_reflex_prompt(
+        prompt_bundle = build_reflex_prompt(
             memory_context=ctx.memory_prompt,
             session_context=ctx.session_context,
         )
@@ -70,7 +70,7 @@ class ReflexPhase:
             role=CognitiveRole.FAST,
             request=LLMRequest(
                 messages=[{"role": "user", "content": user_message}],
-                system=system,
+                system=str(prompt_bundle),  # Backward compat: convert to string
                 max_tokens=500,
                 temperature=0.1,
             ),

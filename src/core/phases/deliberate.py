@@ -159,7 +159,7 @@ class DeliberatePhase:
             except Exception as e:
                 log.warning(f"[deliberate] Web search falhou: {e}")
 
-        system = build_deliberate_prompt(
+        prompt_bundle = build_deliberate_prompt(
             module_context=module_ctx,
             memory_context=ctx.memory_prompt,
             session_context=ctx.session_context,
@@ -182,7 +182,7 @@ class DeliberatePhase:
                     role=role,
                     request=LLMRequest(
                         messages=[{"role": "user", "content": user_message}],
-                        system=system,
+                        system=str(prompt_bundle),  # Backward compat: convert to string
                         max_tokens=4000,
                         temperature=0.15,
                     ),

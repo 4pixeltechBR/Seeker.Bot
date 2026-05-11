@@ -111,7 +111,7 @@ class DeepPhase:
         critique_context = ""
 
         while refinement_loops <= max_refinement:
-            system = build_deep_prompt(
+            prompt_bundle = build_deep_prompt(
                 evidence_context=evidence,
                 web_context=web_context,
                 module_context=module_ctx + critique_context,
@@ -130,7 +130,7 @@ class DeepPhase:
                         else CognitiveRole.SYNTHESIS,
                         request=LLMRequest(
                             messages=[{"role": "user", "content": user_message}],
-                            system=system,
+                            system=str(prompt_bundle),  # Backward compat: convert to string
                             max_tokens=6000,
                             temperature=0.2
                             if refinement_loops == 0
