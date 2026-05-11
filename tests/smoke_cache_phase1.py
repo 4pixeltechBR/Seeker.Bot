@@ -47,15 +47,16 @@ def test_date_context_extraction():
     log.info(f"✓ Date context extracted: {date_ctx[:50]}...")
 
     # Verify system prompts don't contain "DATA E HORA ATUAL"
-    reflex = build_reflex_prompt()
+    # Note: Phase 3 changed builders to return PromptBundle, so convert to string
+    reflex = str(build_reflex_prompt())
     assert "DATA E HORA ATUAL" not in reflex, "REFLEX should not contain date_context"
     log.info("✓ Reflex prompt is stable (no date_context)")
 
-    deliberate = build_deliberate_prompt()
+    deliberate = str(build_deliberate_prompt())
     assert "DATA E HORA ATUAL" not in deliberate, "DELIBERATE should not contain date_context"
     log.info("✓ Deliberate prompt is stable (no date_context)")
 
-    deep = build_deep_prompt()
+    deep = str(build_deep_prompt())
     assert "DATA E HORA ATUAL" not in deep, "DEEP should not contain date_context"
     log.info("✓ Deep prompt is stable (no date_context)")
 

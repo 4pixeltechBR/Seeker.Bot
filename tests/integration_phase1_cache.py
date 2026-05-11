@@ -22,20 +22,20 @@ def test_prompt_composition():
     """Verify that prompts compose correctly with date_context in user message."""
     print("[TEST] Prompt composition...")
 
-    # Get stable system prompts
-    system_reflex = build_reflex_prompt(
+    # Get stable system prompts (Phase 3 returns PromptBundle, convert to string)
+    system_reflex = str(build_reflex_prompt(
         memory_context="Test memory",
         session_context="Test session"
-    )
-    system_deliberate = build_deliberate_prompt(
+    ))
+    system_deliberate = str(build_deliberate_prompt(
         memory_context="Test memory",
         session_context="Test session"
-    )
-    system_deep = build_deep_prompt(
+    ))
+    system_deep = str(build_deep_prompt(
         evidence_context="Test evidence",
         memory_context="Test memory",
         session_context="Test session"
-    )
+    ))
 
     # Get dynamic date context
     date_ctx = get_date_context()
