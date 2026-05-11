@@ -80,38 +80,58 @@ class TavilyBackend(SearchBackend):
 
     def __init__(self, api_key: str):
         self.api_key = api_key
+        self._client = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            # Atomic Clean: desabilita cota de headers e ignora ambiente
+            self._client = httpx.AsyncClient(
+                timeout=20.0,
+                http2=False,      # Força HTTP/1.1 (evita bugs de compression/headers)
+                trust_env=False,  # Ignora proxies/headers do Windows/Ambiente
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                    "User-Agent": "SeekerBot/3.0 (CleanConnect)",
+                    "Connection": "close" # Evita reuso de socket possivelmente sujo
+                }
+            )
+        return self._client
 
     async def search(self, query: str, max_results: int = 5) -> SearchResponse:
+        client = self._get_client()
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(
-                    self.BASE_URL,
-                    json={
-                        "api_key": self.api_key,
-                        "query": query,
-                        "max_results": max_results,
-                        "search_depth": "basic",
-                        "include_answer": False,
-                        "include_raw_content": False,
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await client.post(
+                self.BASE_URL,
+                json={
+                    "api_key": self.api_key,
+                    "query": query,
+                    "max_results": max_results,
+                    "search_depth": "basic",
+                },
+            )
+            if resp.status_code == 432:
+                log.error(f"[tavily] Erro 432 persistente. Tentando reset de cliente...")
+                await self._client.aclose()
+                self._client = None
+            
+            resp.raise_for_status()
+            data = resp.json()
 
-                results = []
-                for i, r in enumerate(data.get("results", [])):
-                    results.append(
-                        SearchResult(
-                            title=r.get("title", ""),
-                            url=r.get("url", ""),
-                            snippet=r.get("content", ""),
-                            source="tavily",
-                            position=i + 1,
-                            score=r.get("score", 0.0),
-                        )
+            results = []
+            for i, r in enumerate(data.get("results", [])):
+                results.append(
+                    SearchResult(
+                        title=r.get("title", ""),
+                        url=r.get("url", ""),
+                        snippet=r.get("content", ""),
+                        source="tavily",
+                        position=i + 1,
+                        score=r.get("score", 0.0),
                     )
+                )
 
-                return SearchResponse(query=query, results=results, backend="tavily")
+            return SearchResponse(query=query, results=results, backend="tavily")
         except Exception as e:
             log.warning(f"[tavily] Busca falhou: {e}")
             return SearchResponse(query=query, backend="tavily")
@@ -212,8 +232,9 @@ class WebSearcher:
         results = await searcher.search("MCP Anthropic 2026")
     """
 
-    def __init__(self, tavily_key: str = "", brave_key: str = ""):
+    def __init__(self, tavily_key: str = "", brave_key: str = "", cost_tracker=None):
         self.backends: list[SearchBackend] = []
+        self.cost_tracker = cost_tracker
 
         if tavily_key:
             keys = [k.strip() for k in tavily_key.split(",") if k.strip()]
@@ -236,6 +257,10 @@ class WebSearcher:
                     f"[search] '{query[:40]}' → {len(response.results)} "
                     f"resultados via {response.backend}"
                 )
+                # Registra consumo de cota (Sprint 11)
+                if self.cost_tracker and hasattr(self.cost_tracker, "quota_manager"):
+                    self.cost_tracker.quota_manager.consume_usage(response.backend)
+                
                 return response
             log.warning(f"[search] {response.backend} sem resultados, tentando próximo")
 

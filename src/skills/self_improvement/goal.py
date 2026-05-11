@@ -211,7 +211,15 @@ class SelfImprovementGoal:
                     summary=f"Auto-Curado {os.path.basename(target_file)}",
                     notification=msg,
                     cost_usd=cycle_cost,
-                    data={"sara_edits": 1},
+                    data={
+                        "sara_edits": 1,
+                        "buttons": [
+                            [
+                                {"text": "✅ Reiniciar Agora", "callback_data": "sara_restart_yes"},
+                                {"text": "⏸ Ignorar", "callback_data": "sara_restart_no"}
+                            ]
+                        ]
+                    },
                 )
 
             except Exception as parse_e:

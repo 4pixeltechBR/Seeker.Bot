@@ -146,6 +146,15 @@ async def setup_commands(bot: Bot):
         BotCommand(
             command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"
         ),
+        BotCommand(
+            command="/restart", description="♻️ Reinicia o sistema via Watchdog"
+        ),
+        BotCommand(
+            command="/scout_config", description="🔭 Configura o radar de tecnologias"
+        ),
+        BotCommand(
+            command="/switch", description="🛸 Alterna o provedor de cérebro (DeepSeek/Kimi)"
+        ),
     ]
     await bot.set_my_commands(commands)
 
@@ -251,8 +260,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/decay — limpeza manual de memória\n\n"
             "<b>🤖 Aprendizado (RL):</b>\n"
             "/bandit — progresso do LinUCB (shadow mode)\n\n"
-            "<b>🚀 Utilitários:</b>\n"
-            "/git_backup — backup manual no GitHub\n"
+            "<b>🚀 Utilitários:</b>\n"            "/git_backup — backup manual no GitHub\n"
             "/configure_news — personaliza notícias\n"
             "/audit_sara — dashboard de integridade (hallucination/budget)\n"
             "/drive — 📁 acesso ao Google Drive"
@@ -765,6 +773,28 @@ async def main():
             log.warning("Usando User fake para bypass de session check")
         else:
             raise
+
+    async def connectivity_watchdog(bot: Bot):
+        """
+        Monitor de conectividade interna. Se a rede cair por muito tempo, 
+        força o encerramento do processo para que o watchdog externo o reinicie.
+        Isso evita o estado 'zumbi' onde o scheduler funciona mas o Telegram não.
+        """
+        failures = 0
+        while True:
+            await asyncio.sleep(120) # 2 min
+            try:
+                await bot.get_me()
+                failures = 0
+            except Exception as e:
+                failures += 1
+                log.warning(f"[net_watchdog] Falha de conexão com Telegram ({failures}/3): {e}")
+                if failures >= 3:
+                    log.error("[net_watchdog] Rede inacessível por 6 minutos. Forçando restart.")
+                    os._exit(1)
+
+    # Inicia monitor de rede em background
+    asyncio.create_task(connectivity_watchdog(bot))
 
     try:
         await dp.start_polling(bot, allowed_updates=["message", "callback_query"])

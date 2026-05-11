@@ -147,10 +147,20 @@ class SeekerPipeline:
         self.extractor = FactExtractor(self.model_router, api_keys)
         self.integrity = IntegrityMonitor()
 
+        # Budget & Cost Tracking — rastreamento de gastos com LLM
+        self.cost_tracker = RastreadorCustos(
+            limite_diario_usd=10.0,
+            limite_mensal_usd=200.0,
+        )
+
         # Search
         tavily_key = os.getenv("TAVILY_API_KEY", "")
         brave_key = os.getenv("BRAVE_API_KEY", "")
-        self.searcher = WebSearcher(tavily_key=tavily_key, brave_key=brave_key)
+        self.searcher = WebSearcher(
+            tavily_key=tavily_key, 
+            brave_key=brave_key,
+            cost_tracker=self.cost_tracker
+        )
 
         # Evidence
         self.arbitrage = EvidenceArbitrage(self.model_router, api_keys, min_models=2)
@@ -200,12 +210,7 @@ class SeekerPipeline:
         # Error Recovery — circuit breaker, telemetry, graceful degradation
         self.error_recovery = ErrorRecoveryManager()
 
-        # Budget & Cost Tracking — rastreamento de gastos com LLM
-        self.cost_tracker = RastreadorCustos(
-            limite_diario_usd=10.0,
-            limite_mensal_usd=200.0,
-        )
-
+        vault_path = os.getenv("OBSIDIAN_VAULT_PATH")
         self.obsidian_exporter = (
             ObsidianExporter(self.memory, vault_path) if vault_path else None
         )

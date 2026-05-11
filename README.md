@@ -29,12 +29,9 @@ You can run it entirely in the cloud with free API tiers, or **100% locally** on
 
 ## 🆕 What's New in v2.0-stable
 
-- **S.A.R.A. CodeValidator + ApprovalEngine:** The auto-healing loop now validates every patch through a 3-stage pipeline (`ast.parse` → `compile` → optional `pyright`) before writing. Validated patches require explicit Telegram approval (Approve/Reject inline buttons) before being applied — your bot can rewrite itself, but never silently.
-- **SQLite ErrorDatabase:** S.A.R.A persists every error, patch attempt, and validation outcome. 6-hour dedup prevents redundant LLM calls on repeated tracebacks. Full telemetry available via `/sara`.
-- **Traceback Sanitization:** Absolute file paths and possible secrets are stripped from tracebacks before being sent to external LLMs — your `E:\Seeker.Bot\` paths and API keys never leave your machine.
-- **Vision 3.0 Stack:** Intelligent routing between Gemini Cloud (Robotics-ER 1.6 grounding), Qwen2.5-VL Local, and GLM-OCR Specialist, with VRAM guardrails for GPU contention.
-- **Vision Watch Refactor:** The `/watch` and `/watchoff` commands were decoupled from the goal engine into standalone async tasks, making desktop monitoring bulletproof and responsive.
-- **Enhanced Data Handling:** Daily Briefing upgraded from 1,500 to 4,096 tokens to handle 15+ emails without HTML truncation, plus multiple core engine stability fixes.
+- **S.A.R.A. Auto-Healing Resiliency:** When the self-improvement loop patches a file, the bot now automatically commands the Watchdog to soft-restart and reload the new code, ensuring zero-downtime hot fixes.
+- **Vision Watch Refactor:** The `/watch` and `/watchoff` commands were completely decoupled from the goal engine into standalone async tasks, making desktop monitoring bulletproof and extremely responsive.
+- **Enhanced Data Handling:** The Daily Briefing module was upgraded from 1,500 to 4,096 tokens to easily handle 15+ emails without HTML truncation, plus multiple core engine stability fixes (like goal dict iteration fallbacks).
 
 ---
 
@@ -207,7 +204,7 @@ flowchart TB
     end
 
     subgraph Skills["🛠️ Autonomous Skills"]
-        S1[14 Background Skills]
+        S1[17 Background Skills]
         S2[Goal Scheduler]
     end
 

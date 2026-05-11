@@ -9,6 +9,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Tuple
 from src.core.budget.metrics import CustoMetrica, CustoAgregado, EstatisticasProveedor
+from src.core.budget.quota_manager import QuotaManager
 
 log = logging.getLogger("seeker.budget.cost_tracker")
 
@@ -56,6 +57,9 @@ class RastreadorCustos:
         # Rastreamento diário/mensal
         self._gastos_diarios: Dict[str, float] = defaultdict(float)
         self._gastos_mensais: Dict[str, float] = defaultdict(float)
+
+        # Quota & Credits Manager (Sprint 11)
+        self.quota_manager = QuotaManager()
 
         log.info(
             f"[custo] Rastreador inicializado: "
@@ -108,6 +112,9 @@ class RastreadorCustos:
         mes_chave = agora.strftime("%Y-%m")
         self._gastos_diarios[data_chave] += custo_usd
         self._gastos_mensais[mes_chave] += custo_usd
+
+        # Consome cota financeira se aplicável (DeepSeek, etc)
+        self.quota_manager.consume_financial(provider, custo_usd)
 
         # Verificar limites
         alerta = self._verificar_limites(provider, agora)

@@ -1,13 +1,16 @@
 import logging
 from aiogram import Dispatcher, F
-from aiogram.types import Message
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode
 import html
 import asyncio
 from config.models import CognitiveRole
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import _rate_limiters
+import os
+import signal
 from src.channels.telegram.formatter import split_message
+from src.skills.tech_scout.goal import CATEGORY_NAMES
 
 log = logging.getLogger("seeker.telegram.system")
 
@@ -560,21 +563,45 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
 
     @dp.message(F.text == "/rate")
     async def cmd_rate(message: Message):
-        if not _rate_limiters:
-            await message.answer("Nenhum rate limiter ativo ainda.")
-            return
-        lines = ["<b>⏱ Rate Limiters</b>\n"]
-        for key, limiter in sorted(_rate_limiters.items()):
-            if limiter.rpm <= 0:
-                lines.append(f"  <b>{key}</b>: sem limite")
-            else:
-                used = limiter.current_usage
-                total = limiter.rpm
-                bar_len = 15
-                filled = int((used / total) * bar_len) if total > 0 else 0
-                bar = "█" * filled + "░" * (bar_len - filled)
-                lines.append(f"  <b>{key.split(':')[0]}</b>")
-                lines.append(f"  [{bar}] {used}/{total} RPM")
+        lines = ["<b>📊 PAINEL DE COTAS & LIMITES</b>\n"]
+        
+        # 1. Créditos Financeiros
+        if hasattr(pipeline.cost_tracker, "quota_manager"):
+            quotas = pipeline.cost_tracker.quota_manager.get_all_status()
+            financial = [k for k, v in quotas.items() if v["type"] == "prepaid"]
+            if financial:
+                lines.append("<b>💰 Créditos Disponíveis</b>")
+                for k in financial:
+                    q = quotas[k]
+                    icon = "🟢" if q["balance"] > q.get("alert_at", 1.0) else "🔴"
+                    lines.append(f"  {icon} {k.capitalize()}: ${q['balance']:.2f}")
+                lines.append("")
+
+            # 2. Cotas de Busca / Mensais
+            usage = [k for k, v in quotas.items() if v["type"] in ("monthly", "daily")]
+            if usage:
+                lines.append("<b>🔍 Cotas de Uso</b>")
+                for k in usage:
+                    q = quotas[k]
+                    pct = (q["used"] / q["limit"]) * 100
+                    bar_len = 10
+                    filled = int((q["used"] / q["limit"]) * bar_len)
+                    bar = "█" * filled + "░" * (bar_len - filled)
+                    lines.append(f"  {k.capitalize()}: {q['used']}/{q['limit']} [{bar}] {pct:.1f}%")
+                lines.append("")
+
+        # 3. Rate Limiters (RPM)
+        if _rate_limiters:
+            lines.append("<b>⏱ Rate Limiters (RPM)</b>")
+            for key, limiter in sorted(_rate_limiters.items()):
+                if limiter.rpm > 0:
+                    used = limiter.current_usage
+                    total = limiter.rpm
+                    bar_len = 10
+                    filled = int((used / total) * bar_len) if total > 0 else 0
+                    bar = "█" * filled + "░" * (bar_len - filled)
+                    lines.append(f"  {key.split(':')[0]}: {used}/{total} [{bar}]")
+        
         await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
 
     @dp.message(F.text == "/decay")
@@ -913,3 +940,127 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             await message.answer(afk.habits.get_report(), parse_mode=ParseMode.HTML)
         else:
             await message.answer("Habit Tracker não inicializado.")
+
+    @dp.message(F.text == "/restart")
+    async def cmd_restart(message: Message):
+        """Reinicia o bot manualmente"""
+        await message.answer(
+            "♻️ <b>Reiniciando Seeker.Bot...</b>\nO Watchdog subirá o sistema em 5s.",
+            parse_mode=ParseMode.HTML
+        )
+        log.warning(f"Restart manual solicitado por {message.from_user.id}")
+        await asyncio.sleep(2)
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    @dp.callback_query(F.data == "sara_restart_yes")
+    async def cb_sara_restart_yes(query: CallbackQuery):
+        """Aprova restart solicitado pelo S.A.R.A."""
+        await query.message.edit_text(
+            "✅ <b>Restart aprovado.</b>\nReiniciando para aplicar melhorias...",
+            parse_mode=ParseMode.HTML
+        )
+        log.info(f"S.A.R.A. Restart aprovado por {query.from_user.id}")
+        await asyncio.sleep(2)
+        os.kill(os.getpid(), signal.SIGTERM)
+        await query.answer()
+
+    @dp.callback_query(F.data == "sara_restart_no")
+    async def cb_sara_restart_no(query: CallbackQuery):
+        """Ignora restart do S.A.R.A."""
+        await query.message.edit_text(
+            "⏸ <b>Ignorado.</b>\nAs melhorias serão aplicadas no próximo restart natural.",
+            parse_mode=ParseMode.HTML
+        )
+        await query.answer("Ignorado.")
+
+    def _build_scout_keyboard(active_cats: list[str]) -> InlineKeyboardMarkup:
+        keyboard = []
+        for cat_key, cat_name in CATEGORY_NAMES.items():
+            status = "✅" if cat_key in active_cats else "❌"
+            btn = InlineKeyboardButton(
+                text=f"{status} {cat_name}",
+                callback_data=f"scout_toggle:{cat_key}"
+            )
+            keyboard.append([btn])
+        return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
+    @dp.message(F.text == "/scout_config")
+    async def cmd_scout_config(message: Message):
+        """Configura o radar do Tech Scout"""
+        scheduler = dp.get("scheduler")
+        if not scheduler or "tech_scout" not in scheduler._goals:
+            await message.answer("O Tech Scout não está ativo no sistema.")
+            return
+
+        scout = scheduler._goals["tech_scout"]
+        keyboard = _build_scout_keyboard(scout.active_categories)
+        
+        await message.answer(
+            "🔭 <b>Configuração do Tech Scout</b>\n\n"
+            "Selecione quais áreas tecnológicas você deseja que o bot monitore:",
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+
+    @dp.message(F.text.startswith("/switch"))
+    async def cmd_switch(message: Message):
+        """Alterna o provedor primário para raciocínio profundo (DEEP)."""
+        args = message.text.split()
+        if len(args) < 2:
+            await message.answer(
+                "🛸 <b>Seletor de Cérebro</b>\n\n"
+                "Uso: <code>/switch kimi</code> ou <code>/switch deepseek</code>\n\n"
+                "Isso altera qual API o Seeker usa para tarefas complexas.",
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        target = args[1].lower()
+        # Mapeia apelidos
+        provider_map = {
+            "kimi": "kimi",
+            "moonshot": "kimi",
+            "deepseek": "deepseek",
+            "ds": "deepseek"
+        }
+        
+        provider = provider_map.get(target)
+        if not provider:
+            await message.answer(f"❌ Provedor '{target}' não reconhecido.")
+            return
+
+        from config.models import CognitiveRole
+        success = pipeline.model_router.move_to_primary(CognitiveRole.DEEP, provider)
+        
+        if success:
+            await message.answer(
+                f"✅ <b>Cérebro alterado!</b>\n"
+                f"Agora o Seeker usará <b>{provider.capitalize()}</b> como motor primário para análises profundas.",
+                parse_mode=ParseMode.HTML
+            )
+            log.info(f"Provedor DEEP alterado para {provider} por {message.from_user.id}")
+        else:
+            await message.answer(f"❌ Não foi possível ativar {provider}. Verifique se ele está configurado como fallback.")
+
+    @dp.callback_query(F.data.startswith("scout_toggle:"))
+    async def cb_scout_toggle(query: CallbackQuery):
+        cat_key = query.data.split(":")[1]
+        
+        scheduler = dp.get("scheduler")
+        if not scheduler or "tech_scout" not in scheduler._goals:
+            await query.answer("Erro: Tech Scout inativo.")
+            return
+            
+        scout = scheduler._goals["tech_scout"]
+        
+        if cat_key in scout.active_categories:
+            scout.active_categories.remove(cat_key)
+        else:
+            scout.active_categories.append(cat_key)
+            
+        # Opcional: forçar um save_state explícito no scheduler
+        await scheduler._save_state()
+        
+        keyboard = _build_scout_keyboard(scout.active_categories)
+        await query.message.edit_reply_markup(reply_markup=keyboard)
+        await query.answer(f"Categoria {'ativada' if cat_key in scout.active_categories else 'desativada'}.")

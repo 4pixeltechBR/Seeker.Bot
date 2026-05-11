@@ -1,12 +1,13 @@
 """
 Seeker.Bot v1.0 - Crews
 
-5 specialized hierarchical crews:
+6 specialized hierarchical crews:
 1. MONITOR CREW - Always-on sensing
-2. EXECUTOR CREW - Taking actions
-3. ANALYST CREW - Deep reasoning
-4. VISION CREW - OCR and visual analysis
-5. ADMIN CREW - Meta-skills and governance
+2. HUNTER CREW - Seeking opportunities
+3. EXECUTOR CREW - Taking actions
+4. ANALYST CREW - Deep reasoning
+5. VISION CREW - OCR and visual analysis
+6. ADMIN CREW - Meta-skills and governance
 """
 
 from abc import ABC, abstractmethod

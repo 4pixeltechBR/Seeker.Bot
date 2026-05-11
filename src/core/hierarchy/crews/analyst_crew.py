@@ -290,7 +290,6 @@ Milestones:
 [ABRIL]
 ✓ 11-22: Phase 2 (Crews migration)
 ✓ 18-25: Vision 2.0 (VLM upgrade)
-
 [MAIO]
 □ 1-15: Remote Executor foundation
 □ 16-31: E2E testing + hardening

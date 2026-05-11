@@ -1,0 +1,336 @@
+"""
+Seeker.Bot — Sync Sanitizer
+scripts/sync_sanitize.py
+
+Pos-sync: garante que a copia publica (D:\\Seeker GitHub) nao tem
+nenhuma referencia comercial residual depois de copiar E:\\Seeker.Bot.
+
+O que faz:
+  1. Remove diretorios comerciais que escaparam do robocopy (idempotente)
+  2. Remove arquivos comerciais conhecidos (hunter_crew.py, sales.py)
+  3. Patcha bot.py: remove BotCommands /scout, /crm e o bloco
+     try/except setup_sales_handlers
+  4. Patcha src/core/hierarchy/__init__.py e crews/__init__.py para
+     nao referenciar hunter_crew
+  5. Roda security scan — ABORTA com exit 1 se sobrar qualquer
+     keyword comercial nos .py do working tree
+
+Uso: python scripts/sync_sanitize.py "D:\\Seeker GitHub"
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import sys
+from pathlib import Path
+
+
+# ============================================================
+# Configuracao
+# ============================================================
+
+COMMERCIAL_DIRS = [
+    "src/skills/seeker_sales",
+    "src/skills/seeker_sales_week",
+    "src/skills/event_map_scout",
+    "src/skills/cortex",
+    "src/skills/revenue_hunter",
+    # NOTA: drive_manager NAO eh comercial — eh o cliente Google Drive (/drive command)
+]
+
+COMMERCIAL_FILES = [
+    "src/core/hierarchy/crews/hunter_crew.py",
+    "src/channels/telegram/commands/sales.py",
+    "src/channels/telegram/bot_new.py",  # stale, ainda tem /scout e /crm
+]
+
+# Keywords proibidas no working tree publico
+# (pattern, descricao curta)
+COMMERCIAL_PATTERNS = [
+    (r"\bseeker_sales\b", "seeker_sales identifier"),
+    (r"\bseeker_sales_week\b", "seeker_sales_week identifier"),
+    (r"\bevent_map_scout\b", "event_map_scout identifier"),
+    (r"\bHunterCrew\b", "HunterCrew class"),
+    (r"\bhunter_crew\b", "hunter_crew module"),
+    (r"\bsetup_sales_handlers\b", "setup_sales_handlers function"),
+    (r"\bdiscovery_matrix\b", "discovery_matrix module"),
+    (r'BotCommand\(\s*command="/scout"', "/scout BotCommand"),
+    (r'BotCommand\(command="/crm"', "/crm BotCommand"),
+    (r"\bscout_hunter_2_0\b", "scout_hunter_2_0 reference"),
+]
+
+# Dirs ignorados no security scan (cache, vendor, scripts de sync, etc)
+SCAN_IGNORED_PARTS = {
+    ".git", ".venv", "venv", "env", "__pycache__",
+    ".vscode", ".idea", ".claude",
+    "data", "logs", "scratch", "Credenciais",
+    "node_modules", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    "scripts",  # scripts de sync contem keywords como strings de exclusao
+}
+
+
+# ============================================================
+# Operacoes idempotentes
+# ============================================================
+
+def remove_commercial_dirs(root: Path) -> list[str]:
+    removed = []
+    for rel in COMMERCIAL_DIRS:
+        p = root / rel
+        if p.exists():
+            shutil.rmtree(p, ignore_errors=True)
+            removed.append(rel)
+    return removed
+
+
+def remove_commercial_files(root: Path) -> list[str]:
+    removed = []
+    for rel in COMMERCIAL_FILES:
+        p = root / rel
+        if p.exists():
+            p.unlink()
+            removed.append(rel)
+    return removed
+
+
+# ============================================================
+# Patcher: bot.py
+# ============================================================
+
+BOT_PY_PATCHES = [
+    # /scout BotCommand (multi-linha)
+    (
+        re.compile(
+            r'\s*BotCommand\(\s*command="/scout".*?\),?\s*\n',
+            re.DOTALL,
+        ),
+        "\n",
+    ),
+    # /crm BotCommand (single-line)
+    (
+        re.compile(
+            r'\s*BotCommand\(\s*command="/crm".*?\),?\s*\n',
+            re.DOTALL,
+        ),
+        "\n",
+    ),
+    # try/except setup_sales_handlers
+    (
+        re.compile(
+            r"\s*try:\s*\n"
+            r"\s*from src\.channels\.telegram\.commands\.sales import setup_sales_handlers\s*\n"
+            r"\s*\n?"
+            r"\s*has_sales\s*=\s*True\s*\n"
+            r"\s*except ImportError:\s*\n"
+            r"\s*has_sales\s*=\s*False\s*\n",
+            re.MULTILINE,
+        ),
+        "\n",
+    ),
+    # call to setup_sales_handlers
+    (
+        re.compile(
+            r"\s*if has_sales:\s*\n\s*setup_sales_handlers\(dp, pipeline\)\s*\n",
+            re.MULTILINE,
+        ),
+        "\n",
+    ),
+    # /scout linha em help text
+    (
+        re.compile(r'\s*"/scout — campanha B2B[^"]*"\s*\n', re.MULTILINE),
+        "",
+    ),
+    # /crm linha em help text
+    (
+        re.compile(r'\s*"/crm — hist[oó]rico de leads[^"]*"\s*\n', re.MULTILINE),
+        "",
+    ),
+    # Section header "Produção:" → "Utilitários:" (rotulo mais neutro pra repo publico)
+    # OBS: o replacement usa r-string + double-backslash pra preservar literal "\n"
+    # em vez de re.sub interpretar como newline real (que quebraria a string Python)
+    (
+        re.compile(r'"<b>🚀 Produção:</b>\\n"'),
+        r'"<b>🚀 Utilitários:</b>\\n"',
+    ),
+]
+
+
+def patch_bot_py(path: Path) -> bool:
+    if not path.exists():
+        return False
+    original = path.read_text(encoding="utf-8")
+    content = original
+    for pattern, replacement in BOT_PY_PATCHES:
+        content = pattern.sub(replacement, content)
+    if content != original:
+        path.write_text(content, encoding="utf-8")
+        return True
+    return False
+
+
+# ============================================================
+# Patcher: analyst_crew.py — remove bloco Scout Hunter 2.0
+# ============================================================
+
+ANALYST_CREW_PATCHES = [
+    # Remove bloco "3. Scout Hunter 2.0 - B2B Prospecting" e renumera o proximo
+    (
+        re.compile(
+            r"\n3\. Scout Hunter 2\.0 - B2B Prospecting\n"
+            r".*?└─ Expected Impact:.*?\n\n"
+            r"4\. ",
+            re.DOTALL,
+        ),
+        "\n3. ",
+    ),
+    # Remove qualquer linha solta com HunterCrew em comentarios
+    (
+        re.compile(r".*HunterCrew.*\n"),
+        "",
+    ),
+    # Remove milestone "Scout 2.0"
+    (
+        re.compile(r"\s*□\s*\d+-\d+:\s*Scout 2\.0[^\n]*\n"),
+        "",
+    ),
+]
+
+
+def patch_analyst_crew(path: Path) -> bool:
+    if not path.exists():
+        return False
+    original = path.read_text(encoding="utf-8")
+    content = original
+    for pattern, replacement in ANALYST_CREW_PATCHES:
+        content = pattern.sub(replacement, content)
+    if content != original:
+        path.write_text(content, encoding="utf-8")
+        return True
+    return False
+
+
+# ============================================================
+# Patcher: hierarchy __init__ files
+# ============================================================
+
+def patch_hierarchy_init(root: Path) -> list[str]:
+    patched = []
+    targets = [
+        root / "src/core/hierarchy/__init__.py",
+        root / "src/core/hierarchy/crews/__init__.py",
+    ]
+    patterns = [
+        re.compile(r"\s+hunter_crew,\s*\n"),
+        re.compile(r'\s+"hunter_crew",\s*\n'),
+        re.compile(r"\s*from \. import hunter_crew\s*\n"),
+    ]
+    for path in targets:
+        if not path.exists():
+            continue
+        original = path.read_text(encoding="utf-8")
+        content = original
+        for pat in patterns:
+            content = pat.sub("\n" if pat.pattern.endswith("\\n") else "", content)
+        if content != original:
+            path.write_text(content, encoding="utf-8")
+            patched.append(str(path.relative_to(root)))
+    return patched
+
+
+# ============================================================
+# Security scan — ULTIMA LINHA DE DEFESA
+# ============================================================
+
+def security_scan(root: Path) -> list[tuple[str, str, int]]:
+    """
+    Varre todo .py/.yaml/.md do working tree publico procurando
+    keywords comerciais. Retorna lista de (arquivo, descricao, linha).
+    Lista vazia = repo limpo.
+    """
+    issues: list[tuple[str, str, int]] = []
+    extensions = {".py", ".yaml", ".yml", ".md", ".bat", ".toml", ".json"}
+
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if path.suffix not in extensions:
+            continue
+        if any(part in SCAN_IGNORED_PARTS for part in path.parts):
+            continue
+        # Pula este proprio sanitizer (tem keywords como referencia)
+        if path.name == "sync_sanitize.py":
+            continue
+
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+
+        for pattern, label in COMMERCIAL_PATTERNS:
+            for m in re.finditer(pattern, text):
+                line_no = text.count("\n", 0, m.start()) + 1
+                rel = path.relative_to(root).as_posix()
+                issues.append((rel, label, line_no))
+
+    return issues
+
+
+# ============================================================
+# Entry point
+# ============================================================
+
+def main() -> int:
+    if len(sys.argv) != 2:
+        print("Uso: sync_sanitize.py <dest_path>", file=sys.stderr)
+        return 2
+
+    dest = Path(sys.argv[1])
+    if not dest.is_dir():
+        print(f"[sanitize] ERRO: nao e diretorio: {dest}", file=sys.stderr)
+        return 2
+
+    print(f"[sanitize] alvo: {dest}")
+
+    # 1) remove diretorios comerciais
+    removed_dirs = remove_commercial_dirs(dest)
+    for d in removed_dirs:
+        print(f"  - removido dir:  {d}")
+
+    # 2) remove arquivos comerciais
+    removed_files = remove_commercial_files(dest)
+    for f in removed_files:
+        print(f"  - removido file: {f}")
+
+    # 3) patch bot.py
+    bot_py = dest / "src/channels/telegram/bot.py"
+    if patch_bot_py(bot_py):
+        print(f"  ~ patchado:      src/channels/telegram/bot.py")
+
+    # 4) patch analyst_crew.py — remove bloco Scout Hunter 2.0
+    analyst_crew = dest / "src/core/hierarchy/crews/analyst_crew.py"
+    if patch_analyst_crew(analyst_crew):
+        print(f"  ~ patchado:      src/core/hierarchy/crews/analyst_crew.py")
+
+    # 5) patch hierarchy __init__ files
+    patched_init = patch_hierarchy_init(dest)
+    for p in patched_init:
+        print(f"  ~ patchado:      {p}")
+
+    # 5) security scan
+    print()
+    issues = security_scan(dest)
+    if issues:
+        print(f"[sanitize] FAIL — {len(issues)} referencias comerciais residuais:")
+        for rel, label, line in issues[:20]:
+            print(f"  ! {rel}:{line}  ({label})")
+        if len(issues) > 20:
+            print(f"  ... (+{len(issues) - 20} mais)")
+        return 1
+
+    print("[sanitize] OK — working tree publico esta limpo")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

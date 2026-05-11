@@ -128,6 +128,7 @@ PROVIDER_TIMEOUTS = {
     "groq": 15.0,  # Groq é LPU, deve responder instantaneamente
     "gemini": 30.0,  # Padrão, às vezes tem cold start na API
     "deepseek": 40.0,  # Aumentado para 40s (era 30s) — China firewall pode ser lento
+    "kimi": 40.0,  # Moonshot API
     "mistral": 30.0,
     "ollama": 120.0,  # GPU local ou offload CPU (lento por padrão no fallback)
 }
@@ -376,6 +377,10 @@ class NvidiaProvider(OpenAICompatibleProvider):
     BASE_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
 
+class KimiProvider(OpenAICompatibleProvider):
+    BASE_URL = "https://api.moonshot.cn/v1/chat/completions"
+
+
 class GeminiProvider(BaseProvider):
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -481,6 +486,7 @@ PROVIDER_MAP = {
     "deepseek": DeepSeekProvider,
     "gemini": GeminiProvider,
     "groq": GroqProvider,
+    "kimi": KimiProvider,
     "mistral": MistralProvider,
     "nvidia": NvidiaProvider,
     "ollama": OllamaProvider,

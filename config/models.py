@@ -64,6 +64,17 @@ class ModelRouter:
         configs = self.routes.get(role, [])
         return configs[1:] if len(configs) > 1 else []
 
+    def move_to_primary(self, role: CognitiveRole, provider: str):
+        """Move um provedor para a primeira posição (primário) de um papel."""
+        configs = self.routes.get(role, [])
+        for i, cfg in enumerate(configs):
+            if cfg.provider == provider:
+                # Remove de onde está e coloca no topo
+                target = configs.pop(i)
+                configs.insert(0, target)
+                return True
+        return False
+
     def get_all_for_arbitrage(self) -> list[ModelConfig]:
         """
         Modelos de providers DIFERENTES para Evidence Arbitrage.
@@ -224,6 +235,22 @@ DEEPSEEK_REASONER = ModelConfig(
     training_data_cutoff="2026-01",
 )
 
+# ─────────────────────────────────────────────────────────────────────
+# MOONSHOT (KIMI) — PAGO
+# ─────────────────────────────────────────────────────────────────────
+
+MOONSHOT_KIMI_V1 = ModelConfig(
+    provider="kimi",
+    model_id="moonshot-v1-32k",
+    display_name="Kimi Moonshot v1",
+    max_tokens=4096,
+    context_window=32_000,
+    cost_per_1m_input=1.65,  # Estimado, ajuste conforme necessário
+    cost_per_1m_output=1.65,
+    supports_tool_use=True,
+    training_data_cutoff="2025-10",
+)
+
 
 # ─────────────────────────────────────────────────────────────────────
 # GROQ + MISTRAL
@@ -334,6 +361,7 @@ def build_default_router() -> ModelRouter:
             CognitiveRole.DEEP: [
                 NVIDIA_DEEPSEEK_V32,
                 GEMINI_3_FLASH,
+                MOONSHOT_KIMI_V1,
                 NVIDIA_NEMOTRON_ULTRA,
                 DEEPSEEK_CHAT,
             ],
