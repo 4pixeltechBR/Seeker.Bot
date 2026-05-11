@@ -39,6 +39,25 @@ COMMERCIAL_DIRS = [
     # NOTA: drive_manager NAO eh comercial — eh o cliente Google Drive (/drive command)
 ]
 
+# Diretorios que NUNCA devem existir no repo publico — abortam o sync se aparecerem
+SENSITIVE_DIRS = [
+    "Credenciais",  # OAuth tokens, service accounts, etc
+    "Credentials",
+    "secrets",
+    ".secrets",
+]
+
+# Arquivos sensiveis individuais (alem dos .gitignore patterns)
+# OBS: NUNCA capturar .env.example/.sample/.template — sao docs validas
+SENSITIVE_FILE_PATTERNS = [
+    re.compile(r".*credentials\.json$", re.IGNORECASE),
+    re.compile(r".*gcp[_-]oauth.*\.json$", re.IGNORECASE),
+    re.compile(r".*service[_-]account.*\.json$", re.IGNORECASE),
+    re.compile(r".*token.*\.json$", re.IGNORECASE),
+    # .env, .env.local, .env.production etc — mas NAO .env.example/.sample/.template
+    re.compile(r"^\.env$|^\.env\.(local|production|prod|dev|development|staging)$", re.IGNORECASE),
+]
+
 COMMERCIAL_FILES = [
     "src/core/hierarchy/crews/hunter_crew.py",
     "src/channels/telegram/commands/sales.py",
@@ -68,6 +87,47 @@ SCAN_IGNORED_PARTS = {
     "node_modules", ".pytest_cache", ".mypy_cache", ".ruff_cache",
     "scripts",  # scripts de sync contem keywords como strings de exclusao
 }
+
+
+# ============================================================
+# Pre-flight: deteccao e remocao de coisas sensiveis (credenciais)
+# ============================================================
+
+def purge_sensitive(root: Path) -> tuple[list[str], list[str]]:
+    """
+    Remove diretorios e arquivos sensiveis (credenciais, tokens, .env)
+    que NUNCA devem existir no repo publico.
+
+    Retorna (removed_dirs, removed_files).
+    """
+    removed_dirs: list[str] = []
+    removed_files: list[str] = []
+
+    # 1. Diretorios sensiveis no top-level (Credenciais/, secrets/, etc)
+    for d in SENSITIVE_DIRS:
+        p = root / d
+        if p.exists() and p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+            removed_dirs.append(d)
+
+    # 2. Arquivos sensiveis em qualquer lugar (credentials.json, .env, etc)
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if any(part in SCAN_IGNORED_PARTS for part in path.parts):
+            continue
+        # Pula o proprio sanitizer (regex strings dao falso positivo)
+        if path.name == "sync_sanitize.py":
+            continue
+        name = path.name
+        if any(pat.match(name) for pat in SENSITIVE_FILE_PATTERNS):
+            try:
+                path.unlink()
+                removed_files.append(path.relative_to(root).as_posix())
+            except OSError:
+                pass
+
+    return removed_dirs, removed_files
 
 
 # ============================================================
@@ -291,6 +351,13 @@ def main() -> int:
         return 2
 
     print(f"[sanitize] alvo: {dest}")
+
+    # 0) PRE-FLIGHT: purga credenciais e arquivos sensiveis (NUNCA podem subir)
+    sens_dirs, sens_files = purge_sensitive(dest)
+    for d in sens_dirs:
+        print(f"  ! purgado sensivel (dir):  {d}")
+    for f in sens_files:
+        print(f"  ! purgado sensivel (file): {f}")
 
     # 1) remove diretorios comerciais
     removed_dirs = remove_commercial_dirs(dest)
