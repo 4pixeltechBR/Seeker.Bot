@@ -5,7 +5,7 @@ import time
 import html
 
 from aiogram import Dispatcher, F, Router
-from aiogram.types import Message, BufferedInputFile
+from aiogram.types import Message, BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.enums import ParseMode, ChatAction
 
 from src.core.pipeline import SeekerPipeline
@@ -550,12 +550,24 @@ class MessageController:
         response_text += f"\n\n<i>{footer}</i>"
         response_text += memory_footer
 
+        # Build feedback buttons (Phase 2: RL Integration)
+        feedback_keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="👎 Ruim", callback_data=f"fb:-1:{result.decision_id}"),
+                    InlineKeyboardButton(text="😐 Neutro", callback_data=f"fb:0:{result.decision_id}"),
+                    InlineKeyboardButton(text="👍 Bom", callback_data=f"fb:+1:{result.decision_id}"),
+                ]
+            ]
+        )
+
         if result.image_bytes:
             photo = BufferedInputFile(result.image_bytes, filename="screenshot.png")
             caption = response_text[:1024]
             try:
                 await message.answer_photo(
-                    photo, caption=caption, parse_mode=ParseMode.HTML
+                    photo, caption=caption, parse_mode=ParseMode.HTML,
+                    reply_markup=feedback_keyboard
                 )
             except Exception:
                 await message.answer_photo(photo, caption=html.escape(caption)[:1024])
@@ -566,9 +578,12 @@ class MessageController:
                     await message.answer(part, parse_mode=ParseMode.HTML)
             return
 
-        for part in split_message(response_text):
+        parts = list(split_message(response_text))
+        for i, part in enumerate(parts):
             try:
-                await message.answer(part, parse_mode=ParseMode.HTML)
+                # Add feedback buttons only to the last part
+                markup = feedback_keyboard if i == len(parts) - 1 else None
+                await message.answer(part, parse_mode=ParseMode.HTML, reply_markup=markup)
             except Exception:
                 await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
 

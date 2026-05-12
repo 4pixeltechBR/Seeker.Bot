@@ -4,6 +4,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.enums import ParseMode
 import html
 import asyncio
+import re
 from config.models import CognitiveRole
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import _rate_limiters
@@ -1064,3 +1065,85 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
         keyboard = _build_scout_keyboard(scout.active_categories)
         await query.message.edit_reply_markup(reply_markup=keyboard)
         await query.answer(f"Categoria {'ativada' if cat_key in scout.active_categories else 'desativada'}.")
+
+    # ── RL: Explicit Feedback Command (Phase 2 Integration) ──
+    @dp.message(F.text.startswith("/feedback"))
+    async def cmd_feedback(message: Message):
+        """
+        Explicit feedback command: /feedback <value> [reason]
+        value: -1 (bad), 0 (neutral), +1 (good)
+        reason: optional explanation
+        """
+        # Parse command: /feedback -1 "motivo"
+        match = re.match(r"/feedback\s+([+-]?[01])\s*(.*)$", message.text or "")
+        if not match:
+            await message.answer(
+                "❌ Uso: <code>/feedback &lt;-1|0|+1&gt; [motivo]</code>\n"
+                "Exemplos:\n"
+                "  /feedback +1\n"
+                "  /feedback -1 \"muito longo\"\n"
+                "  /feedback 0 \"parcialmente correto\""
+            )
+            return
+
+        value_str, reason = match.groups()
+        value = float(value_str)
+        reason = reason.strip().strip('"\'') or "feedback explícito via /feedback"
+
+        # Get last decision_id from message controller state
+        if not hasattr(pipeline, '_message_controller'):
+            await message.answer("⚠️ Erro: Message controller não inicializado.")
+            return
+
+        controller = pipeline._message_controller
+        if not hasattr(controller, '_rl_state'):
+            await message.answer("⚠️ Nenhuma resposta anterior a avaliar.")
+            return
+
+        last_rl = controller._rl_state.get(message.chat.id)
+        if not last_rl:
+            await message.answer("⚠️ Nenhuma resposta anterior a avaliar.")
+            return
+
+        decision_id = last_rl["decision_id"]
+        try:
+            pipeline.reward_collector.record_explicit_feedback(
+                decision_id=decision_id,
+                value=value,
+                reason=reason,
+            )
+            emoji_map = {-1: "👎", 0: "😐", 1: "👍"}
+            await message.answer(
+                f"{emoji_map.get(int(value), '❓')} Feedback registrado!\n"
+                f"Valor: {value:+.1f} | Motivo: {reason}"
+            )
+            log.info(f"[feedback] Chat {message.chat.id}: value={value}, reason={reason}")
+        except Exception as e:
+            log.error(f"[feedback] Erro ao registrar: {e}")
+            await message.answer(f"❌ Erro ao registrar feedback: {e}")
+
+    # ── RL: Feedback Button Callback (Inline Button) ──
+    @dp.callback_query(F.data.startswith("fb:"))
+    async def cb_feedback_button(query: CallbackQuery):
+        """Handle feedback button clicks: fb:<value>:<decision_id>"""
+        try:
+            parts = query.data.split(":")
+            if len(parts) != 3:
+                await query.answer("❌ Dado inválido", show_alert=False)
+                return
+
+            value_str, decision_id = parts[1], parts[2]
+            value = float(value_str)
+
+            pipeline.reward_collector.record_explicit_feedback(
+                decision_id=decision_id,
+                value=value,
+                reason="feedback via botão inline",
+            )
+
+            emoji_map = {-1: "👎", 0: "😐", 1: "👍"}
+            await query.answer(f"{emoji_map.get(int(value), '❓')} Feedback registrado!", show_alert=False)
+            log.info(f"[feedback] Botão clicado: value={value}, decision_id={decision_id[:8]}")
+        except Exception as e:
+            log.error(f"[feedback] Erro ao processar botão: {e}")
+            await query.answer(f"❌ Erro: {e}", show_alert=True)
