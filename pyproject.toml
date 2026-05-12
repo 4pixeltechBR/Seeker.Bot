@@ -2,7 +2,7 @@
 name = "seeker-bot"
 version = "0.2.0"
 description = "Autonomous research agent with epistemological triangulation"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "aiogram>=3.0",
     "aiosqlite>=0.19",
