@@ -1256,3 +1256,64 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             await message.answer(
                 f"ℹ️ Bandit já está em modo {stats_before['mode'].upper()}."
             )
+
+    @dp.message(F.text == "/rl_stats")
+    async def cmd_rl_stats(message: Message):
+        """Dashboard completo de RL: bandit convergência + pesos de reward."""
+        bandit = getattr(pipeline, "cascade_bandit", None)
+        reward = getattr(pipeline, "reward_collector", None)
+
+        lines = ["<b>Seeker.Bot — RL Dashboard</b>\n"]
+
+        # ── Bandit stats ──────────────────────────────────────────────────────
+        if bandit is not None:
+            s = bandit.get_stats()
+            mode_emoji = {"shadow": "👁", "active": "⚡", "full": "🚀"}.get(s["mode"], "?")
+            lines.append(f"<b>LinUCB Bandit</b> {mode_emoji} <code>{s['mode'].upper()}</code>")
+
+            # Convergência
+            bar_len = 20
+            filled = int(s["agreement_rate"] * bar_len)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            lines.append(f"Concordância: [{bar}] {s['agreement_rate']:.0%}")
+
+            # Threshold 70% indicator
+            threshold_pos = int(0.70 * bar_len)
+            threshold_bar = " " * threshold_pos + "▲" + " " * (bar_len - threshold_pos)
+            lines.append(f"              {threshold_bar} 70%")
+
+            lines.append(
+                f"Updates: {s['total_updates']} | Predições: {s['total_predicts']} | "
+                f"Divergências: {s['divergences']}"
+            )
+            lines.append(f"Alpha: {s['alpha']:.3f}")
+
+            # Updates por arm
+            lines.append("\n<b>Updates por arm:</b>")
+            total_arm = sum(s["updates_per_arm"].values()) or 1
+            for arm, n in s["updates_per_arm"].items():
+                pct = n / total_arm
+                arm_bar = "█" * int(pct * 10) + "░" * (10 - int(pct * 10))
+                lines.append(f"  {arm:<12} [{arm_bar}] {n} ({pct:.0%})")
+
+            # Status / próximo passo
+            if s["mode"] == "active":
+                lines.append("\n⚡ <b>A/B test ativo</b> — 50% das queries via bandit")
+            elif s["mode"] == "full":
+                lines.append("\n🚀 <b>Modo FULL</b> — bandit substitui o router")
+            elif s["ready_for_active"]:
+                lines.append("\n✅ <b>Pronto para ACTIVE</b> — use <code>/rl_activate</code>")
+            else:
+                remaining = max(0, 100 - s["total_updates"])
+                lines.append(f"\n⏳ Coletando dados: faltam {remaining} updates para threshold")
+        else:
+            lines.append("⚠️ Bandit não inicializado")
+
+        # ── Reward weights ────────────────────────────────────────────────────
+        if reward is not None:
+            lines.append("")
+            lines.append(reward.format_weights())
+        else:
+            lines.append("\n⚠️ RewardCollector não disponível")
+
+        await message.answer("\n".join(lines), parse_mode=ParseMode.HTML)
