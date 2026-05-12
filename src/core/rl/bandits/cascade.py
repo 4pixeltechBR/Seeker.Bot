@@ -187,6 +187,48 @@ class CascadeBandit:
         total = self._agreements + self._divergences
         return self._agreements / total if total > 0 else 1.0
 
+    @property
+    def ready_for_activation(self) -> bool:
+        """Checks if bandit is ready to transition to ACTIVE mode."""
+        return self.agreement_rate >= 0.70 and self.total_updates >= 100
+
+    # ── Mode Management (Phase 2: RL Activation) ──────────────────────
+
+    def set_mode(self, new_mode: BanditMode) -> bool:
+        """
+        Transition bandit to a new mode.
+        Returns True if transition occurred, False if already in target mode.
+        """
+        if self.mode == new_mode:
+            return False
+
+        old_mode = self.mode
+        self.mode = new_mode
+
+        # Log transition with stats snapshot
+        stats = self.get_stats()
+        log.info(
+            f"[bandit] Mode transition: {old_mode.value} → {new_mode.value} | "
+            f"agreement={stats['agreement_rate']:.0%}, "
+            f"updates={stats['total_updates']}, alpha={stats['alpha']:.3f}"
+        )
+        return True
+
+    def try_activate(self) -> bool:
+        """
+        Auto-activate bandit if conditions are met.
+        Checks: agreement_rate >= 70% AND total_updates >= 100.
+        Only transitions if currently in SHADOW mode.
+        Returns True if transition occurred, False otherwise.
+        """
+        if self.mode != BanditMode.SHADOW:
+            return False
+
+        if not self.ready_for_activation:
+            return False
+
+        return self.set_mode(BanditMode.ACTIVE)
+
     # ── Predição ──────────────────────────────────────────────────────
 
     def predict(

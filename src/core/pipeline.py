@@ -632,6 +632,8 @@ class SeekerPipeline:
                     decision_id=decision_id,
                     reward=event.reward_total,
                 )
+                # Phase 2: Check if bandit should auto-activate
+                self.check_bandit_readiness()
         except Exception:
             pass  # bandit nunca quebra o fluxo
 
@@ -683,6 +685,16 @@ class SeekerPipeline:
             f"<i>Memória: {memory_status} {rate}% das respostas usam fatos. "
             f"Média: {avg} fatos/resposta.</i>"
         )
+
+    def check_bandit_readiness(self) -> bool:
+        """
+        Periodically check if bandit should transition to ACTIVE mode.
+        Called from observe_follow_up to monitor bandit stats.
+        Returns True if transition occurred.
+        """
+        if self.cascade_bandit.try_activate():
+            return True
+        return False
 
     def get_sprint11_report(self) -> str:
         """Retorna relatório de otimizações Sprint 11 formatado para Telegram"""

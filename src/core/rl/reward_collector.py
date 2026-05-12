@@ -244,8 +244,14 @@ class RewardCollector:
     def __init__(self, db_path: str = REWARD_DB_PATH):
         self.db_path = db_path
         self._open_events: dict[str, RewardEvent] = {}
+        # Tunable weights (Phase 2: RL fine-tuning)
+        self.w_behavioral = W_BEHAVIORAL
+        self.w_technical = W_TECHNICAL
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        log.info(f"[reward] RewardCollector inicializado — db: {db_path}")
+        log.info(
+            f"[reward] RewardCollector inicializado — db: {db_path} | "
+            f"w_behav={self.w_behavioral:.0%}, w_tech={self.w_technical:.0%}"
+        )
 
     # ── Gestão de eventos ─────────────────────────────────────────────
 
@@ -273,6 +279,11 @@ class RewardCollector:
         if not event:
             return None
         event.close()
+        # Recalculate reward_total with current dynamic weights
+        event.reward_total = (
+            self.w_behavioral * event.reward_behavioral
+            + self.w_technical * event.reward_technical
+        )
         self._persist(event)
         return event
 
@@ -288,6 +299,59 @@ class RewardCollector:
         if stale:
             log.info(f"[reward] {len(stale)} eventos stale fechados")
         return len(stale)
+
+    # ── Fine-tuning: Weights Adjustment (Phase 2) ──────────────────────
+
+    def set_weights(self, behavioral: float, technical: float) -> bool:
+        """
+        Adjust reward weights dynamically.
+        Args:
+            behavioral: weight for behavioral signals (0.0-1.0)
+            technical: weight for technical signals (0.0-1.0)
+        Returns:
+            True if weights were set successfully, False if validation failed
+        """
+        # Validate percentages
+        total = behavioral + technical
+        if total <= 0 or not (0 <= behavioral <= 1 and 0 <= technical <= 1):
+            log.warning(
+                f"[reward] Invalid weights: behavioral={behavioral}, technical={technical}"
+            )
+            return False
+
+        if abs(total - 1.0) > 0.01:  # Allow 1% rounding error
+            log.warning(f"[reward] Weights don't sum to 1.0: {total}")
+            return False
+
+        old_behav = self.w_behavioral
+        old_tech = self.w_technical
+        self.w_behavioral = behavioral
+        self.w_technical = technical
+
+        log.info(
+            f"[reward] Weights adjusted: "
+            f"behavioral {old_behav:.0%}→{behavioral:.0%}, "
+            f"technical {old_tech:.0%}→{technical:.0%}"
+        )
+        return True
+
+    def get_weights(self) -> dict:
+        """Returns current reward weights as dict."""
+        return {
+            "behavioral": round(self.w_behavioral, 2),
+            "technical": round(self.w_technical, 2),
+            "behavioral_pct": int(self.w_behavioral * 100),
+            "technical_pct": int(self.w_technical * 100),
+        }
+
+    def format_weights(self) -> str:
+        """Format weights for Telegram display."""
+        w = self.get_weights()
+        return (
+            f"<b>RL Weights</b>\n"
+            f"  Behavioral: {w['behavioral_pct']}% ({w['behavioral']:.2f})\n"
+            f"  Technical: {w['technical_pct']}% ({w['technical']:.2f})"
+        )
 
     # ── Sinais técnicos ───────────────────────────────────────────────
 

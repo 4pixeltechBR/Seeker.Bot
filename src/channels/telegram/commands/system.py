@@ -1147,3 +1147,112 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
         except Exception as e:
             log.error(f"[feedback] Erro ao processar botão: {e}")
             await query.answer(f"❌ Erro: {e}", show_alert=True)
+
+    # ── RL: Weight Fine-tuning Command (Phase 2) ──
+    @dp.message(F.text.startswith("/rl_tune"))
+    async def cmd_rl_tune(message: Message):
+        """
+        RL weight fine-tuning command.
+        Usage: /rl_tune <behavior%> <technical%>
+        Example: /rl_tune 70 30 (default), /rl_tune 60 40 (more technical)
+        Status: /rl_tune status
+        """
+        text = message.text or ""
+
+        # Handle status subcommand
+        if "status" in text.lower():
+            weights_info = pipeline.reward_collector.format_weights()
+            await message.answer(weights_info, parse_mode=ParseMode.HTML)
+            return
+
+        # Parse /rl_tune <behavior%> <technical%>
+        match = re.match(r"/rl_tune\s+(\d+)\s+(\d+)\s*$", text)
+        if not match:
+            await message.answer(
+                "❌ Uso: <code>/rl_tune &lt;behavior%&gt; &lt;technical%&gt;</code>\n"
+                "Exemplo: <code>/rl_tune 70 30</code> (padrão)\n"
+                "Ou: <code>/rl_tune status</code> para ver pesos atuais"
+            )
+            return
+
+        behav_pct, tech_pct = int(match.group(1)), int(match.group(2))
+        behav = behav_pct / 100.0
+        tech = tech_pct / 100.0
+
+        if pipeline.reward_collector.set_weights(behav, tech):
+            weights_info = pipeline.reward_collector.format_weights()
+            await message.answer(
+                f"✅ Pesos ajustados!\n\n{weights_info}",
+                parse_mode=ParseMode.HTML
+            )
+            log.info(f"[rl_tune] Chat {message.chat.id}: behavior={behav_pct}%, technical={tech_pct}%")
+        else:
+            await message.answer(
+                f"❌ Pesos inválidos! Devem somar 100%: {behav_pct}% + {tech_pct}% = {behav_pct + tech_pct}%"
+            )
+
+    # ── RL: Bandit Mode Activation Commands (Phase 2) ──
+    @dp.message(F.text == "/rl_activate")
+    async def cmd_rl_activate(message: Message):
+        """
+        Manually force bandit activation (god mode only).
+        Transitions from SHADOW to ACTIVE mode for A/B testing.
+        """
+        # Check god mode
+        god_users = getattr(pipeline._message_controller, '_god_mode_users', set())
+        if message.from_user.id not in god_users:
+            await message.answer("❌ Este comando requer god mode.")
+            return
+
+        from src.core.rl.bandits.cascade import BanditMode
+
+        stats_before = pipeline.cascade_bandit.get_stats()
+        was_activated = pipeline.cascade_bandit.set_mode(BanditMode.ACTIVE)
+
+        if was_activated:
+            await message.answer(
+                f"✅ Bandit ATIVADO manualmente!\n\n"
+                f"<b>Before:</b> {stats_before['mode'].upper()}\n"
+                f"<b>After:</b> ACTIVE\n"
+                f"Agreement: {stats_before['agreement_rate']:.0%}\n"
+                f"Updates: {stats_before['total_updates']}\n"
+                f"Alpha: {stats_before['alpha']:.3f}",
+                parse_mode=ParseMode.HTML
+            )
+            log.info(f"[rl_activate] Chat {message.chat.id}: manually activated bandit")
+        else:
+            await message.answer(
+                f"ℹ️ Bandit já está em modo {stats_before['mode'].upper()}."
+            )
+
+    @dp.message(F.text == "/rl_deactivate")
+    async def cmd_rl_deactivate(message: Message):
+        """
+        Manually revert bandit to SHADOW mode (god mode only).
+        Returns to safe logging-only mode.
+        """
+        # Check god mode
+        god_users = getattr(pipeline._message_controller, '_god_mode_users', set())
+        if message.from_user.id not in god_users:
+            await message.answer("❌ Este comando requer god mode.")
+            return
+
+        from src.core.rl.bandits.cascade import BanditMode
+
+        stats_before = pipeline.cascade_bandit.get_stats()
+        was_deactivated = pipeline.cascade_bandit.set_mode(BanditMode.SHADOW)
+
+        if was_deactivated:
+            await message.answer(
+                f"✅ Bandit revertido para SHADOW!\n\n"
+                f"<b>Before:</b> {stats_before['mode'].upper()}\n"
+                f"<b>After:</b> SHADOW\n"
+                f"Agreement: {stats_before['agreement_rate']:.0%}\n"
+                f"Updates: {stats_before['total_updates']}",
+                parse_mode=ParseMode.HTML
+            )
+            log.info(f"[rl_deactivate] Chat {message.chat.id}: manually deactivated bandit")
+        else:
+            await message.answer(
+                f"ℹ️ Bandit já está em modo {stats_before['mode'].upper()}."
+            )
