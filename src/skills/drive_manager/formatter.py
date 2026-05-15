@@ -58,8 +58,6 @@ def format_file_list(files: list[dict], folder_name: str = "root") -> str:
         fid = f.get("id", "")
         size = _size_str(f.get("size"))
         size_part = f" <i>({size})</i>" if size else ""
-        # Formato: ícone nome [tamanho] • id curto
-        short_id = fid[:12] + "…" if len(fid) > 12 else fid
         lines.append(f"{icon} <code>{name}</code>{size_part}\n   <i>ID: <code>{fid}</code></i>")
 
     return "\n\n".join(lines)
