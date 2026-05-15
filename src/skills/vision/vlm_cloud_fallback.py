@@ -5,7 +5,7 @@ import logging
 from typing import Dict, Optional
 
 try:
-    from google import genai
+    from google import genai  # noqa: F401 — availability probe
 
     GEMINI_AVAILABLE = True
 except ImportError:

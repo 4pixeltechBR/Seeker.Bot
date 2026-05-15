@@ -54,10 +54,10 @@ class DriveClient:
         Returns True se autenticado com sucesso.
         """
         try:
-            from google.oauth2.credentials import Credentials
-            from google.auth.transport.requests import Request
-            from google_auth_oauthlib.flow import InstalledAppFlow
-            from googleapiclient.discovery import build
+            from google.oauth2.credentials import Credentials  # noqa: F401
+            from google.auth.transport.requests import Request  # noqa: F401
+            from google_auth_oauthlib.flow import InstalledAppFlow  # noqa: F401
+            from googleapiclient.discovery import build  # noqa: F401 — availability probe; real import in _build_service
         except ImportError:
             log.error("[drive] Dependências não instaladas. Execute: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib")
             return False
@@ -100,7 +100,7 @@ class DriveClient:
 
                 auth_url, _ = flow.authorization_url(prompt="consent")
 
-                log.info(f"[drive] URL de autorização gerada")
+                log.info("[drive] URL de autorização gerada")
 
                 if send_link:
                     msg = (
@@ -130,7 +130,6 @@ class DriveClient:
         Salva o token e inicializa o serviço.
         """
         try:
-            from googleapiclient.discovery import build
 
             if not hasattr(self, "_pending_flow") or self._pending_flow is None:
                 log.warning("[drive] Nenhum flow pendente para completar")

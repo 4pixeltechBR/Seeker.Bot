@@ -152,7 +152,7 @@ class CachedContentManager:
             h for h, c in self._cache_store.items() if c.is_expired
         ]
         for h in expired_hashes:
-            log.debug(f"[gemini-cache] Removendo cache expirado")
+            log.debug("[gemini-cache] Removendo cache expirado")
             del self._cache_store[h]
 
     def stats(self) -> dict:

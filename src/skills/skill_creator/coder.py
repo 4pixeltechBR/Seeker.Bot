@@ -11,8 +11,8 @@ import json
 import logging
 
 from src.providers.base import LLMRequest, invoke_with_fallback
-from config.models import ModelRouter, CognitiveRole
-from src.skills.vision.afk_protocol import AFKProtocol, PermissionResult
+from config.models import CognitiveRole
+from src.skills.vision.afk_protocol import PermissionResult
 
 log = logging.getLogger("seeker.coder")
 

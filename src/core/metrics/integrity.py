@@ -90,14 +90,14 @@ class IntegrityMonitor:
         lines = [
             f"{emoji} <b>SEEKER INTEGRITY DASHBOARD</b>\n",
             f"⏱️ <b>Uptime:</b> {report['uptime']}\n",
-            f"<b>🧠 Saúde Cognitiva:</b>",
+            "<b>🧠 Saúde Cognitiva:</b>",
             f"  Índice de Alucinação: {report['hallucination_index']}",
             f"  Reliability Score: <b>{report['reliability_score']}</b>",
             f"  Conflitos/Arbitragens: {report['conflicts']}/{report['arbitrages']}\n",
-            f"<b>🔧 Auto-Cura (S.A.R.A):</b>",
+            "<b>🔧 Auto-Cura (S.A.R.A):</b>",
             f"  Eficácia: {report['healing_efficiency']}",
             f"  Correções: {report['heals']}\n",
-            f"<b>💰 Integridade Financeira:</b>",
+            "<b>💰 Integridade Financeira:</b>",
             f"  Gasto Total: {report['total_cost']}",
             f"  Orçamento Usado: {report['budget_used_pct']} (Limite: ${self.budget_limit_usd})\n",
             f"<i>Status: { 'OPERACIONAL' if rel > 85 else 'DEGRADADO' }</i>"

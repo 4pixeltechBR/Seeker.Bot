@@ -1,7 +1,7 @@
 from typing import Callable, Any
 
 from aiogram import BaseMiddleware
-from aiogram.types import Message, CallbackQuery, TelegramObject
+from aiogram.types import TelegramObject
 import logging
 
 log = logging.getLogger("seeker.telegram.auth")

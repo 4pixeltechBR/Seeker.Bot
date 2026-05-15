@@ -6,7 +6,7 @@ Agregação de telemetria de cache hit/creation para análise de economia
 import logging
 from datetime import datetime
 from typing import Dict, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 log = logging.getLogger("seeker.budget.cache_stats")
 

@@ -5,7 +5,7 @@ import time
 import html
 
 from aiogram import Dispatcher, F, Router
-from aiogram.types import Message, BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message, BufferedInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.enums import ParseMode, ChatAction
 
 from src.core.pipeline import SeekerPipeline

@@ -52,7 +52,7 @@ class HeadlessScraper:
             dict com chaves: whatsapp, email, site, linktree_url, bio_raw, _erro (opcional)
         """
         try:
-            from playwright.async_api import async_playwright
+            from playwright.async_api import async_playwright  # noqa: F401 — availability probe
         except ImportError:
             log.error(
                 "[headless] Playwright não instalado. Execute: pip install playwright && playwright install chromium"
