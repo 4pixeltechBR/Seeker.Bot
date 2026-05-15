@@ -62,12 +62,12 @@ reason: T-11 fixed em duas etapas — (a) extractor sincrono removido do caminho
 
 ### 12. S.A.R.A CodeValidator integrado no fluxo de auto-patch em main
 expected: src/skills/self_improvement/code_validator.py existe na branch main e e chamado antes de qualquer write em goal.py.
-result: partial
-reason: T-12 parcial — code_validator.py e error_database.py extraidos do commit d7b6cc3 (feature/seeker-v3-refactor) e adicionados em main (passam ruff + imports limpos). Integracao em goal.py e bot.py deferida para fase 01-sara-integration porque os arquivos divergiram em main desde abril. docs/SARA_INTEGRATION_NOTE.md documenta os TODOs concretos para fechar.
+result: resolved
+reason: T-12 fully fixed via commit f5f2b01 — wire-up completo. goal.py agora: (a) sanitize_traceback antes do LLM, (b) is_recent_duplicate 6h dedup, (c) record_error linka traceback ao patch, (d) CodeValidator.validate (ast→compile→pyright) ANTES de qualquer write, (e) patches validados vao para PendingPatchStore (NAO sobrescreve arquivo), (f) record_patch registra resultado. commands/system.py tem cb_sara_approve (aplica patch + backup .bak) e cb_sara_reject (preserva original). Patch nunca toca disco sem clique humano em <24h.
 
 ## Summary
 
-12 testes. **3 passed** (1, 5, 6, 7) + **6 resolved** (2, 4, 8, 10, 11, 3) + **3 partial** (9, 12, retomar 3).
+12 testes. **3 passed** (1, 5, 6, 7) + **7 resolved** (2, 3, 4, 8, 10, 11, 12) + **2 partial** (9 falta clique GitHub para rotacao; 3 e 11 falta baseline de prod 24h).
 
 Pos-audit-fix total (2026-05-15):
 - **Resolved** (codigo + verificacao): T-02, T-04, T-08, T-10, T-11.

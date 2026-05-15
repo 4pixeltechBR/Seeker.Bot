@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# Seeker.Bot pre-commit guard — block staged diffs that contain GitHub PATs.
+# Installed by T-09 cleanup (audit-fix 2026-05-15).
+#
+# To skip in an emergency (with very good reason):
+#     git commit --no-verify
+# But you almost certainly don't want to — that's how the last leak shipped.
+
+set -euo pipefail
+
+# Patterns to block. Each is a POSIX extended regex.
+patterns=(
+    'ghp_[A-Za-z0-9]{30,}'     # GitHub Personal Access Token (classic)
+    'github_pat_[A-Za-z0-9_]{50,}'  # GitHub fine-grained PAT
+    'gho_[A-Za-z0-9]{30,}'     # GitHub OAuth token
+    'ghs_[A-Za-z0-9]{30,}'     # GitHub server-to-server token
+    'sk-[A-Za-z0-9]{40,}'      # OpenAI / DeepSeek style API key
+    'AIzaSy[A-Za-z0-9_-]{30,}' # Google API key (Gemini)
+    'nvapi-[A-Za-z0-9_-]{40,}' # NVIDIA NIM key
+    'gsk_[A-Za-z0-9]{40,}'     # Groq key
+)
+
+# Get staged diff content
+staged="$(git diff --cached -U0 -- ':!docs/PAT_ROTATION_RUNBOOK.md' ':!.git/hooks/pre-commit' 2>/dev/null || true)"
+
+if [ -z "$staged" ]; then
+    exit 0
+fi
+
+violations=0
+for pat in "${patterns[@]}"; do
+    if echo "$staged" | grep -qE "$pat"; then
+        echo "BLOCKED: staged diff matches secret pattern: $pat"
+        echo "$staged" | grep -nE "$pat" | head -5
+        violations=$((violations + 1))
+    fi
+done
+
+if [ "$violations" -gt 0 ]; then
+    echo ""
+    echo "Commit aborted. Remove the secret from your staged changes, or"
+    echo "verify it's a redacted placeholder before retrying."
+    echo "If this is a false positive on a doc/example, add the file path"
+    echo "to the ':!path' exclusions in .git/hooks/pre-commit."
+    exit 1
+fi
+
+exit 0
