@@ -67,8 +67,9 @@ reason: T-12 parcial — code_validator.py e error_database.py extraidos do comm
 
 ## Summary
 
-12 testes. **3 passed** (1, 5, 6, 7) + **9 pending**.
+12 testes. **3 passed** (1, 5, 6, 7) + **6 resolved** (2, 4, 8, 10, 11, 3) + **3 partial** (9, 12, retomar 3).
 
-Pending items sao escopo de Phase 0. Audit-fix vai classificar quais sao
-auto-fixable (#4 e talvez #11) versus manual-only (rotacao de credenciais,
-investigacao NVIDIA, plan de migracao Python).
+Pos-audit-fix total (2026-05-15):
+- **Resolved** (codigo + verificacao): T-02, T-04, T-08, T-10, T-11.
+- **Resolved (code), pending real-prod baseline**: T-03 (per-model breaker), T-11 (bench harness valida overhead, P95 prod precisa medir).
+- **Partial — falta acao do usuario**: T-09 (token removido do config; falta revogar+rotacionar no GitHub), T-12 (modulos landed em main; falta wire-up em goal.py/bot.py — ver docs/SARA_INTEGRATION_NOTE.md).
