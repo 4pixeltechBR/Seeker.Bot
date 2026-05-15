@@ -117,6 +117,36 @@ If any commit contains the token, force-rotate **immediately** (Step 1 takes car
 
 ---
 
+## Historical leak found during this audit
+
+While pushing the PAT removal fix, GitHub Push Protection caught the token
+quoted verbatim in this runbook. After redacting, a deeper sweep with
+`git log -p --all -S "ghp_XhYY"` found the token **also lives in commit
+`ad8fc99`** on `origin/feature/sprint-11` (April 2026 — stale branch).
+
+The file is a `.claude/settings.local.json`-shape Bash allow-list that
+embedded the token inside `curl -H "Authorization: token ghp_..."` lines.
+The branch hasn't been touched since 2026-04-20 and main does NOT contain it.
+
+### To close this fully:
+
+```powershell
+# Option A — delete the stale branch (recommended if its work is already merged)
+git push origin --delete feature/sprint-11
+git branch -D feature/sprint-11
+
+# Option B — rewrite history with git-filter-repo
+pip install git-filter-repo
+# Put the leaked token (the one ghp_XhYY... value) into a temp file, then:
+echo "<paste-the-full-leaked-token>==>ghp_REDACTED" > /tmp/redact.txt
+git filter-repo --replace-text /tmp/redact.txt --refs feature/sprint-11
+git push --force-with-lease origin feature/sprint-11
+rm /tmp/redact.txt
+```
+
+Either way, **revoke the token at GitHub first** (Step 1) — that makes the
+leaked string useless even if it lingers in some backup.
+
 ## Tracking
 
 Linked UAT: `.planning/phases/00-production-hardening/00-UAT.md` — item **T-09**.
