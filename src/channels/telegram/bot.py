@@ -5,6 +5,9 @@ src/channels/telegram/bot.py
 Executar: python -m src
 """
 
+# ruff: noqa: E402
+# Imports below the load_dotenv() call are intentional — see comment near line 15.
+
 import asyncio
 import logging
 import os

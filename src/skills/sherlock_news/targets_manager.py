@@ -5,12 +5,11 @@ src/skills/sherlock_news/targets_manager.py
 
 import json
 import os
+import uuid
 from datetime import datetime
 
 TARGETS_FILE = os.path.join(os.path.dirname(__file__), "targets.json")
 
-
-import uuid
 
 def add_target(model_name: str, category: str = "LLM") -> bool:
     if not model_name:
