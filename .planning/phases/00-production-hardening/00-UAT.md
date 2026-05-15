@@ -62,8 +62,8 @@ reason: T-11 codigo fixado — extractor sincrono no caminho critico removido. _
 
 ### 12. S.A.R.A CodeValidator integrado no fluxo de auto-patch em main
 expected: src/skills/self_improvement/code_validator.py existe na branch main e e chamado antes de qualquer write em goal.py.
-result: pending
-reason: Implementado em branch feature/seeker-v3-refactor mas nao mergeado em main. Decisao pendente: merge ou re-implementar.
+result: partial
+reason: T-12 parcial — code_validator.py e error_database.py extraidos do commit d7b6cc3 (feature/seeker-v3-refactor) e adicionados em main (passam ruff + imports limpos). Integracao em goal.py e bot.py deferida para fase 01-sara-integration porque os arquivos divergiram em main desde abril. docs/SARA_INTEGRATION_NOTE.md documenta os TODOs concretos para fechar.
 
 ## Summary
 
