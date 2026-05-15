@@ -12,6 +12,10 @@ Desligado por padrão. Controlado por /watch e /watchoff.
 
 import logging
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.skills.vision.vlm_client import VLMClient
 
 from src.core.goals.protocol import (
     GoalBudget,
