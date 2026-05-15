@@ -85,7 +85,7 @@ class SystemProfiler:
         )
         try:
             metric.cpu_percent = self.process.cpu_percent(interval=0.01)
-        except:
+        except Exception:
             metric.cpu_percent = 0.0
         metric.llm_calls = llm_calls
         metric.input_tokens = input_tokens

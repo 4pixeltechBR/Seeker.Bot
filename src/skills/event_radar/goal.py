@@ -188,7 +188,7 @@ class EventRadarGoal:
                     r.to_context(max_results=5) if hasattr(r, "to_context") else str(r)
                 )
                 all_snippets.append(ctx)
-            except:
+            except Exception:
                 all_snippets.append(str(r))
 
         contexto = (
@@ -378,8 +378,8 @@ class EventRadarGoal:
                     self.pipeline.drive_exporter.update_file(
                         file_id, str(csv_path), "text/csv"
                     )
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"[event_radar] Drive sync failed (non-fatal): {e}")
 
     def _build_pdf_report(self, estado_nome: str, events: list, output_path: Path):
         """Gera um PDF formatado com os eventos encontrados."""

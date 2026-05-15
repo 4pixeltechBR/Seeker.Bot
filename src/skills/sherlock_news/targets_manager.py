@@ -21,7 +21,7 @@ def add_target(model_name: str, category: str = "LLM") -> bool:
         try:
             with open(TARGETS_FILE, "r", encoding="utf-8") as f:
                 targets = json.load(f)
-        except:
+        except (json.JSONDecodeError, OSError):
             targets = []
 
     # Evita duplicatas (mesmo nome e categoria)
@@ -53,7 +53,7 @@ def list_targets() -> list[str]:
         with open(TARGETS_FILE, "r", encoding="utf-8") as f:
             targets = json.load(f)
             return [t["name"] for t in targets if t["status"] == "pending"]
-    except:
+    except (json.JSONDecodeError, OSError, KeyError):
         return []
 
 
@@ -64,7 +64,7 @@ def list_all_targets() -> list[dict]:
     try:
         with open(TARGETS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
-    except:
+    except (json.JSONDecodeError, OSError):
         return []
 
 
@@ -84,5 +84,5 @@ def remove_target(target_id: str) -> bool:
         with open(TARGETS_FILE, "w", encoding="utf-8") as f:
             json.dump(new_targets, f, indent=4)
         return True
-    except:
+    except (json.JSONDecodeError, OSError):
         return False

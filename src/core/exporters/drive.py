@@ -121,7 +121,7 @@ class GoogleDriveExporter:
         # Limpa
         try:
             os.remove(temp_path)
-        except:
+        except OSError:
             pass
 
         return file_id
