@@ -1,7 +1,8 @@
+import asyncio
+import datetime
+import json
 import logging
 import os
-import json
-import datetime
 
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import LLMRequest, invoke_with_fallback
@@ -73,9 +74,10 @@ class TechScoutGoal:
         # 1. Carrega histórico para evitar duplicidade
         history = self._load_history()
         
-        # 2. Realiza pesquisas para o stack ativo
-        search_results = []
-        stack_to_search = []
+        # 2. Realiza pesquisas batched — UMA query por GRUPO (max 3 queries totais),
+        #    todas em paralelo. Antes: 15 queries seriais (uma por framework). Agora:
+        #    fan-out concorrente que respeita o cap do UAT (T-10).
+        stack_to_search: list[str] = []
         for cat in self.active_categories:
             if cat in TECH_CATEGORIES:
                 stack_to_search.extend(TECH_CATEGORIES[cat])
@@ -84,17 +86,67 @@ class TechScoutGoal:
             self._status = GoalStatus.IDLE
             return GoalResult(success=True, summary="Nenhuma categoria ativa no Tech Scout.", cost_usd=0.0)
 
-        for tech in stack_to_search:
-            query = f"{tech} latest releases news {datetime.date.today().year}"
+        year = datetime.date.today().year
+        active = [c for c in self.active_categories if c in TECH_CATEGORIES]
+
+        # Estratégia: 1 query por categoria, mas se houver >3 categorias ativas
+        # fundimos as menores em um único pacote para respeitar o limite.
+        if len(active) <= 3:
+            query_groups = [(cat, TECH_CATEGORIES[cat]) for cat in active]
+        else:
+            # Mantém as 2 maiores como queries individuais e funde o resto
+            sorted_cats = sorted(active, key=lambda c: -len(TECH_CATEGORIES[c]))
+            top_two = sorted_cats[:2]
+            merged_rest: list[str] = []
+            merged_names: list[str] = []
+            for c in sorted_cats[2:]:
+                merged_rest.extend(TECH_CATEGORIES[c])
+                merged_names.append(c)
+            query_groups = [(c, TECH_CATEGORIES[c]) for c in top_two]
+            query_groups.append(("+".join(merged_names), merged_rest))
+
+        async def _search_group(cat_name: str, techs: list[str]) -> list[dict]:
+            # Junta termos com OR explícito para o motor cobrir todos
+            terms = " OR ".join(f'"{t}"' for t in techs)
+            query = f"{terms} latest releases news {year}"
             try:
-                resp = await self.pipeline.searcher.search(query, max_results=3)
-                if resp.results:
-                    search_results.append({
-                        "tech": tech,
-                        "results": [r.to_context() for r in resp.results]
-                    })
+                resp = await self.pipeline.searcher.search(query, max_results=10)
             except Exception as e:
-                log.warning(f"[tech_scout] Falha ao pesquisar {tech}: {e}")
+                log.warning(f"[tech_scout] Falha ao pesquisar grupo {cat_name}: {e}")
+                return []
+            if not resp.results:
+                return []
+            # Distribui os resultados de volta aos techs do grupo via match de substring
+            results_per_tech: dict[str, list[str]] = {t: [] for t in techs}
+            for r in resp.results:
+                ctx = r.to_context()
+                low = ctx.lower()
+                matched = False
+                for t in techs:
+                    if t.lower() in low:
+                        results_per_tech[t].append(ctx)
+                        matched = True
+                        break
+                # Se nada bateu, atribui ao primeiro tech do grupo (fallback)
+                if not matched and techs:
+                    results_per_tech[techs[0]].append(ctx)
+            return [
+                {"tech": t, "results": ctxs}
+                for t, ctxs in results_per_tech.items()
+                if ctxs
+            ]
+
+        group_results = await asyncio.gather(
+            *(_search_group(name, techs) for name, techs in query_groups),
+            return_exceptions=False,
+        )
+        search_results: list[dict] = []
+        for group in group_results:
+            search_results.extend(group)
+        log.info(
+            f"[tech_scout] {len(query_groups)} queries paralelas → "
+            f"{len(search_results)} techs com resultados (era 15 queries seriais)"
+        )
 
         # 3. Coleta dados de custo reais para comparação (Sprint 11)
         cost_summary = "Dados de custo indisponíveis"
