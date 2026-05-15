@@ -11,6 +11,18 @@ import os
 import html
 
 from dotenv import load_dotenv
+
+# CRITICAL: Load .env BEFORE importing pipeline/prompts.
+# Prompt modules read ASSISTANT_NAME at module import time and bake it into
+# f-string system prompts. If we load .env later (inside main()), the bot
+# silently falls back to "Seeker" even when ASSISTANT_NAME is set.
+_env_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+    "config",
+    ".env",
+)
+load_dotenv(_env_path) if os.path.exists(_env_path) else load_dotenv()
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, CallbackQuery, BotCommand, User
 from aiogram.enums import ParseMode, ChatAction
@@ -592,15 +604,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
 
 async def main():
-    # ── Load .env ─────────────────────────────────────────
-    env_path = os.path.join(
-        os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        ),
-        "config",
-        ".env",
-    )
-    load_dotenv(env_path) if os.path.exists(env_path) else load_dotenv()
+    # .env já foi carregado no topo do módulo (antes dos imports do pipeline)
+    # para garantir que ASSISTANT_NAME e outros env vars lidos em import-time
+    # estejam disponíveis.
 
     log_level = getattr(logging, os.getenv("LOG_LEVEL", "INFO"))
     log_fmt = logging.Formatter(
