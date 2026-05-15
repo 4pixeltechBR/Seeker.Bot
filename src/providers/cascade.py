@@ -146,35 +146,50 @@ class CascadeAdapter:
             "error_breakdown": {},
         }
 
-    def _is_circuit_open(self, provider: str) -> bool:
-        """Verifica se provider está em circuit breaker."""
-        if provider not in self._failures:
+    def _breaker_key(self, provider: str, model_name: str = "") -> str:
+        """
+        T-03 fix: circuit breaker key combines provider + model.
+
+        Previously the breaker keyed on provider name alone, so 3 timeouts
+        from nvidia/nemotron-ultra (a notoriously slow ~30s model) would
+        blacklist ALL nvidia models — including nvidia/deepseek-v3.2 and
+        nvidia/gemma-4-31b which respond much faster. This dropped the
+        NVIDIA NIM hit-rate to ~0.1%. Per-model keys isolate the failure.
+        """
+        return f"{provider}:{model_name}" if model_name else provider
+
+    def _is_circuit_open(self, provider: str, model_name: str = "") -> bool:
+        """Verifica se provider/modelo está em circuit breaker."""
+        key = self._breaker_key(provider, model_name)
+        if key not in self._failures:
             return False
 
-        failures = self._failures.get(provider, 0)
+        failures = self._failures.get(key, 0)
         if failures < self._failure_threshold:
             return False
 
-        last_fail = self._last_failure_time.get(provider, 0)
+        last_fail = self._last_failure_time.get(key, 0)
         elapsed = time.time() - last_fail
         return elapsed < self._recovery_time
 
-    def _record_failure(self, provider: str) -> None:
-        """Registra falha no provider."""
-        self._failures[provider] = self._failures.get(provider, 0) + 1
-        self._last_failure_time[provider] = time.time()
+    def _record_failure(self, provider: str, model_name: str = "") -> None:
+        """Registra falha no provider/modelo específico."""
+        key = self._breaker_key(provider, model_name)
+        self._failures[key] = self._failures.get(key, 0) + 1
+        self._last_failure_time[key] = time.time()
 
-        if self._failures[provider] >= self._failure_threshold:
+        if self._failures[key] >= self._failure_threshold:
             log.warning(
-                f"[cascade] Circuit breaker OPEN para {provider} "
-                f"({self._failures[provider]} failures)"
+                f"[cascade] Circuit breaker OPEN para {key} "
+                f"({self._failures[key]} failures)"
             )
 
-    def _record_success(self, provider: str) -> None:
+    def _record_success(self, provider: str, model_name: str = "") -> None:
         """Reset circuit breaker no sucesso."""
-        if provider in self._failures and self._failures[provider] > 0:
-            log.info(f"[cascade] Circuit breaker RESET para {provider}")
-        self._failures[provider] = 0
+        key = self._breaker_key(provider, model_name)
+        if key in self._failures and self._failures[key] > 0:
+            log.info(f"[cascade] Circuit breaker RESET para {key}")
+        self._failures[key] = 0
 
     async def call(
         self,
@@ -224,9 +239,10 @@ class CascadeAdapter:
                 provider = model.provider
                 tier += 1
 
-                if self._is_circuit_open(provider):
+                if self._is_circuit_open(provider, model.display_name):
                     log.debug(
-                        f"[cascade] Tier {tier}: {provider} em circuit breaker, pulando"
+                        f"[cascade] Tier {tier}: {provider}/{model.display_name} "
+                        f"em circuit breaker, pulando"
                     )
                     continue
 
@@ -238,15 +254,16 @@ class CascadeAdapter:
                 try:
                     result = await self._call_provider(model, req)
                 except Exception as e:
-                    self._record_failure(provider)
+                    self._record_failure(provider, model.display_name)
                     log.warning(f"[cascade] Tier {tier} exceção: {e}")
                     continue
 
                 if result:
-                    self._record_success(provider)
+                    self._record_success(provider, model.display_name)
                     elapsed_ms = int((time.perf_counter() - t0) * 1000)
                     log.info(
-                        f"[cascade] ✅ Tier {tier} ({provider}) respondeu em {elapsed_ms}ms"
+                        f"[cascade] ✅ Tier {tier} ({provider}/{model.display_name}) "
+                        f"respondeu em {elapsed_ms}ms"
                     )
                     return {
                         "content": result.text,
@@ -256,9 +273,10 @@ class CascadeAdapter:
                         "elapsed_ms": elapsed_ms,
                     }
                 else:
-                    self._record_failure(provider)
+                    self._record_failure(provider, model.display_name)
                     log.debug(
-                        f"[cascade] Tier {tier}: {provider} falhou, tentando próximo"
+                        f"[cascade] Tier {tier}: {provider}/{model.display_name} "
+                        f"falhou, tentando próximo"
                     )
 
         # Fallback final: sem resposta

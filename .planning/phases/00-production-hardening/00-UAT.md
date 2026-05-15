@@ -20,8 +20,8 @@ reason: F-02 fixed via commit 8371ffd — circuit breaker apos 3×432 + recovery
 
 ### 3. NVIDIA NIM tier responde em >=5% das chamadas
 expected: NVIDIA tier serve pelo menos 5% das requests no cascade.
-result: pending
-reason: Baseline mostrou 0.1% hit-rate. Possivel circuit breaker permanentemente aberto. Ref: src/providers/base.py, src/providers/cascade.py
+result: partial
+reason: T-03 root cause encontrado e fixado — circuit breaker no cascade keyava por PROVIDER (string "nvidia"), entao 3 timeouts de nvidia/nemotron-ultra (~30s) blacklisteavam TODOS os 4 modelos NVIDIA por 5min. Agora keya por provider:model, isolando o nemotron-ultra dos modelos rapidos (deepseek-v3.2, gemma-4-31b, qwq-32b). Espera-se subida significativa de hit-rate. Falta medir baseline novo apos 24h de prod.
 
 ### 4. reset_client do Tavily nao crasha com NoneType
 expected: Quando o client esta None, reset_client retorna gracefully sem AttributeError.
