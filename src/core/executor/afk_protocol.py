@@ -3,6 +3,10 @@
 import logging
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.core.executor import ApprovalTier
 
 log = logging.getLogger("executor.afk_protocol")
 
