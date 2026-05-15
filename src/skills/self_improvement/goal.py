@@ -11,15 +11,28 @@ from src.core.goals.protocol import (
     NotificationChannel,
 )
 from config.models import CognitiveRole
+from src.skills.self_improvement.code_validator import get_validator
+from src.skills.self_improvement.error_database import (
+    ErrorDatabase,
+    get_pending_store,
+    sanitize_traceback,
+)
 
 log = logging.getLogger("seeker.self_improvement")
 
 
 class SelfImprovementGoal:
     """
-    Motor de auto-cura de código. Lê os logs em busca de Tracebacks e Exceções,
-    propõe correções usando LLMs avançados, e escreve o relatório de correção
-    no diretório ativo (para ser aplicado ou para auto-aplicar se permitido).
+    Motor de auto-cura de código (S.A.R.A).
+
+    Fluxo com CodeValidator + ErrorDatabase + PendingPatchStore (T-12):
+    1. Lê logs novos, extrai tracebacks.
+    2. Dedup 6h via ErrorDatabase.is_recent_duplicate.
+    3. LLM propõe full_code corrigido.
+    4. CodeValidator valida (ast.parse → compile → pyright).
+    5. Patch validado vai para PendingPatchStore (não escreve no arquivo).
+    6. Notificação com botões sara_approve:{id} / sara_reject:{id}.
+    7. Callback em commands/system.py aplica ou descarta após clique humano.
     """
 
     def __init__(self, pipeline: SeekerPipeline):
@@ -33,6 +46,13 @@ class SelfImprovementGoal:
             os.path.join(os.path.dirname(__file__), "..", "..", "..")
         )
         self.log_file = os.path.join(root_dir, "logs", "seeker.log")
+
+        # SARA primitives (T-12 wire-up)
+        sara_db_path = os.path.join(root_dir, "data", "sara_errors.db")
+        os.makedirs(os.path.dirname(sara_db_path), exist_ok=True)
+        self.validator = get_validator(use_pyright=True)
+        self.error_db = ErrorDatabase(db_path=sara_db_path)
+        self.pending_store = get_pending_store(db_path=sara_db_path)
 
     @property
     def name(self) -> str:
@@ -103,6 +123,18 @@ class SelfImprovementGoal:
         )
         target_error = exception_blocks[-1]  # Pega o último (mais recente)
 
+        # Sanitize traceback antes de qualquer LLM call (remove paths absolutos + secrets)
+        clean_error = sanitize_traceback(target_error, max_len=2000)
+
+        # T-12: Dedup 6h — evita gastar LLM call em traceback repetido
+        if await self.error_db.is_recent_duplicate(clean_error, hours=6.0):
+            self._status = GoalStatus.IDLE
+            return GoalResult(
+                success=True,
+                summary="Traceback já analisado nas últimas 6h (dedup).",
+                cost_usd=0.0,
+            )
+
         # Envia pro LLM para análise e overwrite closed-loop (S.A.R.A)
         # 1. Extrair possiveis arquivos do traceback
         file_paths = re.findall(r'File "(.*?)", line \d+', target_error)
@@ -121,6 +153,17 @@ class SelfImprovementGoal:
                 summary="Traceback não aponta para arquivo local do Seeker.",
                 cost_usd=0.0,
             )
+
+        # T-12: Registra o erro no banco (vai ser linkado ao patch abaixo)
+        error_type = "Unknown"
+        last_line = target_error.strip().splitlines()[-1] if target_error.strip() else ""
+        if ":" in last_line:
+            error_type = last_line.split(":", 1)[0].strip()[:64]
+        error_id = await self.error_db.record_error(
+            traceback=clean_error,
+            file_path=target_file,
+            error_type=error_type,
+        )
 
         # 2. Ler o código fonte afetado
         try:
@@ -152,7 +195,6 @@ class SelfImprovementGoal:
 
         from config.models import ModelRouter, DEEPSEEK_CHAT
         from src.core.utils import parse_llm_json
-        import shutil
 
         try:
             # Cria um router one-off apenas com DeepSeek para tarefas analíticas pesadas
@@ -182,43 +224,78 @@ class SelfImprovementGoal:
                 if not new_code or len(new_code) < 10:
                     raise ValueError("Código vazio retornado.")
 
-                # 3. Aplicar Backup e Overwrite
-                backup_path = f"{target_file}.bak"
-                shutil.copy2(target_file, backup_path)
+                # T-12: Validar antes de qualquer write
+                vres = self.validator.validate(new_code, filename=target_file)
+                if not vres.passed:
+                    await self.error_db.record_patch(
+                        error_id=error_id,
+                        validation_passed=False,
+                        stage_failed=vres.stage_failed,
+                        applied=False,
+                        cost_usd=response.cost_usd,
+                        rationale=rationale,
+                    )
+                    self.pipeline.integrity.record_sara_attempt(success=False)
+                    self._status = GoalStatus.IDLE
+                    err_preview = (vres.errors[0] if vres.errors else "?")[:150]
+                    log.warning(
+                        f"[sara] Patch REJEITADO em stage={vres.stage_failed}: {err_preview}"
+                    )
+                    return GoalResult(
+                        success=True,  # ciclo executou; só não aplicou
+                        summary=(
+                            f"Patch rejeitado pelo CodeValidator "
+                            f"(stage={vres.stage_failed}): {err_preview}"
+                        ),
+                        cost_usd=cycle_cost,
+                    )
 
-                with open(target_file, "w", encoding="utf-8") as f:
-                    f.write(new_code)
+                # T-12: Validou. Em vez de escrever direto, parqueia como pending
+                # e devolve botões. O arquivo original NÃO é tocado até aprovação.
+                pending_id = await self.pending_store.create_pending(
+                    file_path=target_file,
+                    proposed_code=new_code,
+                    rationale=rationale,
+                )
+                await self.error_db.record_patch(
+                    error_id=error_id,
+                    validation_passed=True,
+                    stage_failed=None,
+                    applied=False,  # ainda não aplicado — aguarda aprovação
+                    cost_usd=response.cost_usd,
+                    rationale=rationale,
+                )
 
                 msg = (
-                    f"🛡️ <b>S.A.R.A ATIVADO (Self-Healing)</b>\n\n"
+                    f"🛡️ <b>S.A.R.A — Patch Proposto</b>\n\n"
                     f"🐛 <b>Traceback Interceptado:</b>\n<code>{target_error.splitlines()[-1]}</code>\n\n"
-                    f"🔧 <b>Arquivo Reparado:</b> {os.path.basename(target_file)}\n"
-                    f"🧠 <b>Raciocínio:</b> {rationale}\n\n"
-                    f"<i>Um backup foi salvo (.bak), e o scheduler vai aplicar o novo código.</i>"
+                    f"🔧 <b>Arquivo:</b> {os.path.basename(target_file)}\n"
+                    f"🧠 <b>Raciocínio:</b> {rationale}\n"
+                    f"✅ <b>Validação:</b> ast + compile + pyright passaram.\n\n"
+                    f"<i>Patch validado aguardando sua aprovação (id={pending_id}, expira em 24h).</i>"
                 )
-                log.info(f"[sara] Curado: {target_file}")
-
-                # TODO: Handshake MCP para revisão de código
-                # (Pode ser conectado a um MCP externo conforme necessário)
-                # Exemplo: Antigravity ou outro serviço de code review
-                # Este seria configurado via env var ou config externa, não hardcoded
-
-                self.pipeline.integrity.record_sara_attempt(success=True)
+                log.info(
+                    f"[sara] Patch validado, aguardando aprovação: "
+                    f"pending_id={pending_id} file={target_file}"
+                )
 
                 self._status = GoalStatus.IDLE
                 return GoalResult(
                     success=True,
-                    summary=f"Auto-Curado {os.path.basename(target_file)}",
+                    summary=f"Patch pendente para {os.path.basename(target_file)} (id={pending_id})",
                     notification=msg,
                     cost_usd=cycle_cost,
                     data={
                         "sara_edits": 1,
+                        "pending_id": pending_id,
                         "buttons": [
                             [
-                                {"text": "✅ Reiniciar Agora", "callback_data": "sara_restart_yes"},
-                                {"text": "⏸ Ignorar", "callback_data": "sara_restart_no"}
+                                {"text": "✅ Aprovar e aplicar",
+                                 "callback_data": f"sara_approve:{pending_id}"},
+                                {"text": "❌ Rejeitar",
+                                 "callback_data": f"sara_reject:{pending_id}"},
                             ]
-                        ]
+                        ],
                     },
                 )
 

@@ -974,6 +974,100 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
         )
         await query.answer("Ignorado.")
 
+    # ──────────────────────────────────────────────────────────────────
+    # T-12: S.A.R.A — patch approval flow (CodeValidator + PendingPatchStore)
+    # ──────────────────────────────────────────────────────────────────
+
+    @dp.callback_query(F.data.startswith("sara_approve:"))
+    async def cb_sara_approve(query: CallbackQuery):
+        """
+        Aplica patch validado e parqueado em PendingPatchStore.
+        Faz backup .bak do arquivo original antes de sobrescrever.
+        """
+        try:
+            pending_id = int(query.data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            await query.answer("ID inválido.", show_alert=True)
+            return
+
+        from src.skills.self_improvement.error_database import get_pending_store
+        import shutil
+
+        store = get_pending_store()
+        patch = await store.approve(pending_id)
+        if patch is None:
+            await query.message.edit_text(
+                f"⚠️ <b>Patch #{pending_id} não encontrado, já resolvido ou expirado (>24h).</b>",
+                parse_mode=ParseMode.HTML,
+            )
+            await query.answer("Patch indisponível.", show_alert=True)
+            return
+
+        file_path = patch["file_path"]
+        proposed_code = patch["proposed_code"]
+        rationale = patch.get("rationale", "")
+
+        try:
+            # Backup .bak antes de overwrite
+            if os.path.exists(file_path):
+                backup_path = f"{file_path}.bak"
+                shutil.copy2(file_path, backup_path)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(proposed_code)
+            log.info(f"[sara_approve] Patch {pending_id} aplicado em {file_path}")
+
+            # Atualiza counter de patches aplicados no SARA telemetria
+            # (record_patch já registrou o patch como applied=False; agora marcamos como aplicado
+            #  via integrity counter — a auditoria SQLite fica no record original)
+            try:
+                pipeline.integrity.record_sara_attempt(success=True)
+            except (AttributeError, TypeError):
+                pass
+
+            await query.message.edit_text(
+                f"✅ <b>S.A.R.A — Patch #{pending_id} aplicado</b>\n\n"
+                f"🔧 <b>Arquivo:</b> <code>{html.escape(os.path.basename(file_path))}</code>\n"
+                f"🧠 <b>Raciocínio:</b> {html.escape(rationale)}\n"
+                f"💾 Backup salvo em <code>{html.escape(os.path.basename(file_path))}.bak</code>\n\n"
+                f"<i>Reinicie o bot para carregar o novo código.</i>",
+                parse_mode=ParseMode.HTML,
+            )
+            await query.answer("Patch aplicado.")
+        except OSError as e:
+            log.error(f"[sara_approve] Falha de I/O ao aplicar patch {pending_id}: {e}")
+            await query.message.edit_text(
+                f"❌ <b>Falha ao aplicar patch #{pending_id}</b>\n<code>{html.escape(str(e))}</code>",
+                parse_mode=ParseMode.HTML,
+            )
+            await query.answer("Falha de I/O.", show_alert=True)
+
+    @dp.callback_query(F.data.startswith("sara_reject:"))
+    async def cb_sara_reject(query: CallbackQuery):
+        """Marca patch como rejeitado. O arquivo original permanece intacto."""
+        try:
+            pending_id = int(query.data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            await query.answer("ID inválido.", show_alert=True)
+            return
+
+        from src.skills.self_improvement.error_database import get_pending_store
+
+        ok = await get_pending_store().reject(pending_id)
+        if not ok:
+            await query.message.edit_text(
+                f"⚠️ <b>Patch #{pending_id} não encontrado, já resolvido ou expirado.</b>",
+                parse_mode=ParseMode.HTML,
+            )
+            await query.answer("Patch indisponível.", show_alert=True)
+            return
+
+        await query.message.edit_text(
+            f"❌ <b>S.A.R.A — Patch #{pending_id} rejeitado</b>\n\n"
+            f"<i>Arquivo original preservado. Patch fica registrado em error_db para análise.</i>",
+            parse_mode=ParseMode.HTML,
+        )
+        await query.answer("Patch rejeitado.")
+
     def _build_scout_keyboard(active_cats: list[str]) -> InlineKeyboardMarkup:
         keyboard = []
         for cat_key, cat_name in CATEGORY_NAMES.items():
