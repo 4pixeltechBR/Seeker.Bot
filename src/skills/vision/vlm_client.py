@@ -86,45 +86,6 @@ class VLMClient:
                 if self._gemini_fallback and self._gemini_fallback.enabled:
                     log.info("[vlm] Gemini 2.5 Flash fallback ATIVADO")
 
-    async def set_model(self, model_name: str) -> bool:
-        """
-        Hot-swap para outro modelo VLM sem reinstanciar cliente.
-        Usado em Phase A3 (Vision 2.0 benchmark) para testar múltiplos modelos.
-
-        Args:
-            model_name: Nome do modelo Ollama (qwen3.5:4b, qwen3-vl:8b, etc)
-
-        Returns:
-            True se swap bem-sucedido, False caso contrário
-        """
-        try:
-            # Test health check do novo modelo (timeout rápido)
-            test_response = await asyncio.wait_for(
-                self._client.post(
-                    self.generate_endpoint,
-                    json={"model": model_name, "prompt": "test", "stream": False},
-                    timeout=10.0,
-                ),
-                timeout=12.0,
-            )
-
-            if test_response.status_code == 200:
-                self.model = model_name
-                log.info(f"[vlm] Modelo trocado para: {model_name}")
-                return True
-            else:
-                log.warning(
-                    f"[vlm] Modelo {model_name} retornou status {test_response.status_code}"
-                )
-                return False
-
-        except asyncio.TimeoutError:
-            log.warning(f"[vlm] Timeout ao testar modelo {model_name}")
-            return False
-        except Exception as e:
-            log.error(f"[vlm] Erro ao trocar modelo para {model_name}: {e}")
-            return False
-
     def _is_gpu_available(self) -> bool:
         """Checa se o semáforo de GPU está livre sem bloquear."""
         if self._gpu_semaphore is None:
