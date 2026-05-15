@@ -42,8 +42,8 @@ result: passed
 
 ### 8. Plan de migracao Python 3.10 -> 3.12 documentado
 expected: docs/ contem plano com timeline antes de 2026-10-04 (Google API Core EOL).
-result: pending
-reason: FutureWarning no startup do Seeker. Sem plan ainda. Ref: pyproject.toml, requirements.txt
+result: resolved
+reason: T-08 fixed — docs/PYTHON_MIGRATION_PLAN.md cobre fases pre-flight/local/prod/cleanup, riscos de compat por lib (numpy, torch, playwright, aiogram, fpdf, psutil), plano de rollback, e tracking de volta para este UAT. Execucao da migracao em si fica para fase separada antes do deadline.
 
 ### 9. PAT GitHub fora do .git/config em D:
 expected: URL do remote origin em D: nao contem token ghp_ embutido.
@@ -52,8 +52,8 @@ reason: URL atual contem ghp_XhYYJZ... em texto plano. Rotacao + credential help
 
 ### 10. tech_scout faz no maximo 3 queries por ciclo
 expected: tech_scout usa batching ou parallel fan-out de no maximo 3 queries.
-result: pending
-reason: Atualmente faz 15 queries seriais (uma por framework). Ref: src/skills/tech_scout/goal.py
+result: resolved
+reason: T-10 fixed via commit 2034ca6 — fan-out paralelo com no maximo 3 queries (1 por categoria, com merge de categorias menores se houver >3 ativas). asyncio.gather concorrente, ~5x mais rapido, ~80% menos credits Tavily.
 
 ### 11. Pipeline P95 < 5s para queries simples
 expected: P95 medido em 100 requests reais e menor que 5000ms.
