@@ -1,8 +1,8 @@
 [project]
 name = "seeker-bot"
-version = "0.2.0"
+version = "3.3.0"
 description = "Autonomous research agent with epistemological triangulation"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "aiogram>=3.0",
     "aiosqlite>=0.19",

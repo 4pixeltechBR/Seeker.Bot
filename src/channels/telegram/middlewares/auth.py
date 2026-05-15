@@ -27,7 +27,9 @@ class AuthMiddleware(BaseMiddleware):
         if not self.allowed_users:
             return await handler(event, data)
 
-        user_id: int | None = getattr(event, "from_user", None) and event.from_user.id
+        user_id = None
+        if hasattr(event, "from_user") and event.from_user:
+            user_id = event.from_user.id
 
         if user_id and user_id in self.allowed_users:
             return await handler(event, data)

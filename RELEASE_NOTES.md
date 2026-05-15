@@ -1,3 +1,22 @@
+﻿# Seeker.Bot v3.3 — "Python 3.12 & Auth Patch" 🚀
+
+Esta release traz a atualização do core para Python 3.12, garantindo maior performance assíncrona, além de correções críticas na autenticação do Telegram e nova padronização de branding (Logo).
+
+## 🚀 Novidades
+
+### 1. Upgrade de Motor (Python 3.12)
+- O ambiente de execução do Seeker.Bot foi oficialmente migrado para o Python 3.12.7.
+- **Ganhos:** Aproveitamento nativo dos TaskGroups e melhorias profundas de performance no syncio, resultando em um polling mais eficiente e menor latência na arbitragem.
+
+### 2. Branding
+- Adição do diretório de assets (Logo/) para padronização visual da interface e repositório.
+
+## 🔧 Correções e Melhorias
+
+### 1. Robustez na Autenticação (Telegram)
+- **Correção no AuthMiddleware:** Refatorada a checagem de usuário para usar hasattr(event, "from_user"), prevenindo quedas silenciosas caso o objeto de evento não possua as propriedades esperadas, garantindo que atualizações inválidas sejam ignoradas com segurança.
+
+---
 # Seeker.Bot v3.2 — "Resilience & Export" 🛠️
 
 Esta release foca na recuperação de desastres (database repair), expansão da infraestrutura de exportação e estabilização de fases críticas de raciocínio.
@@ -59,3 +78,4 @@ O motor S.A.R.A agora reporta sucessos e falhas diretamente ao Monitor de Integr
 
 ---
 *Seeker.Bot — Always Observing, Always Orienting.*
+
