@@ -88,9 +88,10 @@ If any match, repeat Steps 1-3 there. (As of the audit, E:'s config was already 
 The token was committed to the **local** D: config only; it never went to a tracked file, so `git log -p` won't find it in the public repo. But to be sure:
 
 ```powershell
-# Run on both E: and D:
-git -C E:\Seeker.Bot log -p --all -S "ghp_REDACTED"
-git -C "D:\Seeker GitHub" log -p --all -S "ghp_REDACTED"
+# Run on both E: and D: — substitute the prefix you saw locally
+$prefix = "ghp_XhYY"  # replace with the first 8 chars of the leaked token
+git -C E:\Seeker.Bot log -p --all -S "$prefix"
+git -C "D:\Seeker GitHub" log -p --all -S "$prefix"
 ```
 
 If any commit contains the token, force-rotate **immediately** (Step 1 takes care of revocation; the commit history rewrite is a separate, larger operation — open a follow-up issue).
