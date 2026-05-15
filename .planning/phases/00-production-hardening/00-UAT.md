@@ -47,8 +47,8 @@ reason: T-08 fixed — docs/PYTHON_MIGRATION_PLAN.md cobre fases pre-flight/loca
 
 ### 9. PAT GitHub fora do .git/config em D:
 expected: URL do remote origin em D: nao contem token ghp_ embutido.
-result: pending
-reason: URL atual contem ghp_XhYYJZ... em texto plano. Rotacao + credential helper necessario. Ref: D:\Seeker GitHub\.git\config
+result: partial
+reason: T-09 — token removido de D:\Seeker GitHub\.git\config (git remote set-url origin sem o @ghp_..., e credential.helper=manager-core para usar Windows Credential Manager). Verificado: findstr ghp_ retorna 0 matches. Falta rotacao no GitHub (https://github.com/settings/tokens) — token continua valido ate ser revogado. Runbook completo em docs/PAT_ROTATION_RUNBOOK.md.
 
 ### 10. tech_scout faz no maximo 3 queries por ciclo
 expected: tech_scout usa batching ou parallel fan-out de no maximo 3 queries.
