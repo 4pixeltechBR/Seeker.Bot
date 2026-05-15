@@ -584,16 +584,11 @@ class SeekerPipeline:
             self._memory_stats["with_facts"] += 1
         self._memory_stats["total_facts_injected"] += facts_used
 
-        # ── 5. Knowledge Extraction (Synchronous for UX) ──────
-        try:
-            extraction = await self.extractor.extract(user_input, result.response)
-            result.new_facts_count = len(extraction.get("facts", []))
-            # Armazena extração para uso no _post_process
-            result._extraction = extraction
-        except Exception as e:
-            log.warning(f"[pipeline] Falha na extração síncrona: {e}")
-
-        # ── 6. Background: session + record ───────────────────
+        # ── 5. Knowledge Extraction — RESOLVED T-11 ───────────
+        # Era síncrono no caminho crítico (~500ms LLM call). Movido para
+        # background: _post_process já faz extractor.extract() como fallback
+        # quando result._extraction está vazio. Resultado: user vê a resposta
+        # imediatamente; a extração acontece em paralelo.
         self._spawn_background(self._post_process(session_id, user_input, result))
 
         return result
