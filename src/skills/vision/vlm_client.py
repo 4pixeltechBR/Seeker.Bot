@@ -227,6 +227,51 @@ class VLMClient:
         )
         return await self.analyze_screenshot(image_bytes, prompt)
 
+    async def ocr_fast(self, image_bytes: bytes) -> str:
+        """
+        OCR rápido com Florence-2 (especialista) → Qwen3-VL (fallback).
+
+        Florence-2-base (~230M, fp16) extrai texto em ~150-300ms na 3060,
+        vs ~3s do Qwen3-VL 8B. Para casos onde só queremos o TEXTO de um
+        print (Knowledge Vault, Desktop Watch alerting), isso libera o
+        Qwen3-VL para tarefas onde ele agrega (raciocínio multimodal).
+
+        Cai automaticamente para extract_text_from_image (Qwen3-VL +
+        Gemini fallback) se Florence-2 estiver indisponível ou falhar.
+
+        Args:
+            image_bytes: PNG/JPG/WEBP bytes
+
+        Returns:
+            Texto extraído (string vazia se nenhum texto). Nunca None.
+        """
+        # Lazy import — evita ciclo e mantém Florence opt-in
+        try:
+            from src.skills.vision.florence_ocr import get_florence_ocr
+        except ImportError:
+            log.debug("[vlm.ocr_fast] florence_ocr ausente, usando Qwen3-VL")
+            return await self.extract_text_from_image(image_bytes)
+
+        florence = get_florence_ocr()
+        if not florence.available:
+            log.debug("[vlm.ocr_fast] florence desabilitado, usando Qwen3-VL")
+            return await self.extract_text_from_image(image_bytes)
+
+        text = await florence.extract_text(image_bytes)
+        if text is None:
+            # Falhou no load ou na inferência — fallback transparente
+            log.info("[vlm.ocr_fast] florence indisponível, fallback Qwen3-VL")
+            return await self.extract_text_from_image(image_bytes)
+
+        if not text.strip():
+            # Florence retornou vazio — pode ser imagem sem texto OU bug.
+            # Tenta Qwen3-VL antes de declarar "sem texto", já que ele é mais robusto.
+            log.debug("[vlm.ocr_fast] florence retornou vazio, validando com Qwen3-VL")
+            qwen_text = await self.extract_text_from_image(image_bytes)
+            return qwen_text or ""
+
+        return text
+
     async def locate_element(self, image_bytes: bytes, description: str) -> dict:
         """
         Pede ao VLM para localizar um elemento e retornar coordenadas.

@@ -13,24 +13,59 @@ log = logging.getLogger("seeker.knowledge_vault.extractors")
 
 
 async def extract_from_images(image_bytes_list: List[bytes], vlm_client) -> str:
-    """Extrai texto e contexto de uma lista de imagens usando VLM."""
+    """
+    Extrai texto e contexto de uma lista de imagens usando VLM.
+
+    Estratégia em 2 estágios (cherry-pick #1 — Florence-2 arm):
+      1. ocr_fast() — Florence-2 local (~200ms) para extrair texto bruto.
+      2. analyze_screenshot() — Qwen3-VL (~3s) para descrever o CONTEXTO
+         visual (tipo de interface, app, idioma).
+
+    Antes: 1 chamada Qwen3-VL para texto + contexto (~3s/imagem).
+    Agora: 200ms Florence + 3s Qwen para contexto, mas o Florence é OPCIONAL
+           e pulado se não estiver disponível (deps faltando ou desabilitado
+           via FLORENCE_OCR_ENABLED=false).
+
+    Para prints onde o usuário só quer o texto (sem contexto rico), o caller
+    pode chamar vlm_client.ocr_fast() diretamente — bem mais rápido.
+    """
     if not image_bytes_list:
         return ""
 
-    results = []
-    prompt = (
-        "Analise esta imagem. Extraia todo texto visível E descreva o contexto visual "
-        "(tipo de interface, aplicativo, idioma do conteúdo). "
-        "Estruture a saída como: TEXTO EXTRAÍDO → CONTEXTO VISUAL."
+    context_prompt = (
+        "Descreva o CONTEXTO VISUAL desta imagem em 1-2 linhas: "
+        "tipo de interface (app, site, terminal), idioma predominante, "
+        "e qual a ação/tela mostrada. NÃO transcreva o texto — só o contexto."
     )
 
+    results = []
     for i, img_bytes in enumerate(image_bytes_list):
         log.debug(f"[extractors] Processando imagem {i + 1}/{len(image_bytes_list)}")
+        # Florence-2 (ou Qwen3-VL fallback) para texto rápido
         try:
-            analysis = await vlm_client.analyze_screenshot(img_bytes, prompt=prompt)
-            results.append(f"--- IMAGEM {i + 1} ---\n{analysis}")
+            ocr_text = await vlm_client.ocr_fast(img_bytes)
         except Exception as e:
-            log.error(f"[extractors] Erro ao processar imagem {i}: {e}", exc_info=True)
+            log.warning(f"[extractors] ocr_fast falhou imagem {i}: {e}")
+            ocr_text = ""
+
+        # Qwen3-VL para contexto — só vale a pena se temos texto OU se a
+        # imagem é pequena (provavelmente um UI screenshot, não foto).
+        try:
+            context = await vlm_client.analyze_screenshot(
+                img_bytes, prompt=context_prompt
+            )
+        except Exception as e:
+            log.error(f"[extractors] context VLM falhou imagem {i}: {e}", exc_info=True)
+            context = ""
+
+        if not ocr_text and not context:
+            continue
+
+        results.append(
+            f"--- IMAGEM {i + 1} ---\n"
+            f"TEXTO EXTRAÍDO:\n{ocr_text or '(nenhum texto detectado)'}\n\n"
+            f"CONTEXTO VISUAL:\n{context or '(sem contexto)'}"
+        )
 
     return "\n\n".join(results)
 
