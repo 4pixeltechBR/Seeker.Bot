@@ -11,6 +11,7 @@ Uso: python watchdog.py
      (sempre rodar esse, nunca o bot diretamente em produção)
 """
 
+import atexit
 import logging
 import os
 import subprocess
@@ -26,6 +27,12 @@ LOG_FILE = "logs/watchdog.log"
 BOT_LOG_FILE = "logs/seeker.log"
 HEARTBEAT_FILE = "logs/bot_heartbeat.txt"  # Bot escreve aqui periodicamente
 HEARTBEAT_TIMEOUT = 900  # 15 min sem heartbeat = bot travado (aumentado de 600 para dar tempo de inicialização)
+
+# ── Singleton guard ─────────────────────────────────────────────────────
+# Lockfile evita dois watchdogs simultâneos. Dois watchdogs = cada um spawna
+# um bot = ambos puxam getUpdates do Telegram = TelegramConflictError em loop
+# e nenhuma mensagem é entregue (incidente real, 2026-05-15 a 2026-05-16).
+LOCKFILE = "logs/watchdog.lock"
 
 # ── Logging ─────────────────────────────────────────────────────────────
 os.makedirs("logs", exist_ok=True)
@@ -124,9 +131,87 @@ def watch_output(proc: subprocess.Popen) -> None:
                 print(line)  # Aparece no terminal do watchdog também
 
 
+def _pid_is_alive(pid: int) -> bool:
+    """True se o PID corresponde a um processo vivo (cross-platform)."""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid
+            )
+            if not handle:
+                return False
+            exit_code = ctypes.c_ulong()
+            ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+            ctypes.windll.kernel32.CloseHandle(handle)
+            return exit_code.value == 259  # STILL_ACTIVE
+        except Exception:
+            return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def acquire_singleton_lock() -> bool:
+    """
+    Garante que apenas um watchdog rode por vez. Retorna True se conseguiu o
+    lock, False se outro watchdog (vivo) já tem.
+
+    Mecanismo: arquivo logs/watchdog.lock contém o PID do dono. Se o arquivo
+    existir mas o PID estiver morto, reivindicamos (stale lock cleanup).
+    """
+    lock_path = Path(LOCKFILE)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if lock_path.exists():
+        try:
+            existing_pid = int(lock_path.read_text().strip())
+        except (ValueError, OSError):
+            existing_pid = -1
+
+        if existing_pid > 0 and _pid_is_alive(existing_pid):
+            log.error(
+                f"❌ Outro watchdog já está rodando (PID {existing_pid}). "
+                f"Lock em {LOCKFILE}. Saindo para evitar TelegramConflictError."
+            )
+            return False
+        log.warning(
+            f"Lock stale encontrado (PID {existing_pid} morto). Reivindicando."
+        )
+
+    try:
+        lock_path.write_text(str(os.getpid()))
+    except OSError as e:
+        log.error(f"❌ Falha ao escrever lockfile {LOCKFILE}: {e}")
+        return False
+
+    # Garante remoção do lock em saída normal e atexit
+    def _release():
+        try:
+            if lock_path.exists():
+                # só remove se o lock ainda é nosso
+                content = lock_path.read_text().strip()
+                if content == str(os.getpid()):
+                    lock_path.unlink()
+        except (OSError, ValueError):
+            pass
+
+    atexit.register(_release)
+    return True
+
+
 def main():
+    if not acquire_singleton_lock():
+        sys.exit(2)
+
     log.info("=" * 60)
     log.info("Seeker.Bot Watchdog iniciado")
+    log.info(f"PID: {os.getpid()}  |  Lockfile: {LOCKFILE}")
     log.info(f"Max restarts/hora: {MAX_RESTARTS_PER_HOUR}")
     log.info(f"Delay entre restarts: {RESTART_DELAY_SECONDS}s")
     log.info("=" * 60)
