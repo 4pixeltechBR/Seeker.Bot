@@ -1,0 +1,76 @@
+# Knowledge Vault — taxonomia de tags (whitelist controlada)
+#
+# Uma tag por linha. Linhas em branco e linhas iniciando com # são ignoradas.
+# O Knowledge Vault injeta esta lista no prompt do Gemini e instrui o modelo
+# a escolher APENAS dentro dela. Isso impede drift (Gemini inventando tags
+# tipo #machine-learning-applied-to-2026) e mantém o grafo do Obsidian conectado.
+#
+# Edite à vontade — não precisa restart do bot, é lido a cada nota.
+# Use tags em snake_case ou kebab-case curtas (1-2 palavras).
+
+# ── IA / LLMs ────────────────────────────────────────────────────
+ia
+llm
+claude
+gemini
+openai
+deepseek
+mistral
+nvidia
+qwen
+treinamento
+fine-tune
+rag
+agentes
+mcp
+embeddings
+prompt-engineering
+
+# ── Stack técnico ────────────────────────────────────────────────
+python
+javascript
+typescript
+infra
+docker
+gpu
+vram
+ollama
+postgres
+sqlite
+
+# ── Negócio / Growth ─────────────────────────────────────────────
+negocio
+growth
+marketing
+monetizacao
+vendas
+estrategia
+metricas
+
+# ── Design / UX ──────────────────────────────────────────────────
+design
+ui
+ux
+lumen
+
+# ── Produtividade ────────────────────────────────────────────────
+produtividade
+automacao
+workflow
+curso
+tutorial
+ferramenta
+recurso
+
+# ── Projetos pessoais ────────────────────────────────────────────
+viralclip
+seeker
+projeto-pessoal
+ideia-victor
+
+# ── Domínios ─────────────────────────────────────────────────────
+investigacao
+tecnologia
+ciencia
+saude
+financas
