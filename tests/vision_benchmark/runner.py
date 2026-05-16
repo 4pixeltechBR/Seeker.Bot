@@ -57,7 +57,7 @@ async def benchmark_main():
     vlm = VLMClient()
     runner = VLMBenchmarkRunner(vlm, None)
 
-    models = ["qwen3.5:4b", "qwen2.5vl:7b", "qwen3-vl:8b", "minicpm-v"]
+    models = ["qwen3.5:4b", "qwen2.5vl:7b", "minicpm-v"]
     await runner.run_benchmark(models)
 
     report = runner.generate_comparison_report()

@@ -4,20 +4,21 @@ src/skills/vision/florence_ocr.py
 
 Florence-2 (Microsoft, 230M ou 770M params) é um VLM *especializado em OCR
 + tasks visuais estruturadas* (DETECT, CAPTION, OCR_WITH_REGION). Em contraste
-com Qwen3-VL 8B (generalista), Florence-2:
+com VLMs generalistas (Qwen3.5, MiniCPM, etc.), Florence-2:
 
-  - 10-20× mais rápido em OCR puro (~150-300ms vs ~3s)
-  - Ocupa apenas ~500 MB de VRAM em fp16 (vs ~16 GB do Qwen3-VL)
+  - 10-20× mais rápido em OCR puro (~150-300ms vs ~1-3s)
+  - Ocupa apenas ~500 MB de VRAM em fp16 (vs vários GB de generalistas)
   - Não compete com o slot principal do Ollama (carrega via HuggingFace direto)
 
 Trade-off: Florence-2 NÃO faz raciocínio, NÃO segue instruções complexas.
-Útil só para extrair texto bruto. Para análise rica, fica com Qwen3-VL/Gemini.
+Útil só para extrair texto bruto. Para análise rica, fica com o VLM Ollama
+generalista ou Gemini cloud fallback.
 
 Comportamento de boot:
   - Lazy load: o modelo só é baixado/instanciado na primeira chamada a
     ocr_fast(). Boot do bot continua rápido.
   - Disable via env: FLORENCE_OCR_ENABLED=false força o caller a pular este
-    arm e cair direto no fallback Qwen3-VL.
+    arm e cair direto no fallback VLM Ollama.
   - Auto-disable se transformers/torch faltar — sem crash.
 
 Uso:
@@ -142,7 +143,7 @@ class FlorenceOCR:
         """
         OCR rápido sobre image_bytes. Retorna texto extraído (str) ou None
         se o modelo não puder ser usado (deps faltando, load falhou, etc.) —
-        nesse caso o caller deve cair no fallback Qwen3-VL/Gemini.
+        nesse caso o caller deve cair no fallback VLM Ollama / Gemini.
 
         Args:
             image_bytes: bytes da imagem (PNG/JPG/etc)

@@ -1,12 +1,12 @@
 """
 Vision Router for Vision 2.0 (Sprint 12 Phase A4.3).
 
-Intelligent routing between GLM-OCR specialist and Qwen3-VL-8b general model.
+Intelligent routing between GLM-OCR specialist and the general VLM (Ollama).
 
 Routing logic:
 - TaskType.OCR → GLM-OCR specialist (94.5% accuracy, 1.2s)
-- TaskType.GROUNDING → Qwen3-VL-8b (0.76 IoU, UI-focused)
-- TaskType.DESCRIPTION → Qwen3-VL-8b (multimodal, AFK detection)
+- TaskType.GROUNDING → general VLM (UI-focused, multimodal)
+- TaskType.DESCRIPTION → general VLM (scene understanding, AFK detection)
 
 Metrics tracked:
 - Per-model latency
@@ -30,7 +30,7 @@ class VLMRouter:
 
     def __init__(
         self,
-        primary_vlm_client,  # Qwen3-VL-8b
+        primary_vlm_client,  # general VLM via Ollama (VLMClient)
         glm_ocr_enabled: bool = True,
         glm_ocr_mode: str = "selfhost",
     ):
@@ -38,7 +38,7 @@ class VLMRouter:
         Initialize vision router.
 
         Args:
-            primary_vlm_client: VLMClient instance (Qwen3-VL-8b)
+            primary_vlm_client: VLMClient instance (general VLM via Ollama)
             glm_ocr_enabled: Enable GLM-OCR routing
             glm_ocr_mode: GLM-OCR deployment mode ("selfhost" or "maas")
         """
@@ -177,7 +177,7 @@ class VLMRouter:
             return await self._route_to_primary(image_path)
 
     async def _route_to_primary(self, image_path: str) -> Dict:
-        """Route to Qwen3-VL-8b primary model."""
+        """Route to the general VLM (Ollama) primary model."""
         try:
             start_time = time.time()
             result = await self.primary_vlm.extract_text_from_image(image_path)

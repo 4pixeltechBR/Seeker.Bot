@@ -14,13 +14,14 @@ except ImportError:
     GeminiVLMFallback = None
     create_gemini_vlm_fallback = None
 
-# Default model usado quando nenhum VLM_MODEL é definido via env.
-# Alternativas testadas no Sprint 12 (Vision 2.0):
-#   - qwen3.5:4b        (baseline, 4 GB VRAM)
+# Default VLM via Ollama. Override via env VLM_MODEL.
+# OCR puro vai via Florence-2 (florence_ocr.py); este modelo é usado para
+# tarefas que exigem raciocínio multimodal (locate_element, describe_page).
+# Alternativas testadas:
+#   - qwen3.5:4b        (baseline, 4 GB VRAM) ← default atual
 #   - qwen2.5vl:7b      (Qwen2.5-VL 7B, ~7 GB VRAM, melhor OCR)
-#   - qwen3-vl:8b       (Qwen3-VL 8B, ~9 GB VRAM, SOTA geral) ← RECOMENDADO
 #   - minicpm-v         (MiniCPM-V 2.6, ~6 GB VRAM, OCR specialist)
-DEFAULT_VLM_MODEL = "qwen3-vl:8b"
+DEFAULT_VLM_MODEL = "qwen3.5:4b"
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 
 
@@ -29,9 +30,9 @@ class VLMClient:
     Cliente multimodal VLM via Ollama.
 
     Suporta múltiplos modelos configuráveis via env var VLM_MODEL:
-    - qwen3-vl:8b (default recomendado, Sprint 12)
-    - qwen2.5vl:7b
-    - qwen3.5:4b (baseline anterior)
+    - qwen3.5:4b (baseline atual, 4 GB VRAM)
+    - qwen2.5vl:7b (melhor OCR, 7 GB VRAM)
+    - minicpm-v (OCR specialist, 6 GB VRAM)
     - minicpm-v
     - qualquer modelo multimodal do Ollama
 
@@ -229,14 +230,15 @@ class VLMClient:
 
     async def ocr_fast(self, image_bytes: bytes) -> str:
         """
-        OCR rápido com Florence-2 (especialista) → Qwen3-VL (fallback).
+        OCR rápido com Florence-2 (especialista) → VLM local Ollama (fallback).
 
         Florence-2-base (~230M, fp16) extrai texto em ~150-300ms na 3060,
-        vs ~3s do Qwen3-VL 8B. Para casos onde só queremos o TEXTO de um
-        print (Knowledge Vault, Desktop Watch alerting), isso libera o
-        Qwen3-VL para tarefas onde ele agrega (raciocínio multimodal).
+        vs ~1-3s de qualquer VLM generalista via Ollama. Para casos onde
+        só queremos o TEXTO de um print (Knowledge Vault, Desktop Watch
+        alerting), isso libera o slot Ollama para tarefas que precisam
+        de raciocínio multimodal.
 
-        Cai automaticamente para extract_text_from_image (Qwen3-VL +
+        Cai automaticamente para extract_text_from_image (VLM Ollama +
         Gemini fallback) se Florence-2 estiver indisponível ou falhar.
 
         Args:
@@ -249,26 +251,26 @@ class VLMClient:
         try:
             from src.skills.vision.florence_ocr import get_florence_ocr
         except ImportError:
-            log.debug("[vlm.ocr_fast] florence_ocr ausente, usando Qwen3-VL")
+            log.debug("[vlm.ocr_fast] florence_ocr ausente, fallback VLM Ollama")
             return await self.extract_text_from_image(image_bytes)
 
         florence = get_florence_ocr()
         if not florence.available:
-            log.debug("[vlm.ocr_fast] florence desabilitado, usando Qwen3-VL")
+            log.debug("[vlm.ocr_fast] florence desabilitado, fallback VLM Ollama")
             return await self.extract_text_from_image(image_bytes)
 
         text = await florence.extract_text(image_bytes)
         if text is None:
             # Falhou no load ou na inferência — fallback transparente
-            log.info("[vlm.ocr_fast] florence indisponível, fallback Qwen3-VL")
+            log.info("[vlm.ocr_fast] florence indisponível, fallback VLM Ollama")
             return await self.extract_text_from_image(image_bytes)
 
         if not text.strip():
             # Florence retornou vazio — pode ser imagem sem texto OU bug.
-            # Tenta Qwen3-VL antes de declarar "sem texto", já que ele é mais robusto.
-            log.debug("[vlm.ocr_fast] florence retornou vazio, validando com Qwen3-VL")
-            qwen_text = await self.extract_text_from_image(image_bytes)
-            return qwen_text or ""
+            # Tenta VLM generalista antes de declarar "sem texto" (mais robusto).
+            log.debug("[vlm.ocr_fast] florence retornou vazio, validando com VLM Ollama")
+            fallback_text = await self.extract_text_from_image(image_bytes)
+            return fallback_text or ""
 
         return text
 

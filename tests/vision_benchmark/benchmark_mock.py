@@ -79,19 +79,6 @@ class MockBenchmarkRunner:
             vram_peak_gb=6.8,
             overall_confidence=0.84,
         ),
-        "qwen3-vl:8b": MockModelResult(
-            model_name="Qwen3-VL:8b",
-            ocr_exact_match_pct=87.3,
-            ocr_levenshtein_avg=0.89,
-            grounding_iou_avg=0.76,
-            grounding_json_validity_pct=95.0,
-            description_keyword_coverage_pct=89.0,
-            latency_p50_ms=3800.0,
-            latency_p95_ms=5100.0,
-            latency_p99_ms=6400.0,
-            vram_peak_gb=8.5,
-            overall_confidence=0.87,
-        ),
         "minicpm-v": MockModelResult(
             model_name="MiniCPM-V:2.6",
             ocr_exact_match_pct=85.8,
@@ -334,7 +321,7 @@ async def main():
     runner = MockBenchmarkRunner()
 
     # Simular benchmark
-    models = ["qwen3.5:4b", "qwen2.5vl:7b", "qwen3-vl:8b", "minicpm-v"]
+    models = ["qwen3.5:4b", "qwen2.5vl:7b", "minicpm-v"]
     results = await runner.run_benchmark(models, output_path="reports/")
 
     # Gerar relatório

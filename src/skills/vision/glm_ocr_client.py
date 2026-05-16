@@ -2,9 +2,13 @@
 GLM-OCR Specialist Client for Vision 2.0 (Sprint 12 Phase A4.2).
 
 GLM-OCR is a 0.9B parameter SOTA OCR specialist:
-- 94.5% exact match on OCRBench (vs Qwen3-VL-8b 87.3%)
-- 1.2s latency on local GPU (vs Qwen3-VL-8b 3.8s)
+- 94.5% exact match on OCRBench (top tier for OCR-specific benchmarks)
+- 1.2s latency on local GPU
 - 2.1 GB VRAM (extremely lightweight)
+
+Note: superseded in the default Knowledge Vault path by Florence-2 (smaller,
+faster, also OCR-specialized). Kept here as an alternative arm for Sprint 12
+Phase A4.2 experiments and as a third-tier OCR fallback if needed.
 
 Supports two deployment modes:
 1. Self-Hosted (default): Via Ollama or vLLM on local GPU
@@ -12,7 +16,7 @@ Supports two deployment modes:
 
 Interface matches VLMClient for easy swapping:
 - extract_text_from_image(image_path) → OCR specialist
-- Fallback methods delegate to Qwen3-VL-8b for non-OCR tasks
+- Fallback methods delegate to the general VLM (Ollama) for non-OCR tasks
 """
 
 import asyncio
@@ -42,7 +46,7 @@ class GlmOcrClient:
             mode: "selfhost" (default, Ollama local) or "maas" (Zhipu cloud)
             api_key: Zhipu API key (for mode="maas")
             ollama_url: Ollama base URL (default: http://localhost:11434)
-            fallback_vlm_client: VLMClient instance for non-OCR fallback (Qwen3-VL-8b)
+            fallback_vlm_client: VLMClient instance for non-OCR fallback (general VLM via Ollama)
         """
         self.mode = mode
         self.api_key = api_key or os.getenv("GLMOCR_API_KEY", "")
@@ -253,10 +257,10 @@ class GlmOcrClient:
 
     async def analyze_screenshot(self, image_path: str) -> Dict:
         """
-        Fallback to Qwen3-VL-8b for non-OCR tasks.
+        Fallback to the general VLM (Ollama) for non-OCR tasks.
 
         GLM-OCR is OCR-only specialist. For general screenshot analysis,
-        delegate to Qwen3-VL-8b.
+        delegate to the configured VLMClient.
         """
         if not self.fallback_vlm_client:
             log.warning("[glm_ocr] No fallback VLM available for analyze_screenshot")
@@ -270,7 +274,7 @@ class GlmOcrClient:
 
     async def locate_element(self, image_path: str, description: str) -> Dict:
         """
-        Fallback to Qwen3-VL-8b for UI grounding.
+        Fallback to the general VLM (Ollama) for UI grounding.
 
         GLM-OCR is OCR-only. For element localization, use general VLM.
         """
@@ -287,7 +291,7 @@ class GlmOcrClient:
 
     async def describe_page(self, image_path: str) -> Dict:
         """
-        Fallback to Qwen3-VL-8b for general description.
+        Fallback to the general VLM (Ollama) for general description.
 
         GLM-OCR is OCR-only. For scene understanding, use general VLM.
         """

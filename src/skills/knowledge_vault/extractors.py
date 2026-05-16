@@ -18,13 +18,13 @@ async def extract_from_images(image_bytes_list: List[bytes], vlm_client) -> str:
 
     Estratégia em 2 estágios (cherry-pick #1 — Florence-2 arm):
       1. ocr_fast() — Florence-2 local (~200ms) para extrair texto bruto.
-      2. analyze_screenshot() — Qwen3-VL (~3s) para descrever o CONTEXTO
-         visual (tipo de interface, app, idioma).
+      2. analyze_screenshot() — VLM Ollama generalista (~1-3s) para
+         descrever o CONTEXTO visual (tipo de interface, app, idioma).
 
-    Antes: 1 chamada Qwen3-VL para texto + contexto (~3s/imagem).
-    Agora: 200ms Florence + 3s Qwen para contexto, mas o Florence é OPCIONAL
-           e pulado se não estiver disponível (deps faltando ou desabilitado
-           via FLORENCE_OCR_ENABLED=false).
+    Antes: 1 chamada VLM generalista para texto + contexto (~3s/imagem).
+    Agora: 200ms Florence + 1-3s VLM generalista só para contexto. O
+           Florence é OPCIONAL e pulado se não estiver disponível (deps
+           faltando ou desabilitado via FLORENCE_OCR_ENABLED=false).
 
     Para prints onde o usuário só quer o texto (sem contexto rico), o caller
     pode chamar vlm_client.ocr_fast() diretamente — bem mais rápido.
@@ -41,15 +41,15 @@ async def extract_from_images(image_bytes_list: List[bytes], vlm_client) -> str:
     results = []
     for i, img_bytes in enumerate(image_bytes_list):
         log.debug(f"[extractors] Processando imagem {i + 1}/{len(image_bytes_list)}")
-        # Florence-2 (ou Qwen3-VL fallback) para texto rápido
+        # Florence-2 (ou VLM Ollama fallback) para texto rápido
         try:
             ocr_text = await vlm_client.ocr_fast(img_bytes)
         except Exception as e:
             log.warning(f"[extractors] ocr_fast falhou imagem {i}: {e}")
             ocr_text = ""
 
-        # Qwen3-VL para contexto — só vale a pena se temos texto OU se a
-        # imagem é pequena (provavelmente um UI screenshot, não foto).
+        # VLM generalista (Ollama) para contexto — só vale a pena se temos
+        # texto OU se a imagem é pequena (UI screenshot, não foto).
         try:
             context = await vlm_client.analyze_screenshot(
                 img_bytes, prompt=context_prompt

@@ -6,8 +6,8 @@ Detects vision task type using lightweight heuristics:
 - UI-grounding: button/element detection (square aspect ratio, low text density)
 - Description: general scene understanding (photos, natural scenes)
 
-Routes OCR tasks to GLM-OCR specialist (94.5% accuracy, 1.2s latency)
-Routes other tasks to Qwen3-VL:8b (0.76 IoU, multimodal)
+Routes OCR tasks to a specialist arm (Florence-2 default, GLM-OCR optional).
+Routes other tasks to the general VLM (Ollama, configured via VLM_MODEL env).
 """
 
 import logging

@@ -279,7 +279,7 @@ Objetivos Principais:
 2. Vision 2.0 - Upgrade de VLM
    ├─ Status: Planejamento (A1-A2 definidas)
    ├─ Target: Implementar até 25 de Abril
-   └─ Decision: Qwen3-VL-8B vs MiniCPM-V (decision em A4)
+   └─ Decision: VLM generalista (Ollama) vs MiniCPM-V (decision em A4)
 
 3. Remote Executor - 24/7 Autonomy
    ├─ Status: Design fase (B1-B5 mapeadas)
