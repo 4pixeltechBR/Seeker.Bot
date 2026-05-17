@@ -7,6 +7,7 @@ Roda DEPOIS da resposta — não bloqueia o usuário.
 """
 
 import logging
+import os
 import re
 
 from config.models import CognitiveRole, ModelRouter
@@ -21,28 +22,51 @@ log = logging.getLogger("seeker.memory.extractor")
 # O extractor PRECISA NÃO destilar "regras" sobre nome/identidade do bot.
 # Identidade é config (ASSISTANT_NAME no .env), não aprendizado de runtime.
 #
-# Sem este guard, uma única resposta defensiva tipo "eu sou o Seeker, não X"
+# Sem este guard, uma única resposta defensiva tipo "eu sou o X, não Y"
 # vira reflexive_rule de confidence 0.95, é re-injetada como L1 em todo turno,
 # e o bot fica preso recusando o próprio nome configurado. Aconteceu em
 # 2026-05-15 → 2026-05-16 (9 regras venenosas removidas manualmente).
+#
+# Os padrões abaixo são reconhecimento, não trava. O nome canônico do projeto
+# ("seeker") fica fixo porque é o nome do repo; o nome dinâmico do operador
+# vem do env ASSISTANT_NAME e é montado em runtime. Qualquer fork pode mudar
+# o env e o guard se ajusta automaticamente — sem hardcode de apelido.
 
-_IDENTITY_SUBJECT_RE = re.compile(
-    r"\b("
-    r"bot|seeker|sexta-feira|"
+
+def _assistant_name_pattern() -> str:
+    """
+    Pattern regex (escapado) para o nome configurado em ASSISTANT_NAME.
+    Vazio se não configurado — daí o regex base já cobre 'bot|seeker|...'.
+    """
+    name = os.getenv("ASSISTANT_NAME", "").strip()
+    if not name or name.lower() == "seeker":
+        return ""  # já está no _BASE_SUBJECTS
+    return re.escape(name.lower())
+
+
+_BASE_SUBJECTS = (
+    r"bot|seeker|"
     r"ia|i\.a\.|"
     r"assistente|sistema|agente|"
     r"identificador|alcunha|apelido|nome do (?:bot|assistente)|"
     r"o nome|seu nome"
-    r")\b",
-    re.IGNORECASE,
 )
+
+
+def _build_subject_re() -> re.Pattern[str]:
+    extra = _assistant_name_pattern()
+    pattern = _BASE_SUBJECTS if not extra else f"{extra}|{_BASE_SUBJECTS}"
+    return re.compile(rf"\b({pattern})\b", re.IGNORECASE)
+
+
+_IDENTITY_SUBJECT_RE = _build_subject_re()
 
 _IDENTITY_VERB_RE = re.compile(
     r"\b("
     r"recus[ao]|recusa[md]o?|"
     r"n[aã]o deve|nao deve|"
     r"deve ser chamad[oa]?|chamar (?:apenas|somente|exclusivamente)|"
-    r"se identifica|identifica-se|"
+    r"identific\w*(?:-se)?|"      # identifica/identificar-se/identifica-se/identificou
     r"exclusivamente|"
     r"se refer(?:e|ir)|"
     r"opera como|opera sob|"
@@ -71,12 +95,17 @@ def _looks_like_identity_rule(fact_text: str) -> bool:
     porque a identidade vem do .env, não da conversa.
 
     Combinação: (sujeito identitário + verbo prescritivo) OU (âncora forte).
+
+    O sujeito é re-buildado para incluir o ASSISTANT_NAME atual do env,
+    permitindo que forks com nomes customizados peguem regras venenosas
+    sobre seus próprios apelidos sem precisar editar este arquivo.
     """
     if not fact_text:
         return False
     if any(p.search(fact_text) for p in _IDENTITY_ANCHORS):
         return True
-    return bool(_IDENTITY_SUBJECT_RE.search(fact_text) and _IDENTITY_VERB_RE.search(fact_text))
+    subject_re = _build_subject_re()
+    return bool(subject_re.search(fact_text) and _IDENTITY_VERB_RE.search(fact_text))
 
 
 EXTRACTION_PROMPT = """Analise esta interação e extraia fatos e relacionamentos estruturados (Knowledge Graph).
