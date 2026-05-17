@@ -7,12 +7,77 @@ Roda DEPOIS da resposta — não bloqueia o usuário.
 """
 
 import logging
+import re
 
 from config.models import CognitiveRole, ModelRouter
 from src.core.utils import parse_llm_json
 from src.providers.base import LLMRequest, invoke_with_fallback
 
 log = logging.getLogger("seeker.memory.extractor")
+
+# ─────────────────────────────────────────────────────────────────────
+# Identity-rule guard (incident 2026-05-16)
+# ─────────────────────────────────────────────────────────────────────
+# O extractor PRECISA NÃO destilar "regras" sobre nome/identidade do bot.
+# Identidade é config (ASSISTANT_NAME no .env), não aprendizado de runtime.
+#
+# Sem este guard, uma única resposta defensiva tipo "eu sou o Seeker, não X"
+# vira reflexive_rule de confidence 0.95, é re-injetada como L1 em todo turno,
+# e o bot fica preso recusando o próprio nome configurado. Aconteceu em
+# 2026-05-15 → 2026-05-16 (9 regras venenosas removidas manualmente).
+
+_IDENTITY_SUBJECT_RE = re.compile(
+    r"\b("
+    r"bot|seeker|sexta-feira|"
+    r"ia|i\.a\.|"
+    r"assistente|sistema|agente|"
+    r"identificador|alcunha|apelido|nome do (?:bot|assistente)|"
+    r"o nome|seu nome"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_IDENTITY_VERB_RE = re.compile(
+    r"\b("
+    r"recus[ao]|recusa[md]o?|"
+    r"n[aã]o deve|nao deve|"
+    r"deve ser chamad[oa]?|chamar (?:apenas|somente|exclusivamente)|"
+    r"se identifica|identifica-se|"
+    r"exclusivamente|"
+    r"se refer(?:e|ir)|"
+    r"opera como|opera sob|"
+    r"descart[ao] (?:nomes|atribui)|"
+    r"nomes? extern[oa]s?"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+# Âncoras semânticas — frases que SOZINHAS indicam regra de identidade,
+# independente de sujeito gramatical. "Nomes externos" + "atribui" /
+# "descart" praticamente só aparecem em contexto de regra-de-nome.
+_IDENTITY_ANCHORS = (
+    re.compile(r"\bnomes?\s+extern[oa]s?\b", re.IGNORECASE),
+    re.compile(r"\batribui[çc][aã]o\s+de\s+nomes?\b", re.IGNORECASE),
+    re.compile(r"\boutras?\s+alcunhas?\b", re.IGNORECASE),
+    re.compile(r"\bn[aã]o\s+ser?\s+chamad[oa]\b", re.IGNORECASE),
+)
+
+
+def _looks_like_identity_rule(fact_text: str) -> bool:
+    """
+    True se o fato fala sobre nome/identidade do bot em tom prescritivo.
+    Heurística conservadora — bloqueia tanto regras anti quanto pró-nome,
+    porque a identidade vem do .env, não da conversa.
+
+    Combinação: (sujeito identitário + verbo prescritivo) OU (âncora forte).
+    """
+    if not fact_text:
+        return False
+    if any(p.search(fact_text) for p in _IDENTITY_ANCHORS):
+        return True
+    return bool(_IDENTITY_SUBJECT_RE.search(fact_text) and _IDENTITY_VERB_RE.search(fact_text))
+
 
 EXTRACTION_PROMPT = """Analise esta interação e extraia fatos e relacionamentos estruturados (Knowledge Graph).
 
@@ -37,9 +102,17 @@ Retorne APENAS JSON válido:
 }}
 
 REGRAS CRÍTICAS — MEMÓRIA REFLEXIVA:
-- Se o usuário estiver CORRIGINDO, RECUSANDO ou EXIGINDO AJUSTE, crie URGENTE um fato `reflexive_rule`.
+- Se o usuário estiver CORRIGINDO, RECUSANDO ou EXIGINDO AJUSTE de COMPORTAMENTO/FORMATO,
+  crie URGENTE um fato `reflexive_rule`.
   Exemplo: "Sempre que gerar relatórios, usar formato de data BR (DD/MM/AAAA)".
 - Fatos `reflexive_rule` registram como o bot deve se comportar no futuro. Prioridade máxima.
+
+PROIBIDO — NUNCA CRIE FATOS SOBRE:
+- Nome do bot ou identidade do assistente (ex: "deve se chamar X", "recusa o nome Y",
+  "identifica-se como Z", "opera como W"). A identidade do bot é CONFIGURAÇÃO de
+  ambiente (ASSISTANT_NAME no .env), não memória aprendida. Qualquer fato sobre
+  nome/alcunha/apelido do bot será descartado pelo filtro pós-extração de qualquer
+  forma — não desperdice slots.
 
 OUTRAS REGRAS:
 1. ENTIDADES: Nomes próprios de pessoas, projetos (ViralClip, Seeker), tecnologias (Gemini, Flux) e orgs.
@@ -109,15 +182,34 @@ class FactExtractor:
 
     def _sanitize_facts(self, facts: list) -> list[dict]:
         valid = []
+        dropped_identity = 0
         for f in facts:
-            if isinstance(f, dict) and f.get("fact") and len(f["fact"]) > 5:
-                valid.append(
-                    {
-                        "fact": f["fact"][:200],
-                        "category": f.get("category", "general"),
-                        "confidence": min(
-                            0.95, max(0.1, float(f.get("confidence", 0.5)))
-                        ),
-                    }
+            if not (isinstance(f, dict) and f.get("fact") and len(f["fact"]) > 5):
+                continue
+            fact_text = f["fact"][:200]
+
+            # Identity-rule guard — incident 2026-05-16. Defense in depth: o
+            # prompt já avisa, mas se o LLM mesmo assim destilar uma regra de
+            # nome/identidade, dropamos aqui.
+            if _looks_like_identity_rule(fact_text):
+                dropped_identity += 1
+                log.info(
+                    f"[extractor] Identity-rule dropped (guard): {fact_text[:100]!r}"
                 )
+                continue
+
+            valid.append(
+                {
+                    "fact": fact_text,
+                    "category": f.get("category", "general"),
+                    "confidence": min(
+                        0.95, max(0.1, float(f.get("confidence", 0.5)))
+                    ),
+                }
+            )
+        if dropped_identity:
+            log.warning(
+                f"[extractor] Bloqueou {dropped_identity} regra(s) de identidade — "
+                f"ver _looks_like_identity_rule em src/core/memory/extractor.py"
+            )
         return valid
