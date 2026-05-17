@@ -95,7 +95,7 @@ class GitHubRepoConfigurer:
             response = requests.put(endpoint, headers=self.headers)
             if response.status_code == 204:
                 print("✅ Dependabot alerts ativado")
-        except:
+        except (requests.RequestException, KeyError, ValueError):
             print(
                 "⚠️ Dependabot não disponível (pode ser repositório privado ou plan insuficiente)"
             )
@@ -114,8 +114,8 @@ class GitHubRepoConfigurer:
                     "❌ Não foi possível acessar o repositório. Verifique o token e permissões."
                 )
                 return False
-        except:
-            print("❌ Erro ao conectar à API do GitHub")
+        except (requests.RequestException, ConnectionError) as e:
+            print(f"❌ Erro ao conectar à API do GitHub: {e}")
             return False
 
         # Run configuration steps

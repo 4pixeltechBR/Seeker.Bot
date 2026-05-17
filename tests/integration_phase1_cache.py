@@ -15,7 +15,6 @@ from src.core.cognition.prompts import (
     get_date_context,
 )
 from src.providers.base import LLMRequest, LLMResponse
-from config.models import ModelConfig
 
 
 def test_prompt_composition():

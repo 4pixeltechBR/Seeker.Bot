@@ -11,7 +11,6 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.cognition.prompts import (
-    PromptBundle,
     build_reflex_prompt,
     build_deliberate_prompt,
     build_deep_prompt,
@@ -106,20 +105,21 @@ def test_cache_savings_calculation():
     dynamic_tokens = manager.estimate_tokens(bundle.dynamic_suffix)
     total_tokens = stable_tokens + dynamic_tokens
 
-    log.info(f"Prompt composition:")
+    log.info("Prompt composition:")
     log.info(f"  Stable (cacheable):  {stable_tokens} tokens")
     log.info(f"  Dynamic (each call): {dynamic_tokens} tokens")
     log.info(f"  Total:               {total_tokens} tokens")
 
     # Calculate savings
-    deepseek_discount = 0.90  # Phase 1
-    gemini_discount = 0.75    # Phase 2
+    # NOTE: deepseek_discount=0.90 / gemini_discount=0.75 são os valores de
+    # referência das Phases 1 e 2 — mantidos como comentário aqui porque o
+    # cálculo abaixo já usa as cost-per-1M tokens diretamente.
     cost_per_1m_input_deepseek = 0.14  # USD
     cost_per_1m_input_gemini = 0.075   # USD
 
     # First request (creates cache)
     first_cost = (total_tokens / 1_000_000) * cost_per_1m_input_deepseek
-    log.info(f"\nFirst request (cache creation):")
+    log.info("\nFirst request (cache creation):")
     log.info(f"  DeepSeek cost: ${first_cost:.6f}")
 
     # Subsequent requests (cache hit)
@@ -127,7 +127,7 @@ def test_cache_savings_calculation():
     cache_hit_savings = first_cost - cached_cost
     cache_hit_percent = (cache_hit_savings / first_cost) * 100
 
-    log.info(f"\nSubsequent requests (with Phase 1 cache):")
+    log.info("\nSubsequent requests (with Phase 1 cache):")
     log.info(f"  Cost per request: ${cached_cost:.6f}")
     log.info(f"  Savings per request: ${cache_hit_savings:.6f} ({cache_hit_percent:.1f}%)")
 
@@ -136,7 +136,7 @@ def test_cache_savings_calculation():
     gemini_cached = (dynamic_tokens / 1_000_000) * cost_per_1m_input_gemini
     gemini_savings = gemini_first - gemini_cached
 
-    log.info(f"\nGemini (Phase 2 explicit caching, if enabled):")
+    log.info("\nGemini (Phase 2 explicit caching, if enabled):")
     log.info(f"  Cost per request: ${gemini_cached:.6f}")
     log.info(f"  Savings per request: ${gemini_savings:.6f}")
 

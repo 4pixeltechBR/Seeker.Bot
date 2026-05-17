@@ -81,7 +81,7 @@ def test_rastreador_economia_mensal():
     # Get monthly economy
     economia_mensal = tracker.obter_economia_cache_mensal()
 
-    log.info(f"[OK] Monthly economy:")
+    log.info("[OK] Monthly economy:")
     log.info(f"  Total cache tokens: {economia_mensal['tokens_cache']}")
     log.info(f"  Estimated savings: ${economia_mensal['custo_economizado_usd']:.4f}")
     log.info(f"  Economy rate: {economia_mensal['taxa_economia']:.1f}%")
@@ -113,7 +113,7 @@ def test_cache_stats_provider_aggregation():
     # Get summary
     summary = provider.obter_resumo_geral()
 
-    log.info(f"[OK] Global summary:")
+    log.info("[OK] Global summary:")
     log.info(f"  Total cache hits: {summary['total_cache_hits']}")
     log.info(f"  Total economy: ${summary['economia_total_usd']:.4f}")
     log.info(f"  Providers: {len(summary['stats_por_provider'])}")
@@ -154,7 +154,7 @@ def test_cache_stats_por_fase():
     # Get stats by phase
     stats_por_fase = provider.obter_stats_por_dimensao("fase")
 
-    log.info(f"[OK] Stats by phase:")
+    log.info("[OK] Stats by phase:")
     for fase, stats in stats_por_fase.items():
         log.info(
             f"  {fase}: {stats['total_cache_hits']} hits, "
@@ -197,7 +197,7 @@ def test_cache_economy_projection():
     total_calls = calls_per_day * 30
     monthly_savings = summary["economia_total_usd"]
 
-    log.info(f"[OK] Projected monthly savings:")
+    log.info("[OK] Projected monthly savings:")
     log.info(f"  Total calls: {total_calls}")
     log.info(f"  Total cache hits: {summary['total_cache_hits']}")
     log.info(f"  Total savings: ${monthly_savings:.2f}")
@@ -229,7 +229,7 @@ def test_cache_stats_daily_breakdown():
     # Get daily stats
     daily = provider.obter_stats_diarias(dias=3)
 
-    log.info(f"[OK] Daily cache stats:")
+    log.info("[OK] Daily cache stats:")
     for date, stats in daily.items():
         if stats["total_cache_hits"] > 0:
             log.info(

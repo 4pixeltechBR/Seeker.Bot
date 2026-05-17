@@ -372,12 +372,12 @@ def main() -> int:
     # 3) patch bot.py
     bot_py = dest / "src/channels/telegram/bot.py"
     if patch_bot_py(bot_py):
-        print(f"  ~ patchado:      src/channels/telegram/bot.py")
+        print("  ~ patchado:      src/channels/telegram/bot.py")
 
     # 4) patch analyst_crew.py — remove bloco Scout Hunter 2.0
     analyst_crew = dest / "src/core/hierarchy/crews/analyst_crew.py"
     if patch_analyst_crew(analyst_crew):
-        print(f"  ~ patchado:      src/core/hierarchy/crews/analyst_crew.py")
+        print("  ~ patchado:      src/core/hierarchy/crews/analyst_crew.py")
 
     # 5) patch hierarchy __init__ files
     patched_init = patch_hierarchy_init(dest)

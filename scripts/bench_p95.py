@@ -23,7 +23,7 @@ import statistics
 import sys
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 # Project root on sys.path
 ROOT = Path(__file__).resolve().parent.parent
@@ -114,7 +114,7 @@ async def main() -> int:
     print(f"  mean: {mean:7.2f} ms")
     print(f"  max:  {mx:7.2f} ms")
     print(f"\n  Budget P95: {args.p95_budget_ms:.0f} ms")
-    print(f"  Note: mock LLM adds 50ms floor. Real LLMs add 200-2000ms more.")
+    print("  Note: mock LLM adds 50ms floor. Real LLMs add 200-2000ms more.")
 
     if p95 > args.p95_budget_ms:
         print(f"\n[FAIL] P95={p95:.0f}ms exceeds budget {args.p95_budget_ms:.0f}ms")

@@ -6,6 +6,9 @@ Smoke test for Phase 1: Prompt Caching Initiative
 - Test with real DeepSeek API (requires valid API_KEY)
 """
 
+# ruff: noqa: E402
+# sys.path manipulation forces imports below it — intentional.
+
 import asyncio
 import os
 import sys
@@ -27,7 +30,6 @@ from src.core.cognition.prompts import (
     build_deep_prompt,
     get_date_context,
     SYSTEM_BASE,
-    REFLEX_SYSTEM,
 )
 from src.providers.base import (
     LLMResponse,

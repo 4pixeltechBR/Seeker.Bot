@@ -12,7 +12,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.core.budget.cost_tracker import RastreadorCustos
 from src.core.budget.cache_stats import CacheStatsProvider, CacheMetrics
-from datetime import datetime
 
 import logging
 
