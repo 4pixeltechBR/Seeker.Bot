@@ -1,6 +1,6 @@
 [project]
 name = "seeker-bot"
-version = "3.3.0"
+version = "3.4.0"
 description = "Autonomous research agent with epistemological triangulation"
 requires-python = ">=3.12"
 dependencies = [
