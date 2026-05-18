@@ -34,8 +34,14 @@ dependencies = [
     # Stack: observability + memória
     "tiktoken>=0.7",
     "psutil>=5.9",
+    "prometheus-client>=0.20",
     # Skill: event_radar — PDF reports
     "fpdf2>=2.7",
+    # Skill: vision / desktop_watch — screen capture
+    "mss>=10.0",
+    # Skill: email_monitor / briefing — IMAP/SMTP async
+    "aioimaplib>=2.0",
+    "aiosmtplib>=5.0",
 ]
 
 [project.optional-dependencies]
