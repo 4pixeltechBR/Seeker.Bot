@@ -54,3 +54,6 @@ download_*.py
 refactor_*.py
 validate_*.py
 drive_decompiled.py
+
+# Build artifacts (gerado por pip install -e .)
+*.egg-info/

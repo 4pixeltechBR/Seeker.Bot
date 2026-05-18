@@ -1,12 +1,16 @@
 """
 Extractors - Extração de conteúdo de diferentes fontes
+
+Imports pesados (yt_dlp, youtube_transcript_api) são lazy — carregados só
+quando extract_from_youtube() é efetivamente chamado. Sem isso, falha de
+qualquer um derrubaria a importação do módulo e travaria o boot do bot
+(incident 2026-05-17 — crash loop yt_dlp ausente na venv).
 """
 
 import re
 import logging
 from typing import List, Tuple, Dict, Optional
-import yt_dlp
-from youtube_transcript_api import YouTubeTranscriptApi
+
 from src.core.search.web import fetch_page_text
 
 log = logging.getLogger("seeker.knowledge_vault.extractors")
@@ -78,7 +82,23 @@ def _get_youtube_id(url: str) -> Optional[str]:
 
 
 async def extract_from_youtube(url: str) -> Tuple[str, Dict]:
-    """Extrai transcrição e metadados de um vídeo do YouTube."""
+    """Extrai transcrição e metadados de um vídeo do YouTube.
+
+    Lazy import de yt_dlp / youtube_transcript_api — se as deps faltarem,
+    falha aqui com mensagem clara em vez de derrubar o boot do bot.
+    """
+    try:
+        import yt_dlp
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except ImportError as e:
+        log.error(
+            f"[extractors] yt_dlp/youtube_transcript_api ausentes: {e}. "
+            f"Instale com: pip install yt-dlp youtube-transcript-api"
+        )
+        raise RuntimeError(
+            "Dependências do YouTube não instaladas. Veja log para o pip install."
+        ) from e
+
     video_id = _get_youtube_id(url)
     if not video_id:
         raise ValueError("URL do YouTube inválida.")
