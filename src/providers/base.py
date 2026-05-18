@@ -399,6 +399,19 @@ class KimiProvider(OpenAICompatibleProvider):
     BASE_URL = "https://api.moonshot.cn/v1/chat/completions"
 
 
+class CerebrasProvider(OpenAICompatibleProvider):
+    """
+    Cerebras Cloud API — wafer-scale chip inference.
+
+    Free tier (cloud.cerebras.ai): 1.000.000 tokens/dia, 30 RPM, ctx 8K.
+    Velocidade: ~700 tok/s (10× mais rápido que GPUs em modelos 70B).
+    Modelos disponíveis: llama-3.3-70b, llama-3.1-8b, qwen-3-32b, qwen-3-coder.
+
+    API é OpenAI-compatible. Signup: https://cloud.cerebras.ai/
+    """
+    BASE_URL = "https://api.cerebras.ai/v1/chat/completions"
+
+
 class GeminiProvider(BaseProvider):
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -518,6 +531,7 @@ class OllamaProvider(BaseProvider):
 # ─────────────────────────────────────────────────────────────────────
 
 PROVIDER_MAP = {
+    "cerebras": CerebrasProvider,
     "deepseek": DeepSeekProvider,
     "gemini": GeminiProvider,
     "groq": GroqProvider,

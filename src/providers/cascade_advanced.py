@@ -15,7 +15,7 @@ Tier 6: Degraded Mode (Fallback sem LLM)
 import logging
 import asyncio
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List
 from collections import deque, defaultdict
 from enum import Enum
@@ -95,7 +95,7 @@ class CascadeMetrics:
             return False
         if self.last_error_time:
             # Se erro foi há menos de 30s, não está saudável
-            if datetime.utcnow() - self.last_error_time < timedelta(seconds=30):
+            if datetime.now(timezone.utc) - self.last_error_time < timedelta(seconds=30):
                 return False
         return True
 
@@ -328,7 +328,7 @@ class CascadeAdapter:
                     self.metrics[tier].avg_latency_ms + tier_latency_ms
                 ) / 2
                 self.metrics[tier].avg_cost_usd = result["cost"]
-                self.metrics[tier].last_health_check = datetime.utcnow()
+                self.metrics[tier].last_health_check = datetime.now(timezone.utc)
 
                 cascade_result = CascadeResult(
                     response=result["response"],
@@ -356,7 +356,7 @@ class CascadeAdapter:
                 self.metrics[tier].failed_calls += 1
                 self.metrics[tier].total_calls += 1
                 self.metrics[tier].last_error = error_msg
-                self.metrics[tier].last_error_time = datetime.utcnow()
+                self.metrics[tier].last_error_time = datetime.now(timezone.utc)
                 self.metrics[tier].fallback_count += 1
                 self.metrics[tier].error_types[error_type] += 1
 
@@ -462,7 +462,7 @@ class CascadeAdapter:
     def get_health_status(self) -> dict:
         """Retorna status de saúde de cada tier"""
         status = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "tiers": {},
             "overall_health": "GOOD",
         }
@@ -531,7 +531,7 @@ class CascadeAdapter:
                 )
 
                 # Sucesso — atualizar último health check
-                self.metrics[tier].last_health_check = datetime.utcnow()
+                self.metrics[tier].last_health_check = datetime.now(timezone.utc)
                 log.debug(f"[cascade] Health check: {tier.value} ✓")
 
             except Exception as e:

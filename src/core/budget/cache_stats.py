@@ -4,7 +4,7 @@ Agregação de telemetria de cache hit/creation para análise de economia
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 from dataclasses import dataclass
 
@@ -65,7 +65,7 @@ class CacheStatsProvider:
     ) -> None:
         """Registra resposta com telemetria de cache."""
         if timestamp is None:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
         chave = f"{provider}:{modelo}:{fase}"
         data_chave = timestamp.strftime("%Y-%m-%d")
@@ -158,7 +158,7 @@ class CacheStatsProvider:
         """Retorna stats de cache dos últimos N dias."""
         from datetime import timedelta
 
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         resultado = {}
 
         for i in range(dias):

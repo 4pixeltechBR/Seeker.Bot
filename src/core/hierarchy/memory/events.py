@@ -6,7 +6,7 @@ Immutable event log for distributed consistency, crash recovery, and audit trail
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -88,7 +88,7 @@ class GoalEventLog:
         payload: dict[str, Any],
     ) -> int:
         """Append immutable event to log"""
-        timestamp = datetime.utcnow().timestamp()
+        timestamp = datetime.now(timezone.utc).timestamp()
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute(
                 """

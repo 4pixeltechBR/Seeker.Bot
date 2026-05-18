@@ -236,6 +236,37 @@ DEEPSEEK_REASONER = ModelConfig(
 )
 
 # ─────────────────────────────────────────────────────────────────────
+# CEREBRAS — FREE TIER (1M tokens/dia, 30 RPM, ctx 8K)
+# Signup: https://cloud.cerebras.ai/
+# ─────────────────────────────────────────────────────────────────────
+
+CEREBRAS_LLAMA_70B = ModelConfig(
+    provider="cerebras",
+    model_id="llama-3.3-70b",
+    display_name="Cerebras Llama 3.3 70B",
+    max_tokens=8192,
+    context_window=8_000,
+    cost_per_1m_input=0.0,   # free tier
+    cost_per_1m_output=0.0,  # free tier
+    supports_tool_use=True,
+    training_data_cutoff="2024-12",
+    rpm_limit=30,  # 30 RPM, 1M tokens/dia
+)
+
+CEREBRAS_QWEN_32B = ModelConfig(
+    provider="cerebras",
+    model_id="qwen-3-32b",
+    display_name="Cerebras Qwen-3 32B",
+    max_tokens=8192,
+    context_window=8_000,
+    cost_per_1m_input=0.0,
+    cost_per_1m_output=0.0,
+    supports_tool_use=True,
+    training_data_cutoff="2025-09",
+    rpm_limit=30,
+)
+
+# ─────────────────────────────────────────────────────────────────────
 # MOONSHOT (KIMI) — PAGO
 # ─────────────────────────────────────────────────────────────────────
 
@@ -359,6 +390,7 @@ def build_default_router() -> ModelRouter:
                 GEMINI_31_FLASH_LITE,
             ],
             CognitiveRole.DEEP: [
+                CEREBRAS_LLAMA_70B,  # 1M tok/dia free, ~700 tok/s — primário
                 NVIDIA_DEEPSEEK_V32,
                 GEMINI_3_FLASH,
                 MOONSHOT_KIMI_V1,
@@ -373,6 +405,7 @@ def build_default_router() -> ModelRouter:
             ],
             CognitiveRole.SYNTHESIS: [
                 GEMINI_31_FLASH_LITE,
+                CEREBRAS_QWEN_32B,   # free, rápido, ctx 8K basta pra synthesis
                 NVIDIA_DEEPSEEK_V32,
                 DEEPSEEK_CHAT,
             ],

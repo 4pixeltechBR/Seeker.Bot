@@ -5,7 +5,7 @@ Agregação de métricas de custo, uso e performance
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 log = logging.getLogger("seeker.analytics.dashboard")
@@ -59,7 +59,7 @@ class DashboardFinanceiro:
 
     async def obter_metricas(self, usar_cache: bool = True) -> MetricasDashboard:
         """Obtém métricas agregadas do dashboard"""
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
 
         # Usar cache se válido (máx 1 minuto)
         if (
@@ -127,7 +127,7 @@ class DashboardFinanceiro:
             dias_ate_alerta = max(1, int(limite_diario / custo_diario))
 
         # Obter custo do ano
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         ano_chave = agora.strftime("%Y")
         custo_ano = sum(
             v

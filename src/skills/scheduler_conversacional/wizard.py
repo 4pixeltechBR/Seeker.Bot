@@ -6,7 +6,7 @@ State machine para coleta conversacional de dados de tarefa agendada.
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Tuple
 
 from src.skills.scheduler_conversacional.models import (
@@ -37,7 +37,7 @@ class SchedulerWizard:
             chat_id=chat_id,
             user_id=user_id,
             state=WizardState.COLLECTING_TITLE,
-            expires_at=datetime.utcnow()
+            expires_at=datetime.now(timezone.utc).replace(tzinfo=None)
             + timedelta(minutes=self.WIZARD_TIMEOUT_MINUTES),
         )
 
@@ -123,7 +123,7 @@ class SchedulerWizard:
 
         session.previous_state = session.state
         session.state = new_state
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -161,7 +161,7 @@ class SchedulerWizard:
 
         session.set_collected_value("title", title)
         session.state = WizardState.COLLECTING_SCHEDULE_TYPE
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -200,7 +200,7 @@ class SchedulerWizard:
         elif schedule_type == ScheduleType.ANNUAL:
             session.state = WizardState.COLLECTING_MONTH_DAY
 
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -223,7 +223,7 @@ class SchedulerWizard:
 
         session.set_collected_value("day_of_week", day)
         session.state = WizardState.COLLECTING_HOUR
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -246,7 +246,7 @@ class SchedulerWizard:
 
         session.set_collected_value("day_of_month", day)
         session.state = WizardState.COLLECTING_HOUR
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -274,7 +274,7 @@ class SchedulerWizard:
         session.set_collected_value("day_of_month", day)
         session.set_collected_value("month", month)
         session.state = WizardState.COLLECTING_HOUR
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -297,7 +297,7 @@ class SchedulerWizard:
 
         session.set_collected_value("hour", hour)
         session.state = WizardState.COLLECTING_INSTRUCTION
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -325,7 +325,7 @@ class SchedulerWizard:
 
         session.set_collected_value("instruction_text", instruction)
         session.state = WizardState.CONFIRMATION
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self.store.update_wizard_session(session)
 
         msg = self._prompt_for_state(session)
@@ -340,7 +340,7 @@ class SchedulerWizard:
         if choice in ("sim", "s", "yes", "y"):
             # Marcar como concluído (será processado pelo dispatcher)
             session.state = WizardState.COMPLETED
-            session.updated_at = datetime.utcnow()
+            session.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await self.store.update_wizard_session(session)
 
             msg = (

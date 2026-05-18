@@ -646,9 +646,11 @@ async def main():
         raise SystemExit(1)
 
     api_keys = {
+        "cerebras": os.getenv("CEREBRAS_API_KEY", ""),
         "deepseek": os.getenv("DEEPSEEK_API_KEY", ""),
         "gemini": os.getenv("GEMINI_API_KEY", ""),
         "groq": os.getenv("GROQ_API_KEY", ""),
+        "kimi": os.getenv("KIMI_API_KEY", ""),
         "mistral": os.getenv("MISTRAL_API_KEY", ""),
         "nvidia": os.getenv("NVIDIA_API_KEY", ""),
     }

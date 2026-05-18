@@ -188,7 +188,7 @@ class SafetyLayer:
 
         # Registrar em auditoria
         audit_entry = {
-            "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
             "goal": goal_name,
             "action": action_type.value,
             "tier": current_tier.name,
@@ -214,7 +214,7 @@ class SafetyLayer:
     def export_policy(self) -> dict:
         """Exporta configuração atual de segurança"""
         return {
-            "timestamp": __import__("datetime").datetime.utcnow().isoformat(),
+            "timestamp": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
             "policy": self.policy.get_policy_report(),
             "audit_entries": len(self.audit_log),
         }

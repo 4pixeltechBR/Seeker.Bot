@@ -5,7 +5,7 @@ Previsão baseada em tendências históricas e ML simples
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 import statistics
 
@@ -149,7 +149,7 @@ class Forecaster:
         custo_atual = resumo_mensal["custo_total"]
 
         if custo_atual >= limite:
-            return datetime.utcnow()  # Já atingiu
+            return datetime.now(timezone.utc)  # Já atingiu
 
         # Obter média diária dos últimos 7 dias
         gastos_7d = self.cost_tracker.obter_gastos_diarios(dias=7)
@@ -164,9 +164,9 @@ class Forecaster:
         dias_restantes = int(faltante / media_diaria)
 
         if dias_restantes < 0:
-            return datetime.utcnow()
+            return datetime.now(timezone.utc)
 
-        data_alerta = datetime.utcnow() + timedelta(days=dias_restantes)
+        data_alerta = datetime.now(timezone.utc) + timedelta(days=dias_restantes)
 
         log.info(
             f"[forecaster] Alerta previsto para {data_alerta.strftime('%Y-%m-%d')}: "
@@ -204,8 +204,8 @@ class Forecaster:
                 data_alerta_mensal.isoformat() if data_alerta_mensal else None
             ),
             "dias_ate_alerta": (
-                (data_alerta_mensal - datetime.utcnow()).days
-                if data_alerta_mensal and data_alerta_mensal > datetime.utcnow()
+                (data_alerta_mensal - datetime.now(timezone.utc)).days
+                if data_alerta_mensal and data_alerta_mensal > datetime.now(timezone.utc)
                 else None
             ),
         }

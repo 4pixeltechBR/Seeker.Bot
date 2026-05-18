@@ -12,7 +12,7 @@ import logging
 from dataclasses import dataclass, field
 from collections import deque
 from statistics import median, quantiles
-from datetime import datetime
+from datetime import datetime, timezone
 
 log = logging.getLogger("seeker.sprint11")
 
@@ -296,7 +296,7 @@ class Sprint11Tracker:
         self.cascade = CascadeMetrics()
         self.batch = BatchMetrics()
         self.remote_executor = RemoteExecutorMetrics()
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
         log.info("[sprint11] Tracker inicializado")
 
@@ -401,10 +401,10 @@ class Sprint11Tracker:
 
     def get_full_report(self) -> dict:
         """Retorna relatório completo de todas as métricas"""
-        uptime = datetime.utcnow() - self.start_time
+        uptime = datetime.now(timezone.utc) - self.start_time
 
         return {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "uptime_seconds": uptime.total_seconds(),
             "latency": self.latency.get_stats(),
             "cache": self.cache.get_stats(),

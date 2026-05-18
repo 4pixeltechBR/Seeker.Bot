@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Optional, Dict
 from collections import defaultdict, deque
@@ -139,7 +139,7 @@ class ErrorTelemetry:
 
     def _check_thresholds(self, provider: str) -> Optional[ErrorAlert]:
         """Check if error threshold exceeded for provider"""
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         cutoff = now - timedelta(minutes=self.alert_window_minutes)
 
         # Count recent errors

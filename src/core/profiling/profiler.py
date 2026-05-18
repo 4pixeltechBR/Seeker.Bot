@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Optional, List
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from .metrics import PerformanceMetrics, GoalMetrics
 
@@ -25,10 +25,9 @@ class SystemProfiler:
     def start_profiling(self, goal_id: str, phase_name: str) -> PerformanceMetrics:
         """Inicia profiling de uma fase"""
         try:
-            loop = asyncio.get_event_loop()
-            start_time = loop.time()
-        except RuntimeError:
             start_time = asyncio.get_running_loop().time()
+        except RuntimeError:
+            start_time = asyncio.new_event_loop().time()
 
         metric = PerformanceMetrics(
             goal_id=goal_id, phase_name=phase_name, start_time=start_time
@@ -74,10 +73,9 @@ class SystemProfiler:
 
         # Preencher métricas
         try:
-            loop = asyncio.get_event_loop()
-            end_time = loop.time()
-        except RuntimeError:
             end_time = asyncio.get_running_loop().time()
+        except RuntimeError:
+            end_time = asyncio.new_event_loop().time()
 
         metric.end_time = end_time
         metric.memory_mb = (
@@ -166,7 +164,7 @@ class SystemProfiler:
 
     def get_recent_metrics(self, minutes: int = 5) -> List[PerformanceMetrics]:
         """Retorna métricas dos últimos N minutos"""
-        cutoff = datetime.utcnow() - timedelta(minutes=minutes)
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=minutes)
         return [m for m in self.history if m.timestamp > cutoff]
 
     def reset_stats(self, goal_id: str | None = None):

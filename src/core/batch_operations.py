@@ -10,7 +10,7 @@ import logging
 import asyncio
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Any, List
 from collections import deque
 
@@ -25,7 +25,7 @@ class PendingOperation:
     operation_func: Callable
     args: tuple = field(default_factory=tuple)
     kwargs: dict = field(default_factory=dict)
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     async def execute(self) -> Any:
         """Executa a operação"""
@@ -167,7 +167,7 @@ class BatchOperationsManager:
                         {
                             "operation": op.operation_name,
                             "error": error_msg,
-                            "timestamp": datetime.utcnow().isoformat(),
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
                         }
                     )
                     log.error(f"[batch] ✗ {op.operation_name}: {error_msg}")

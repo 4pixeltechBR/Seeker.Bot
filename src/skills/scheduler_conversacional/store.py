@@ -6,7 +6,7 @@ Persistência em SQLite para tarefas agendadas, execuções e sessões do wizard
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from src.skills.scheduler_conversacional.models import (
@@ -163,7 +163,7 @@ class SchedulerStore:
             AND next_run_at <= ?
             ORDER BY next_run_at ASC
         """
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
         async with self.db.execute(sql, (now,)) as cur:
             rows = await cur.fetchall()
             return [self._row_to_task(row) for row in rows if row]
@@ -340,7 +340,7 @@ class SchedulerStore:
     async def cleanup_expired_sessions(self) -> int:
         """Remove sessões expiradas. Retorna count"""
         sql = "SELECT COUNT(*) as count FROM scheduler_wizard_sessions WHERE expires_at IS NOT NULL AND expires_at <= ?"
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
         async with self.db.execute(sql, (now,)) as cur:
             row = await cur.fetchone()

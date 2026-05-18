@@ -14,7 +14,7 @@ Implementa AutonomousGoal protocol.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict
 
 from src.core.pipeline import SeekerPipeline
@@ -182,7 +182,7 @@ class RemoteExecutorGoal:
 
         # Criar contexto de execução
         context = ExecutionContext(
-            plan_id=f"plan_{datetime.utcnow().isoformat()}",
+            plan_id=f"plan_{datetime.now(timezone.utc).isoformat()}",
             triggered_by_user=user_id,
             triggered_by_intent=intention,
             goal_name=self.name,
@@ -414,9 +414,9 @@ class RemoteExecutorGoal:
                     budget_remaining_usd=self._budget.remaining_today,
                 )
 
-                start_time = datetime.utcnow()
+                start_time = datetime.now(timezone.utc)
                 results = await self.executor.execute_plan(plan, context)
-                (datetime.utcnow() - start_time).total_seconds() * 1000
+                (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
 
                 # Processa resultados e registra métricas
                 for step_id, result in results.items():

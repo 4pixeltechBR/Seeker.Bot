@@ -75,7 +75,7 @@ class DriveClient:
         # Renova token expirado silenciosamente
         if creds and creds.expired and creds.refresh_token:
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
                 await loop.run_in_executor(None, creds.refresh, Request())
                 self._save_token(creds)
                 log.info("[drive] Token renovado com sucesso")
@@ -92,7 +92,7 @@ class DriveClient:
                 return False
 
             try:
-                loop = asyncio.get_event_loop()
+                loop = asyncio.get_running_loop()
 
                 # Gera a URL de autorização sem abrir browser
                 flow = InstalledAppFlow.from_client_secrets_file(CREDENTIALS_PATH, SCOPES)
@@ -135,7 +135,7 @@ class DriveClient:
                 log.warning("[drive] Nenhum flow pendente para completar")
                 return False
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             flow = self._pending_flow
 
             # Troca o código pelo token — roda em thread para não bloquear o loop
@@ -180,7 +180,7 @@ class DriveClient:
         Retorna lista de dicts com: id, name, mimeType, size, modifiedTime.
         """
         self._require_auth()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             query = f"'{folder_id}' in parents and trashed = false"
@@ -198,7 +198,7 @@ class DriveClient:
     async def create_folder(self, name: str, parent_id: str = "root") -> dict:
         """Cria uma pasta. Retorna o item criado (id, name)."""
         self._require_auth()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             meta = {
@@ -219,7 +219,7 @@ class DriveClient:
         import mimetypes
         from googleapiclient.http import MediaFileUpload
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         fname = filename or os.path.basename(local_path)
         mime, _ = mimetypes.guess_type(local_path)
         mime = mime or "application/octet-stream"
@@ -240,7 +240,7 @@ class DriveClient:
         self._require_auth()
         from googleapiclient.http import MediaIoBaseUpload
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             meta = {"name": filename, "parents": [folder_id]}
@@ -261,7 +261,7 @@ class DriveClient:
         self._require_auth()
         from googleapiclient.http import MediaIoBaseDownload
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             # Busca metadados
@@ -285,7 +285,7 @@ class DriveClient:
         Retorna True se sucesso.
         """
         self._require_auth()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             if permanent:
@@ -302,7 +302,7 @@ class DriveClient:
     async def move(self, file_id: str, new_parent_id: str) -> dict:
         """Move arquivo/pasta para nova pasta. Retorna item atualizado."""
         self._require_auth()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             # Busca parents atuais
@@ -320,7 +320,7 @@ class DriveClient:
     async def search(self, query: str, page_size: int = 20) -> list[dict]:
         """Busca arquivos pelo nome. Retorna lista de resultados."""
         self._require_auth()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             safe_query = query.replace("'", "\\'")
@@ -337,7 +337,7 @@ class DriveClient:
     async def get_info(self, file_id: str) -> dict:
         """Retorna metadados completos de um arquivo/pasta."""
         self._require_auth()
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
 
         def _run():
             return self._service.files().get(

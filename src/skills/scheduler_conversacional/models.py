@@ -5,7 +5,7 @@ Dataclasses para tarefas agendadas, execuções e sessões do wizard.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone as _tz
 from enum import Enum
 from typing import Optional, Dict, Any
 
@@ -67,8 +67,8 @@ class ScheduledTask:
     status: TaskStatus = TaskStatus.ENABLED
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(_tz.utc).replace(tzinfo=None))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(_tz.utc).replace(tzinfo=None))
     last_run_at: Optional[datetime] = None
     next_run_at: Optional[datetime] = None
 
@@ -104,8 +104,8 @@ class ScheduledTaskRun:
     idempotency_key: str = ""
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(_tz.utc).replace(tzinfo=None))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(_tz.utc).replace(tzinfo=None))
 
 
 @dataclass
@@ -123,8 +123,8 @@ class WizardSession:
     data: Dict[str, Any] = field(default_factory=dict)
 
     # Timestamps
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(_tz.utc).replace(tzinfo=None))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(_tz.utc).replace(tzinfo=None))
     expires_at: Optional[datetime] = None  # Expira em 30 min
 
     # Para rollback
@@ -134,7 +134,7 @@ class WizardSession:
         """Verifica se a sessão expirou"""
         if self.expires_at is None:
             return False
-        return datetime.utcnow() > self.expires_at
+        return datetime.now(_tz.utc).replace(tzinfo=None) > self.expires_at
 
     def get_collected_value(self, key: str) -> Optional[Any]:
         """Obtém valor coletado"""
@@ -143,4 +143,4 @@ class WizardSession:
     def set_collected_value(self, key: str, value: Any) -> None:
         """Define valor coletado"""
         self.data[key] = value
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(_tz.utc).replace(tzinfo=None)

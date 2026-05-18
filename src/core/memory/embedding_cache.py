@@ -9,7 +9,7 @@ Uses: OrderedDict com move_to_end() para LRU inteligente
 import logging
 from collections import OrderedDict, deque
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Tuple
 import hashlib
 
@@ -52,12 +52,12 @@ class CachedEmbedding:
     @property
     def age_seconds(self) -> float:
         """Idade do cache em segundos"""
-        return (datetime.utcnow() - self.timestamp_created).total_seconds()
+        return (datetime.now(timezone.utc) - self.timestamp_created).total_seconds()
 
     @property
     def time_since_access_seconds(self) -> float:
         """Tempo desde último acesso em segundos"""
-        return (datetime.utcnow() - self.timestamp_last_accessed).total_seconds()
+        return (datetime.now(timezone.utc) - self.timestamp_last_accessed).total_seconds()
 
 
 class SmartEmbeddingCache:
@@ -141,7 +141,7 @@ class SmartEmbeddingCache:
 
             # HIT — atualizar metadata e mover para final (LRU)
             cached.access_count += 1
-            cached.timestamp_last_accessed = datetime.utcnow()
+            cached.timestamp_last_accessed = datetime.now(timezone.utc)
             self._cache.move_to_end(key)  # Move para o final (mais recente)
 
             self.stats.cache_hits += 1
@@ -174,7 +174,7 @@ class SmartEmbeddingCache:
         # Se já existe, atualizar
         if key in self._cache:
             self._cache[key].embedding = embedding
-            self._cache[key].timestamp_last_accessed = datetime.utcnow()
+            self._cache[key].timestamp_last_accessed = datetime.now(timezone.utc)
             self._cache[key].access_count += 1
             self._cache.move_to_end(key)
             log.debug(f"[cache] ATUALIZADO {key[:8]}...")
@@ -187,8 +187,8 @@ class SmartEmbeddingCache:
         # Adicionar novo
         cached = CachedEmbedding(
             embedding=embedding,
-            timestamp_created=datetime.utcnow(),
-            timestamp_last_accessed=datetime.utcnow(),
+            timestamp_created=datetime.now(timezone.utc),
+            timestamp_last_accessed=datetime.now(timezone.utc),
             size_bytes=len(embedding),
         )
 

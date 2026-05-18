@@ -5,7 +5,7 @@ Geração de relatórios em HTML para visualização
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 log = logging.getLogger("seeker.analytics.reporter")
 
@@ -91,8 +91,8 @@ class Reporter:
 
         return RelatorioFinanceiro(
             titulo="Relatório Financeiro Diário",
-            periodo=datetime.utcnow().strftime("%Y-%m-%d"),
-            timestamp=datetime.utcnow(),
+            periodo=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            timestamp=datetime.now(timezone.utc),
             conteudo_html=html,
             resumo_executivo=resumo,
         )
@@ -135,8 +135,8 @@ class Reporter:
 
         return RelatorioFinanceiro(
             titulo="Relatório Semanal",
-            periodo=datetime.utcnow().strftime("%Y-W%W"),
-            timestamp=datetime.utcnow(),
+            periodo=datetime.now(timezone.utc).strftime("%Y-W%W"),
+            timestamp=datetime.now(timezone.utc),
             conteudo_html=html,
             resumo_executivo=previsoes,
         )
@@ -147,7 +147,7 @@ class Reporter:
         metricas = await self.dashboard.obter_metricas()
         previsoes = await self.forecaster.obter_resumo_previsoes()
 
-        mes_ano = datetime.utcnow().strftime("%B %Y")
+        mes_ano = datetime.now(timezone.utc).strftime("%B %Y")
 
         linhas = []
         linhas.append("<b>📈 RELATORIO MENSAL</b>")
@@ -187,8 +187,8 @@ class Reporter:
 
         return RelatorioFinanceiro(
             titulo="Relatório Mensal",
-            periodo=datetime.utcnow().strftime("%Y-%m"),
-            timestamp=datetime.utcnow(),
+            periodo=datetime.now(timezone.utc).strftime("%Y-%m"),
+            timestamp=datetime.now(timezone.utc),
             conteudo_html=html,
             resumo_executivo=previsoes,
         )

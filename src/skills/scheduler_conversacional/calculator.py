@@ -5,7 +5,7 @@ Calcula a próxima execução de uma tarefa agendada.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import pytz
 
 from src.skills.scheduler_conversacional.models import ScheduledTask, ScheduleType
@@ -29,7 +29,7 @@ class NextRunCalculator:
             datetime: próxima execução em UTC
         """
         if from_time is None:
-            from_time = datetime.utcnow()
+            from_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
         # Converter para timezone da tarefa para cálculo
         tz = pytz.timezone(task.timezone)

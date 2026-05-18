@@ -276,17 +276,44 @@ class VLMClient:
 
     async def locate_element(self, image_bytes: bytes, description: str) -> dict:
         """
-        Pede ao VLM para localizar um elemento e retornar coordenadas.
-        Usa fallback Gemini se Ollama falha (timeout grounding).
-        Retorna dict com x, y (centro do elemento) e confidence.
+        Localiza um elemento de UI e retorna coordenadas do centro.
+
+        Estratégia em cascade (cherry-pick #3 — Holo1.5 specialist arm):
+          1. Holo1.5-3B local (~3GB VRAM, especialista em GUI grounding,
+             92.2% Surfer-H, ~500ms-1s). Drop direto se ausente/desabilitado.
+          2. Fallback: VLM generalista via Ollama (analyze_screenshot)
+             com prompt JSON, parse via _parse_bbox_response.
+          3. Fallback final: Gemini cloud (já dentro de _call_with_fallback).
+
+        Holo retorna (x,y); generalistas retornam JSON {x,y,confidence}.
+        Quando Holo acerta, confidence=0.9 (alta — modelo é especialista).
+
+        Retorna dict {x, y, confidence}.
         """
+        # Stage 1 — Holo1.5 specialist (lazy load, opt-in via HOLO15_ENABLED)
+        try:
+            from src.skills.vision.holo15_ground import get_holo15_grounder
+            holo = get_holo15_grounder()
+            if holo.available:
+                coords = await holo.locate(image_bytes, description)
+                if coords is not None:
+                    x, y = coords
+                    log.info(
+                        f"[vlm] locate_element via Holo1.5: ({x},{y}) "
+                        f"para {description!r}"
+                    )
+                    return {"x": x, "y": y, "confidence": 0.9}
+                log.debug("[vlm] Holo1.5 não localizou, fallback VLM generalista")
+        except ImportError:
+            log.debug("[vlm] holo15_ground ausente, fallback VLM generalista")
+
+        # Stage 2 + 3 — VLM Ollama generalista com fallback Gemini cloud
         prompt = (
             f"Find the UI element: '{description}'. "
             f"Return ONLY a JSON object with the center coordinates: "
             f'{{"x": <center_x_pixels>, "y": <center_y_pixels>, "confidence": <0.0-1.0>}}'
         )
 
-        # Com fallback para Gemini
         raw_text = await self._call_with_fallback(
             self.analyze_screenshot(image_bytes, prompt),
             "locate_element",

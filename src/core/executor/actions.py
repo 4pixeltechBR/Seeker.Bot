@@ -11,7 +11,7 @@ Responsabilidades:
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List
 
 from .models import (
@@ -104,7 +104,7 @@ class ActionExecutor:
                 # Log execution
                 self.execution_log.append(
                     {
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                         "plan_id": plan.plan_id,
                         "step_id": step_id,
                         "status": result.status.value,

@@ -1,7 +1,7 @@
 """AFK Protocol — User Status Tracking & Escalation (Track B3)"""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -25,13 +25,13 @@ class AFKProtocol:
 
     def __init__(self, user_id: str = "unknown"):
         self.user_id = user_id
-        self.last_interaction: datetime = datetime.utcnow()
+        self.last_interaction: datetime = datetime.now(timezone.utc)
         self.status: UserStatus = UserStatus.ONLINE
         self.afk_start: datetime = None
 
     def update_interaction(self):
         """Registra interação do usuário (mensagem Telegram, resposta, etc)"""
-        self.last_interaction = datetime.utcnow()
+        self.last_interaction = datetime.now(timezone.utc)
         self.status = UserStatus.ONLINE
         self.afk_start = None
         log.info("[afk] User online")
@@ -41,7 +41,7 @@ class AFKProtocol:
         if self.status == UserStatus.ONLINE:
             return 0.0
 
-        elapsed = datetime.utcnow() - self.last_interaction
+        elapsed = datetime.now(timezone.utc) - self.last_interaction
         return elapsed.total_seconds() / 3600
 
     def update_status(self, status: "UserStatus" = None) -> UserStatus:

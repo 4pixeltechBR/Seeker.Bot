@@ -8,7 +8,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .models import EvidenceEntry, DecisionTrace, ProvenanceNode
 
@@ -198,7 +198,7 @@ class EvidenceStore:
         return EvidenceEntry(
             evidence_id=data.get("evidence_id", ""),
             timestamp=datetime.fromisoformat(
-                data.get("timestamp", datetime.utcnow().isoformat())
+                data.get("timestamp", datetime.now(timezone.utc).isoformat())
             ),
             feature=data.get("feature", ""),
             decision=data.get("decision", ""),

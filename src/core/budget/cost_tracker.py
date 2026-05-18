@@ -4,7 +4,7 @@ Gerencia limite diário/mensal e notificações
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from typing import Dict, Optional, List, Tuple
@@ -91,7 +91,7 @@ class RastreadorCustos:
         Registra uma chamada de LLM e retorna alerta se limite excedido.
         Opcionalmente registra economia por cache hit (Phase 4).
         """
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
 
         # Criar métrica
         metrica = CustoMetrica(
@@ -315,7 +315,7 @@ class RastreadorCustos:
 
     def obter_economia_cache_diaria(self, dias: int = 7) -> Dict[str, dict]:
         """Retorna economia de cache dos últimos N dias."""
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         economia = {}
 
         for i in range(dias):
@@ -331,7 +331,7 @@ class RastreadorCustos:
 
     def obter_economia_cache_mensal(self) -> dict:
         """Retorna economia de cache do mês atual."""
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         mes_chave = agora.strftime("%Y-%m")
         total_tokens = self._cache_hits_mensais.get(mes_chave, 0)
         total_economia = self._custo_economizado_mensais.get(mes_chave, 0.0)
@@ -354,7 +354,7 @@ class RastreadorCustos:
 
     def obter_gastos_diarios(self, dias: int = 7) -> Dict[str, float]:
         """Retorna gastos dos últimos N dias"""
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         gastos = {}
 
         for i in range(dias):
@@ -365,7 +365,7 @@ class RastreadorCustos:
 
     def obter_gasto_mensal_atual(self) -> Tuple[str, float]:
         """Retorna mês atual e gasto total"""
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         mes_chave = agora.strftime("%Y-%m")
         custo = self._gastos_mensais.get(mes_chave, 0.0)
         return mes_chave, custo
@@ -405,7 +405,7 @@ class RastreadorCustos:
 
     def obter_resumo_diario(self) -> dict:
         """Retorna resumo do gasto de hoje"""
-        agora = datetime.utcnow()
+        agora = datetime.now(timezone.utc)
         data_chave = agora.strftime("%Y-%m-%d")
         custo_hoje = self._gastos_diarios[data_chave]
 

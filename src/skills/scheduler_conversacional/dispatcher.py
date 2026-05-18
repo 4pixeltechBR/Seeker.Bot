@@ -6,7 +6,7 @@ Executa tarefas agendadas que venceram.
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from src.skills.scheduler_conversacional.models import (
     ScheduledTask,
@@ -94,7 +94,7 @@ class TaskDispatcher:
 
         try:
             # Registrar que começou
-            run.started_at = datetime.utcnow()
+            run.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await self.store.create_run(run)
 
             # Executar instrução (via Cascade)
@@ -125,7 +125,7 @@ class TaskDispatcher:
                 )
 
             # Atualizar task
-            task.last_run_at = datetime.utcnow()
+            task.last_run_at = datetime.now(timezone.utc).replace(tzinfo=None)
             task.last_status = run.status
             task.next_run_at = NextRunCalculator.calculate_next_run(task)
 
@@ -137,8 +137,8 @@ class TaskDispatcher:
                 task.last_error = None
 
             # Salvar atualizações
-            run.finished_at = datetime.utcnow()
-            run.updated_at = datetime.utcnow()
+            run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            run.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await self.store.update_run(run)
             await self.store.update_task(task)
 
@@ -152,8 +152,8 @@ class TaskDispatcher:
             log.error(f"[scheduler.dispatcher] Exception executing task {task.id}: {e}")
             run.status = "failed"
             run.error = str(e)
-            run.finished_at = datetime.utcnow()
-            run.updated_at = datetime.utcnow()
+            run.finished_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            run.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
             try:
                 await self.store.update_run(run)

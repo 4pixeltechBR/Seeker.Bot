@@ -4,7 +4,7 @@ import logging
 import time
 from enum import Enum
 from typing import Optional, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import deque
 
 log = logging.getLogger("seeker.circuit_breaker")
@@ -109,7 +109,7 @@ class CircuitBreaker:
         self._last_failure_time = time.monotonic()
         self._all_failures.append(
             {
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "error": error_msg[:100],
                 "count": self._failure_count,
             }
@@ -136,7 +136,7 @@ class CircuitBreaker:
                 {
                     "from": old_state.value,
                     "to": new_state.value,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
 

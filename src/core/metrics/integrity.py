@@ -1,6 +1,6 @@
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any
 
 log = logging.getLogger("seeker.metrics.integrity")
@@ -25,7 +25,7 @@ class IntegrityMonitor:
     total_cost_usd: float = 0.0
     budget_limit_usd: float = 50.0  # Limite mensal padrão
     
-    start_time: datetime = field(default_factory=datetime.utcnow)
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def hallucination_index(self) -> float:
@@ -64,7 +64,7 @@ class IntegrityMonitor:
 
     def get_integrity_report(self) -> Dict[str, Any]:
         """Retorna relatório completo de integridade."""
-        uptime = datetime.utcnow() - self.start_time
+        uptime = datetime.now(timezone.utc) - self.start_time
         uptime_str = f"{uptime.days}d {uptime.seconds // 3600}h {(uptime.seconds % 3600) // 60}m"
         
         return {
