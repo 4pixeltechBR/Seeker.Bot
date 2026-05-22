@@ -132,7 +132,8 @@ def _get_rate_limiter(config: ModelConfig) -> AsyncRateLimiter:
 
 PROVIDER_TIMEOUTS = {
     "nvidia": 25.0,  # Aumentado para 25s (era 15s) — suporta latência de rede melhor
-    "groq": 15.0,  # Groq é LPU, deve responder instantaneamente
+    "groq": 10.0,  # Groq é LPU, deve responder instantaneamente para acionar fallback rápido
+    "cerebras": 10.0,  # Cerebras LPU, velocidade extrema (~700 tok/s), fallback de 10s
     "gemini": 30.0,  # Padrão, às vezes tem cold start na API
     "deepseek": 40.0,  # Aumentado para 40s (era 30s) — China firewall pode ser lento
     "kimi": 40.0,  # Moonshot API

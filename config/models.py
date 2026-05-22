@@ -196,6 +196,18 @@ GEMINI_25_FLASH = ModelConfig(
     rpd_limit=20,
 )
 
+GEMINI_35_FLASH = ModelConfig(
+    provider="gemini",
+    model_id="gemini-3.5-flash",
+    display_name="Gemini 3.5 Flash",
+    max_tokens=8192,
+    context_window=1_000_000,
+    supports_tool_use=True,
+    training_data_cutoff="2026-03",
+    rpm_limit=15,
+    rpd_limit=1500,
+)
+
 GEMINI_EMBEDDING_2 = ModelConfig(
     provider="gemini",
     model_id="gemini-embedding-001",
@@ -298,6 +310,18 @@ GROQ_LLAMA = ModelConfig(
     rpd_limit=14_400,
 )
 
+GROQ_LLAMA_70B = ModelConfig(
+    provider="groq",
+    model_id="llama-3.3-70b-versatile",
+    display_name="Llama 3.3 70B via Groq",
+    max_tokens=8192,
+    context_window=128_000,
+    supports_tool_use=True,
+    training_data_cutoff="2024-12",
+    rpm_limit=30,
+    rpd_limit=14_400,
+)
+
 MISTRAL_FREE = ModelConfig(
     provider="mistral",
     model_id="mistral-small-latest",
@@ -380,9 +404,9 @@ def build_default_router() -> ModelRouter:
     return ModelRouter(
         routes={
             CognitiveRole.FAST: [
-                GEMINI_31_FLASH_LITE,
-                GROQ_LLAMA,
-                NVIDIA_DEEPSEEK_V32,
+                CEREBRAS_LLAMA_70B,
+                GROQ_LLAMA_70B,
+                GEMINI_35_FLASH,
             ],
             CognitiveRole.LOCAL: [
                 OLLAMA_GEMMA_4,
@@ -393,7 +417,6 @@ def build_default_router() -> ModelRouter:
                 CEREBRAS_LLAMA_70B,  # 1M tok/dia free, ~700 tok/s — primário
                 NVIDIA_DEEPSEEK_V32,
                 GEMINI_3_FLASH,
-                MOONSHOT_KIMI_V1,
                 NVIDIA_NEMOTRON_ULTRA,
                 DEEPSEEK_CHAT,
             ],

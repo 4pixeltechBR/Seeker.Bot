@@ -39,9 +39,13 @@ benchmark_*.log
 
 # Ferramentas Comerciais & Scripts Temporarios
 src/skills/seeker_sales/
+src/skills/seeker_sales_week/
+src/skills/show_leads_daily/
 src/skills/sherlock_news/targets.json
 src/skills/cortex/
 src/skills/revenue_hunter/
+apps/showdeck/
+scripts/migrate_crm_v2.py
 *.bak
 temp_*.py
 check_*.py

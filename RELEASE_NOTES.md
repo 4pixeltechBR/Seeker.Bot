@@ -1,4 +1,31 @@
-﻿# Seeker.Bot v3.3 — "Python 3.12 & Auth Patch" 🚀
+# Seeker.Bot v3.4 — "Google Search Grounding & Quota Safety" 🔍🛡️
+
+Esta release traz a integração nativa do buscador do Google (Google Custom Search API) com otimizações severas de custo e segurança, além de novos mecanismos de contenção de custos e proteção contra loops infinitos de agentes autônomos.
+
+## 🚀 Novidades
+
+### 1. Google Custom Search Engine Integration
+- **Buscador Nativo:** Adicionado o backend do Google Custom Search como alternativa confiável e veloz de pesquisa web global.
+- **Limpeza de Contexto (Token Saving):** Os resultados são limpos em nível de JSON, extraindo-se apenas `title`, `url` (link) e `snippet` antes de alimentar o contexto da IA. Isso reduz significativamente a quantidade de tokens consumidos por busca.
+
+### 2. Cache Local Persistente (SQLite Cache)
+- **Memoization Local:** Toda busca realizada é armazenada localmente com um TTL (Time-To-Live) rígido de 24 horas (`data/search_cache.db`).
+- **Custo Zero em Repetições:** Buscas idênticas acionam o cache local instantaneamente, retornando `Cache HIT` e consumindo 0 créditos de API externa.
+
+### 3. Gestão Inteligente de Cotas (Safety Throttle)
+- **Bloqueio de Gastos:** Implementada uma trava dinâmica no `QuotaManager`. Para a API do Google Custom Search, a cota diária limite foi fixada em **90 buscas/dia** (margem de segurança sobre a cota grátis de 100/dia).
+- **Fallback Transparente:** Ao atingir o limite, o motor migra automaticamente de forma transparente para provedores alternativos (Tavily/Brave) ou processa a consulta via raciocínio puramente em contexto.
+
+### 4. Válvula de Segurança Anti-Loop
+- **Janela de Sessão Deslizante:** Para evitar que o agente entre em loops de raciocínio lógico e esvazie toda a cota de buscas em poucos minutos, limitamos as buscas consecutivas na mesma sessão a um teto dinâmico (padrão: 4 buscas).
+- **Auto-Reset:** Um período de inatividade de 30 segundos reseta o contador de sessão, garantindo usabilidade em execuções normais e proteção absoluta contra bugs de looping.
+
+## 🔧 Correções e Melhorias
+
+- **Configurações Seguras (.env.example):** Adicionadas as variáveis de ambiente `GOOGLE_SEARCH_API_KEY` e `GOOGLE_SEARCH_CX` documentadas para facilitar a configuração segura por parte do usuário.
+
+---
+# Seeker.Bot v3.3 — "Python 3.12 & Auth Patch" 🚀
 
 Esta release traz a atualização do core para Python 3.12, garantindo maior performance assíncrona, além de correções críticas na autenticação do Telegram e nova padronização de branding (Logo).
 

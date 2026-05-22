@@ -698,11 +698,13 @@ class GoalNotifier:
         admin_chats: set[int] | None = None,
         email_client=None,
         email_recipients: list[str] | None = None,
+        pipeline=None,
     ):
         self.bot = bot
         self.admin_chats = admin_chats or set()
         self.email_client = email_client
         self.email_recipients = email_recipients or []
+        self.pipeline = pipeline
 
     async def send(
         self,
@@ -859,6 +861,15 @@ class GoalNotifier:
                             parse_mode=ParseMode.HTML,
                             reply_markup=reply_markup,
                         )
+                
+                # Registra na memória do pipeline para não cortar o contexto!
+                if self.pipeline and hasattr(self.pipeline, "session"):
+                    # Salva no formato [Notification] para que o LLM entenda
+                    await self.pipeline.session.add_turn(
+                        session_id=str(uid),
+                        role="assistant",
+                        content=f"[Notificação Automática do {goal_name}]\n{content}"
+                    )
             except Exception as e:
                 log.error(
                     f"[notifier/{goal_name}] Telegram falhou {uid}: {e}", exc_info=True

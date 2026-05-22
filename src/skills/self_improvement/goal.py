@@ -193,22 +193,22 @@ class SelfImprovementGoal:
             f"=== ORIGINAL SOURCE CODE ===\n{source_code}\n===========================\n"
         )
 
-        from config.models import ModelRouter, DEEPSEEK_CHAT
+        from config.models import ModelRouter, MOONSHOT_KIMI_V1
         from src.core.utils import parse_llm_json
 
         try:
-            # Cria um router one-off apenas com DeepSeek para tarefas analíticas pesadas
-            deepseek_router = ModelRouter(routes={CognitiveRole.DEEP: [DEEPSEEK_CHAT]})
+            # Cria um router one-off apenas com Kimi para tarefas analíticas pesadas
+            kimi_router = ModelRouter(routes={CognitiveRole.DEEP: [MOONSHOT_KIMI_V1]})
 
             response = await invoke_with_fallback(
                 CognitiveRole.DEEP,
                 LLMRequest(
                     messages=[{"role": "user", "content": prompt}],
                     system="Você retorna APENAS JSON válido sem marcações markdown extra.",
-                    max_tokens=6144,
+                    max_tokens=4000,
                     temperature=0.0,
                 ),
-                deepseek_router,
+                kimi_router,
                 self.pipeline.api_keys,
             )
             cycle_cost += response.cost_usd

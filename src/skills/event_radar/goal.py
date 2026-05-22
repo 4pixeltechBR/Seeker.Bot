@@ -156,9 +156,59 @@ class EventRadarGoal:
             )
 
         cidade = state["cidade_atual"]
-        estado_nome = state.get("estado_alvo", "Goás")
+        estado_nome = state.get("estado_alvo", "Goiás")
         uf = state.get("uf", "GO")
 
+        # Chama a função de mineração extraída
+        events, cost_usd = await self.mine_city(cidade, estado_nome, uf)
+
+        if events:
+            self._save_results(events)
+
+            # Gera Relatórios (PDF e CSV) para Sincronização Local
+            try:
+                await self._sync_reports(estado_nome)
+            except Exception as e:
+                logger.error(f"Erro ao gerar relatórios do radar: {e}")
+
+        # Avança para a próxima cidade
+        if state["cidades_pendentes"]:
+            state["cidade_atual"] = state["cidades_pendentes"].pop(0)
+        else:
+            state["cidade_atual"] = None
+            state["finalizado"] = True
+
+        remaining = len(state["cidades_pendentes"])
+        self._save_state_file(state)
+        self._status = GoalStatus.IDLE
+
+        if state["finalizado"]:
+            msg_final = f"✅ Varredura de {estado_nome} finalizada! Próximo estado? (Edite data/event_radar_state.json)"
+            return GoalResult(
+                success=True,
+                summary=msg_final,
+                notification=msg_final,
+                cost_usd=cost_usd,
+            )
+
+        progress_msg = (
+            f"📍 <b>EventRadar:</b> {cidade} processada.\n"
+            f"📅 Eventos extraídos: {len(events)}\n"
+            f"🏙️ Restam em {estado_nome}: {remaining}"
+        )
+
+        return GoalResult(
+            success=True,
+            summary=f"{cidade} processada.",
+            notification=progress_msg,
+            cost_usd=cost_usd,
+        )
+
+    async def mine_city(self, cidade: str, estado_nome: str, uf: str) -> tuple[list[dict], float]:
+        """
+        Executa a varredura e extração de eventos para uma única cidade específica.
+        Retorna a lista de eventos encontrados e o custo USD acumulado na operação.
+        """
         # Estratégia multi-query: 5 buscas paralelas por cidade cobrindo fontes oficiais e populares
         queries = [
             f"calendario oficial de eventos 2026 prefeitura de {cidade} {estado_nome}",
@@ -223,6 +273,9 @@ class EventRadarGoal:
             max_tokens=4096,
         )
 
+        events = []
+        cost_usd = 0.0
+
         try:
             resp = await invoke_with_fallback(
                 CognitiveRole.FAST,
@@ -230,6 +283,7 @@ class EventRadarGoal:
                 self.pipeline.model_router,
                 self.pipeline.api_keys,
             )
+            cost_usd += getattr(resp, "cost_usd", 0.0)
 
             content = resp.text.strip()
             # Remove markdown code blocks se presentes
@@ -273,6 +327,7 @@ class EventRadarGoal:
                     self.pipeline.model_router,
                     self.pipeline.api_keys,
                 )
+                cost_usd += getattr(kimi_resp, "cost_usd", 0.0)
                 kimi_content = re.sub(
                     r"```(?:json)?", "", kimi_resp.text.strip()
                 ).strip()
@@ -286,48 +341,7 @@ class EventRadarGoal:
             except Exception as kimi_e:
                 logger.warning(f"Kimi fallback falhou para {cidade}: {kimi_e}")
 
-        if events:
-            self._save_results(events)
-
-            # Gera Relatórios (PDF e CSV) para Sincronização Local
-            try:
-                estado_alvo = state.get("estado_alvo", "Goiás")
-                await self._sync_reports(estado_alvo)
-            except Exception as e:
-                logger.error(f"Erro ao gerar relatórios do radar: {e}")
-
-        # Avança para a próxima cidade
-        if state["cidades_pendentes"]:
-            state["cidade_atual"] = state["cidades_pendentes"].pop(0)
-        else:
-            state["cidade_atual"] = None
-            state["finalizado"] = True
-
-        remaining = len(state["cidades_pendentes"])
-        self._save_state_file(state)
-        self._status = GoalStatus.IDLE
-
-        if state["finalizado"]:
-            msg_final = f"✅ Varredura de {estado_nome} finalizada! Próximo estado? (Edite data/event_radar_state.json)"
-            return GoalResult(
-                success=True,
-                summary=msg_final,
-                notification=msg_final,
-                cost_usd=getattr(resp, "cost_usd", 0),
-            )
-
-        progress_msg = (
-            f"📍 <b>EventRadar:</b> {cidade} processada.\n"
-            f"📅 Eventos extraídos: {len(events)}\n"
-            f"🏙️ Restam em {estado_nome}: {remaining}"
-        )
-
-        return GoalResult(
-            success=True,
-            summary=f"{cidade} processada.",
-            notification=progress_msg,
-            cost_usd=getattr(resp, "cost_usd", 0),
-        )
+        return events, cost_usd
 
     async def _sync_reports(self, estado_nome: str):
         """Gera CSV e PDF atualizados para sincronização local."""

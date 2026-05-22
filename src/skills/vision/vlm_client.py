@@ -308,11 +308,19 @@ class VLMClient:
             log.debug("[vlm] holo15_ground ausente, fallback VLM generalista")
 
         # Stage 2 + 3 — VLM Ollama generalista com fallback Gemini cloud
-        prompt = (
-            f"Find the UI element: '{description}'. "
-            f"Return ONLY a JSON object with the center coordinates: "
-            f'{{"x": <center_x_pixels>, "y": <center_y_pixels>, "confidence": <0.0-1.0>}}'
-        )
+        is_qwen_vl = any(q in self.model.lower() for q in ["qwen2.5vl", "qwen3-vl", "qwen2.5-vl"])
+        if is_qwen_vl:
+            prompt = (
+                f"Identify the UI element '{description}' in the image and return its location "
+                f"in JSON format matching exactly: "
+                f'{{"point_2d": [x, y], "label": "{description}"}}'
+            )
+        else:
+            prompt = (
+                f"Find the UI element: '{description}'. "
+                f"Return ONLY a JSON object with the center coordinates: "
+                f'{{"x": <center_x_pixels>, "y": <center_y_pixels>, "confidence": <0.0-1.0>}}'
+            )
 
         raw_text = await self._call_with_fallback(
             self.analyze_screenshot(image_bytes, prompt),
@@ -322,7 +330,17 @@ class VLMClient:
         )
         log.info(f"[vlm] locate_element raw: {raw_text}")
 
-        return _parse_bbox_response(raw_text)
+        # Get actual image size for normalized coordinate scaling
+        width, height = 1920, 1080
+        try:
+            from PIL import Image
+            import io
+            image = Image.open(io.BytesIO(image_bytes))
+            width, height = image.size
+        except Exception as e:
+            log.warning(f"[vlm] Nao foi possivel obter tamanho do print: {e}")
+
+        return _parse_bbox_response(raw_text, width=width, height=height, model_name=self.model)
 
     async def describe_page(self, image_bytes: bytes) -> str:
         """Descrição estruturada da página para decisão do agente."""
@@ -414,27 +432,144 @@ class VLMClient:
 # ── Helpers ───────────────────────────────────────────────
 
 
-def _parse_bbox_response(raw_text: str) -> dict:
-    """Parse centralizado de respostas de localização do VLM."""
-    # Tenta JSON direto
-    try:
-        clean = raw_text.strip()
-        if clean.startswith("```json"):
-            clean = clean[7:]
-        elif clean.startswith("```"):
-            clean = clean[3:]
-        if clean.endswith("```"):
-            clean = clean[:-3]
-        clean = clean.strip()
+def _parse_bbox_response(raw_text: str, width: int = 1920, height: int = 1080, model_name: str = "") -> dict:
+    """
+    Parse centralizado de respostas de localização do VLM.
+    Suporta JSON, tags do Qwen2.5-VL e coordenadas de UI-TARS.
+    """
+    import re
 
-        parsed = json.loads(clean)
-        # Valida campos mínimos
-        if "x" in parsed and "y" in parsed:
-            parsed.setdefault("confidence", 0.5)
-            return parsed
-    except (json.JSONDecodeError, ValueError):
-        pass
+    clean = raw_text.strip()
+    is_qwen = "qwen" in model_name.lower() or "<|point_start|>" in clean or "<|box_start|>" in clean
+
+    # 1. Tenta JSON
+    try:
+        json_text = clean
+        if json_text.startswith("```json"):
+            json_text = json_text[7:]
+        elif json_text.startswith("```"):
+            json_text = json_text[3:]
+        if json_text.endswith("```"):
+            json_text = json_text[:-3]
+        json_text = json_text.strip()
+
+        parsed = None
+        try:
+            parsed = json.loads(json_text)
+        except (json.JSONDecodeError, ValueError):
+            # Procura por qualquer bloco { ... }
+            match = re.search(r'(\{.*\})', json_text, re.DOTALL)
+            if match:
+                try:
+                    parsed = json.loads(match.group(1))
+                except (json.JSONDecodeError, ValueError):
+                    pass
+
+        if parsed:
+            # point_2d: {"point_2d": [x, y]}
+            if "point_2d" in parsed and isinstance(parsed["point_2d"], list) and len(parsed["point_2d"]) >= 2:
+                x_val, y_val = parsed["point_2d"][0], parsed["point_2d"][1]
+                # Se for Qwen, point_2d pode estar em [x, y] ou [y, x] dependendo da prompt.
+                # Como nossa prompt pede explicitamente: {"point_2d": [x, y]}, confiamos no [x, y].
+                # Mas validamos se estão normalizados
+                if x_val <= 1000 and y_val <= 1000 and (x_val > 0 or y_val > 0):
+                    x_val = (x_val / 1000.0) * width
+                    y_val = (y_val / 1000.0) * height
+                return {
+                    "x": x_val,
+                    "y": y_val,
+                    "confidence": parsed.get("confidence", 0.90)
+                }
+
+            # bbox_2d: {"bbox_2d": [x1, y1, x2, y2]}
+            if "bbox_2d" in parsed and isinstance(parsed["bbox_2d"], list) and len(parsed["bbox_2d"]) >= 4:
+                x1, y1, x2, y2 = parsed["bbox_2d"]
+                x_center = (x1 + x2) / 2
+                y_center = (y1 + y2) / 2
+                if x_center <= 1000 and y_center <= 1000:
+                    x_center = (x_center / 1000.0) * width
+                    y_center = (y_center / 1000.0) * height
+                return {
+                    "x": x_center,
+                    "y": y_center,
+                    "confidence": parsed.get("confidence", 0.85)
+                }
+
+            # Campos clássicos {"x": val, "y": val}
+            if "x" in parsed and "y" in parsed:
+                x_val, y_val = float(parsed["x"]), float(parsed["y"])
+                if x_val <= 1000 and y_val <= 1000:
+                    x_val = (x_val / 1000.0) * width
+                    y_val = (y_val / 1000.0) * height
+                return {
+                    "x": x_val,
+                    "y": y_val,
+                    "confidence": parsed.get("confidence", 0.85)
+                }
+    except Exception as e:
+        log.debug(f"[vlm.parser] Falha no parsing de JSON: {e}")
+
+    # 2. Tenta tags nativas do Qwen2.5-VL (<|point_start|>(y,x)<|point_end|>)
+    try:
+        qwen_point = re.search(r'<\|point_start\|>\s*\(?(\d+)\s*,\s*(\d+)\)?\s*<\|point_end\|>', clean)
+        if qwen_point:
+            # Qwen nativo é (y, x) normalizado para 1000
+            y_norm = int(qwen_point.group(1))
+            x_norm = int(qwen_point.group(2))
+            return {
+                "x": (x_norm / 1000.0) * width,
+                "y": (y_norm / 1000.0) * height,
+                "confidence": 0.95
+            }
+
+        qwen_box = re.search(r'<\|box_start\|>\s*\(?(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\)?\s*<\|box_end\|>', clean)
+        if qwen_box:
+            # Qwen nativo é (y1, x1, y2, x2) normalizado para 1000
+            y1 = int(qwen_box.group(1))
+            x1 = int(qwen_box.group(2))
+            y2 = int(qwen_box.group(3))
+            x2 = int(qwen_box.group(4))
+            x_center = (x1 + x2) / 2.0
+            y_center = (y1 + y2) / 2.0
+            return {
+                "x": (x_center / 1000.0) * width,
+                "y": (y_center / 1000.0) * height,
+                "confidence": 0.90
+            }
+    except Exception as e:
+        log.debug(f"[vlm.parser] Falha no parsing de tags Qwen: {e}")
+
+    # 3. Tenta qualquer par de coordenadas (x, y) ou (y, x) como (num1, num2) em parênteses ou colchetes
+    try:
+        pattern = re.search(r'(?:\(|\[)\s*(\d+)\s*,\s*(\d+)\s*(?:\)|\])', clean)
+        if pattern:
+            num1 = int(pattern.group(1))
+            num2 = int(pattern.group(2))
+
+            # Se os valores forem <= 1000, assumimos que são normalizados
+            is_normalized = (num1 <= 1000 and num2 <= 1000)
+
+            # Para modelos Qwen, o formato padrão é (y, x). Para UI-TARS e outros, é (x, y).
+            if is_qwen:
+                y_val, x_val = num1, num2
+            else:
+                x_val, y_val = num1, num2
+
+            if is_normalized:
+                x_pixel = (x_val / 1000.0) * width
+                y_pixel = (y_val / 1000.0) * height
+            else:
+                x_pixel = x_val
+                y_pixel = y_val
+
+            return {
+                "x": x_pixel,
+                "y": y_pixel,
+                "confidence": 0.80
+            }
+    except Exception as e:
+        log.debug(f"[vlm.parser] Falha no parsing genérico de coordenadas: {e}")
 
     # Fallback: retorna raw com confidence 0
-    log.warning("[vlm] Parsing de bbox falhou, retornando raw")
+    log.warning(f"[vlm] Parsing de bbox falhou para input: {raw_text!r}")
     return {"raw_bbox": raw_text, "x": 0, "y": 0, "confidence": 0.0}

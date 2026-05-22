@@ -237,7 +237,7 @@ class DeepPhase:
                     response_text=response_to_verify,
                     evidence_context=all_evidence,
                 ),
-                timeout=40.0,
+                timeout=20.0,
             )
             llm_calls += 1
 
@@ -308,52 +308,65 @@ class DeepPhase:
         existing_web: str,
     ) -> str:
         """
-        RESEARCH LOOPS — resolve conflitos da arbitragem com fontes primárias.
+        RESEARCH LOOPS PARALELOS — resolve conflitos da arbitragem com fontes primárias.
 
-        Quando a arbitragem detecta conflitos entre modelos:
-        1. Gera query de busca ESPECÍFICA para o tópico em conflito
-        2. Busca na web por fonte primária
-        3. Adiciona o resultado ao contexto web
-        4. Marca o conflito como "investigado"
+        Antes: loop sequencial (2 conflitos = 2 buscas em série)
+        Agora: asyncio.gather paralelo (2 conflitos = 2 buscas concorrentes)
 
-        Max 2 loops para controlar custo (~$0.002 por loop).
+        Max MAX_RESEARCH_LOOPS zonas investigadas por chamada.
         """
+        zones_to_investigate = arb.conflict_zones[: self.MAX_RESEARCH_LOOPS]
+        if not zones_to_investigate:
+            return existing_web
+
+        # Dispara todos os research loops em paralelo
+        tasks = [self._investigate_conflict(zone) for zone in zones_to_investigate]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Monta contexto web com os resultados
         resolved = 0
+        for zone, result in zip(zones_to_investigate, results):
+            if isinstance(result, Exception):
+                log.warning(f"[deep] Research loop falhou para '{zone.topic}': {result}")
+                continue
+            if result:  # string com contexto encontrado
+                existing_web += result
+                zone.resolution = "Investigado via web"
+                zone.needs_primary_source = False
+                resolved += 1
 
-        for i, zone in enumerate(arb.conflict_zones):
-            if i >= self.MAX_RESEARCH_LOOPS:
-                log.info(
-                    f"[deep] Research loops: atingiu limite "
-                    f"({self.MAX_RESEARCH_LOOPS}), "
-                    f"{len(arb.conflict_zones) - i} conflitos restantes"
-                )
-                break
-
-            # Query específica para o conflito
-            query = f"{zone.topic} official documentation 2025 2026"
-            log.info(f"[deep] Research loop {i + 1}: buscando '{query[:60]}...'")
-
-            try:
-                results = await self.searcher.search(query, max_results=3)
-                if results.results:
-                    context_part = results.to_context(max_results=2)
-                    existing_web += (
-                        f"\n\n━━━ INVESTIGAÇÃO DE CONFLITO: {zone.topic} ━━━\n"
-                        f"{context_part}"
-                    )
-                    zone.resolution = (
-                        f"Investigado via web ({len(results.results)} fontes)"
-                    )
-                    zone.needs_primary_source = False
-                    resolved += 1
-            except Exception as e:
-                log.warning(f"[deep] Research loop falhou para '{zone.topic}': {e}")
-
+        skipped = len(arb.conflict_zones) - len(zones_to_investigate)
         if resolved > 0:
             log.info(
-                f"[deep] Research loops: {resolved}/{len(arb.conflict_zones)} conflitos investigados"
+                f"[deep] Research loops: {resolved}/{len(zones_to_investigate)} conflitos investigados"
+                + (f" ({skipped} ignorados por limite)" if skipped else "")
             )
 
         return existing_web
+
+    async def _investigate_conflict(self, zone) -> str:
+        """
+        Investiga UM conflito via web search.
+
+        Retorna string de contexto a ser adicionada ao web_context,
+        ou string vazia se a busca falhou ou não encontrou resultados.
+        """
+        query = f"{zone.topic} official documentation 2025 2026"
+        log.info(f"[deep] Investigando conflito: '{query[:60]}...'")
+        try:
+            results = await asyncio.wait_for(
+                self.searcher.search(query, max_results=3), timeout=15.0
+            )
+            if results.results:
+                context_part = results.to_context(max_results=2)
+                return (
+                    f"\n\n━━━ INVESTIGAÇÃO DE CONFLITO: {zone.topic} ━━━\n"
+                    f"{context_part}"
+                )
+        except asyncio.TimeoutError:
+            log.warning(f"[deep] Research loop timeout para '{zone.topic}'")
+        except Exception as e:
+            log.warning(f"[deep] Research loop falhou para '{zone.topic}': {e}")
+        return ""
 
     # _generate_search_queries removido — usa DeliberatePhase._build_search_queries (DRY)

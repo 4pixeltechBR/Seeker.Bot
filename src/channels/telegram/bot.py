@@ -5,33 +5,20 @@ src/channels/telegram/bot.py
 Executar: python -m src
 """
 
-# ruff: noqa: E402
-# Imports below the load_dotenv() call are intentional — see comment near line 15.
-
 import asyncio
 import logging
 import os
 import html
 
 from dotenv import load_dotenv
-
-# CRITICAL: Load .env BEFORE importing pipeline/prompts.
-# Prompt modules read ASSISTANT_NAME at module import time and bake it into
-# f-string system prompts. If we load .env later (inside main()), the bot
-# silently falls back to "Seeker" even when ASSISTANT_NAME is set.
-_env_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-    "config",
-    ".env",
-)
-load_dotenv(_env_path) if os.path.exists(_env_path) else load_dotenv()
-
 from aiogram import Bot, Dispatcher, F
+from prometheus_client import start_http_server
 from aiogram.types import Message, CallbackQuery, BotCommand, User
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from config.models import CognitiveRole
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import cleanup_client_pool
 from src.skills.vision.afk_protocol import AFKProtocol
@@ -55,6 +42,9 @@ log = logging.getLogger("seeker.telegram")
 TYPING_INTERVAL = 4
 
 
+
+
+
 async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
     while not stop.is_set():
         try:
@@ -70,123 +60,86 @@ async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
 async def setup_commands(bot: Bot):
     commands = [
         BotCommand(command="/start", description="Menu de ajuda e inicialização"),
-        BotCommand(
-            command="/status", description="Painel de providers, memória e metas"
-        ),
-        BotCommand(
-            command="/saude", description="Dashboard de saúde dos goals (detalhado)"
-        ),
+        BotCommand(command="/status", description="Painel de providers, memória e metas"),
+        BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
         BotCommand(command="/perf", description="Dashboard de performance e latência"),
-        BotCommand(
-            command="/perf_detailed", description="Métricas detalhadas por fase"
-        ),
-        BotCommand(
-            command="/cascade_status",
-            description="Status detalhado da API Cascade (6 tiers)",
-        ),
-        BotCommand(
-            command="/recovery", description="Status de circuit breakers e degradação"
-        ),
+        BotCommand(command="/perf_detailed", description="Métricas detalhadas por fase"),
+        BotCommand(command="/cascade_status", description="Status detalhado da API Cascade (6 tiers)"),
+        BotCommand(command="/recovery", description="Status de circuit breakers e degradação"),
         BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
         BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
         BotCommand(command="/search", description="Busca direta e forçada na web"),
+        BotCommand(command="/deep", description="🕵️ Pesquisa profunda autônoma (Kimi)"),
         BotCommand(command="/rate", description="Exibe status dos rate limiters"),
         BotCommand(command="/decay", description="Roda limpeza de confiança manual"),
         BotCommand(command="/budget", description="Gastos de hoje por provedor"),
         BotCommand(command="/budget_monthly", description="Gastos do mês por provedor"),
-        BotCommand(
-            command="/data_stats", description="Estatisticas do armazem de dados"
-        ),
-        BotCommand(
-            command="/data_clean", description="Executa limpeza de dados antigos"
-        ),
-        BotCommand(
-            command="/dashboard", description="Dashboard financeiro com status atual"
-        ),
-        BotCommand(
-            command="/forecast",
-            description="Previsoes de custos para proximos 7 e 30 dias",
-        ),
+        BotCommand(command="/data_stats", description="Estatisticas do armazem de dados"),
+        BotCommand(command="/data_clean", description="Executa limpeza de dados antigos"),
+        BotCommand(command="/dashboard", description="Dashboard financeiro com status atual"),
+        BotCommand(command="/forecast", description="Previsoes de custos para proximos 7 e 30 dias"),
         BotCommand(command="/habits", description="Padrões de decisão aprendidos"),
-        BotCommand(
-            command="/print", description="Screenshot rápido da tela sem analise"
-        ),
+        BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
         BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
-        BotCommand(
-            command="/git_backup",
-            description="Faz backup manual do código no GitHub privado",
-        ),
-        BotCommand(
-            command="/configure_news", description="Personaliza nichos do SenseNews"
-        ),
-        BotCommand(
-            command="/agendar",
-            description="📅 Agenda nova tarefa (wizard conversacional)",
-        ),
+        BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
+        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
+        BotCommand(command="/agendar", description="📅 Agenda nova tarefa (wizard conversacional)"),
         BotCommand(command="/listar", description="📋 Lista tarefas agendadas do chat"),
-        BotCommand(
-            command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"
-        ),
+        BotCommand(command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"),
         BotCommand(command="/pausar", description="⏸ Pausa tarefa (/pausar <ID>)"),
-        BotCommand(
-            command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"
-        ),
+        BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
         BotCommand(command="/remover", description="🗑 Remove tarefa (/remover <ID>)"),
-        BotCommand(
-            command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)"
-        ),
-        BotCommand(
-            command="/bug", description="🐛 Analisa bug com contexto e sugestões"
-        ),
-        BotCommand(
-            command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"
-        ),
+        BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)"),
+        BotCommand(command="/bug", description="🐛 Analisa bug com contexto e sugestões"),
+        BotCommand(command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"),
         BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug"),
-        BotCommand(
-            command="/sherlock",
-            description="🕵️ SherlockNews: Painel Interativo de Monitoramento IA",
-        ),
-        BotCommand(
-            command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"
-        ),
+        BotCommand(command="/sherlock", description="🕵️ SherlockNews: Painel Interativo de Monitoramento IA"),
+        BotCommand(command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"),
         BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
-        BotCommand(
-            command="/drive",
-            description="📁 Google Drive: listar, criar, enviar e baixar arquivos",
-        ),
-        BotCommand(
-            command="/audit_sara", description="🛡️ Dashboard de Integridade (Hallucinations/SARA)"
-        ),
-        BotCommand(
-            command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"
-        ),
-        BotCommand(
-            command="/restart", description="♻️ Reinicia o sistema via Watchdog"
-        ),
-        BotCommand(
-            command="/scout_config", description="🔭 Configura o radar de tecnologias"
-        ),
-        BotCommand(
-            command="/switch", description="🛸 Alterna o provedor de cérebro (DeepSeek/Kimi)"
-        ),
+        BotCommand(command="/drive", description="📁 Google Drive: listar, criar, enviar e baixar arquivos"),
+        BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
     ]
     await bot.set_my_commands(commands)
 
 
-def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[int]):
+async def check_storage_health(notifier: GoalNotifier):
+    """
+    Pilar 3: HealthCheck de Storage. 
+    Verifica se o storage principal (GDRIVE_PATH) está acessível e alerta no Telegram se falhar.
+    """
+    gdrive_path = os.getenv("GDRIVE_PATH")
+    if not gdrive_path:
+        return True # Sem configuração de drive, opera normal local
 
+    if not os.path.exists(gdrive_path):
+        log.error(f"[health] GDRIVE_PATH definido mas INACESSÍVEL: {gdrive_path}")
+        try:
+            await notifier.notify_admin(
+                "<b>🚨 ALERTA DE PERSISTÊNCIA (Pilar 3)</b>\n\n"
+                f"A unidade de storage <code>{gdrive_path}</code> está <b>inacessível</b>.\n\n"
+                "⚠️ O sistema de salvamento de dossiês foi interrompido para evitar perda de dados.\n"
+                "💡 <i>Certifique-se que o Google Drive Desktop está aberto e a unidade I: montada.</i>"
+            )
+        except Exception as e:
+            log.warning(f"Falha ao enviar alerta de storage: {e}")
+        return False
+    
+    log.info(f"[health] Storage verificado: {gdrive_path} (ONLINE)")
+    return True
+
+
+def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[int]):
+    
     # Adiciona dependências no dispatcher
     dp["pipeline"] = pipeline
     dp["allowed_users"] = allowed_users
-
+    
     from src.channels.telegram.commands.sherlock import sherlock_router
-
     dp.include_router(sherlock_router)
 
     # --- AUTH MIDDLEWARE (covers every message + callback_query) ---
     from src.channels.telegram.middlewares.auth import AuthMiddleware
-
     _auth = AuthMiddleware(allowed_users)
     dp.message.middleware(_auth)
     dp.callback_query.middleware(_auth)
@@ -194,22 +147,19 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     # Initialize Knowledge Vault com VLM + WebSearcher para enriquecimento
     from src.skills.vision.vlm_client import VLMClient
     from src.core.search.web import WebSearcher
-
     vlm = VLMClient()
     web_searcher = WebSearcher(
         tavily_key=os.getenv("TAVILY_API_KEY", ""),
         brave_key=os.getenv("BRAVE_API_KEY", ""),
     )
-    vault = KnowledgeVault(
-        pipeline.cascade_adapter, vlm_client=vlm, web_searcher=web_searcher
-    )
+    vault = KnowledgeVault(pipeline.cascade_adapter, vlm_client=vlm, web_searcher=web_searcher)
     dp["vault_debouncer"] = {}  # Para agrupamento de mídias
 
     # Variaveis de estado local
     _obsidian_wait_users = set()
     _transcribe_wait_users = set()
     _bug_context = {}
-
+    
     def _check_obsidian_state(uid: int) -> bool:
         return uid in _obsidian_wait_users
 
@@ -232,19 +182,12 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     setup_vision_handlers(dp, pipeline)
     setup_vault_handlers(dp, pipeline, vault, _obsidian_wait_users)
     setup_development_handlers(dp, pipeline, _bug_context)
-    setup_message_handlers(
-        dp,
-        pipeline,
-        vault,
-        _obsidian_wait_users,
-        _check_obsidian_state,
-        _transcribe_wait_users,
-        _check_transcribe_state,
-    )
+    setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
 
     from src.channels.telegram.commands.drive import setup_drive_handlers
-
     setup_drive_handlers(dp, pipeline)
+
+
 
     @dp.message(F.text == "/start")
     async def cmd_start(message: Message):
@@ -277,7 +220,6 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/bandit — progresso do LinUCB (shadow mode)\n\n"
             "<b>🚀 Utilitários:</b>\n"            "/git_backup — backup manual no GitHub\n"
             "/configure_news — personaliza notícias\n"
-            "/audit_sara — dashboard de integridade (hallucination/budget)\n"
             "/drive — 📁 acesso ao Google Drive"
         )
 
@@ -294,22 +236,17 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         # Cria keyboard com botões para cada nicho
         buttons = []
         for niche in niche_names:
-            buttons.append(
-                [
-                    InlineKeyboardButton(
-                        text=f"✓ {niche}", callback_data=f"niche_toggle:{niche}"
-                    )
-                ]
-            )
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"✓ {niche}",
+                    callback_data=f"niche_toggle:{niche}"
+                )
+            ])
 
         # Botão "Confirmar"
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="✅ Confirmar Seleção", callback_data="niches_done"
-                )
-            ]
-        )
+        buttons.append([
+            InlineKeyboardButton(text="✅ Confirmar Seleção", callback_data="niches_done")
+        ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -318,7 +255,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "Escolha quais nichos de notícias te interessam:\n\n"
             "<i>Clique para selecionar/desselecionar, depois confirme.</i>",
             reply_markup=keyboard,
-            parse_mode=ParseMode.HTML,
+            parse_mode=ParseMode.HTML
         )
 
     @dp.callback_query(F.data.startswith("niche_toggle:"))
@@ -346,22 +283,17 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
         buttons = []
         for n in niche_names:
             check = "✅" if n in selected else "☐"
-            buttons.append(
-                [
-                    InlineKeyboardButton(
-                        text=f"{check} {n}", callback_data=f"niche_toggle:{n}"
-                    )
-                ]
-            )
+            buttons.append([
+                InlineKeyboardButton(
+                    text=f"{check} {n}",
+                    callback_data=f"niche_toggle:{n}"
+                )
+            ])
 
         # Botão "Confirmar"
-        buttons.append(
-            [
-                InlineKeyboardButton(
-                    text="✅ Confirmar Seleção", callback_data="niches_done"
-                )
-            ]
-        )
+        buttons.append([
+            InlineKeyboardButton(text="✅ Confirmar Seleção", callback_data="niches_done")
+        ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -392,15 +324,13 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
                 f"<b>✅ Preferências Salvas!</b>\n\n"
                 f"<b>Seus nichos:</b>\n  {niche_list}\n\n"
                 f"Suas notícias personalizadas virão todo dia às 10:00 AM.",
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.HTML
             )
             # Limpa seleção temporária
             if user_id in niche_selection:
                 del niche_selection[user_id]
         else:
-            await query.answer(
-                "Erro ao salvar preferências. Tente novamente.", show_alert=True
-            )
+            await query.answer("Erro ao salvar preferências. Tente novamente.", show_alert=True)
 
     @dp.message(F.text == "/configure_news")
     async def cmd_configure_news(message: Message):
@@ -427,48 +357,97 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             lines = [f"<b>🔍 {html.escape(query)}</b>\n"]
             for r in results.results:
                 lines.append(
-                    f'<b>{r.position}.</b> <a href="{r.url}">'
+                    f"<b>{r.position}.</b> <a href=\"{r.url}\">"
                     f"{html.escape(r.title[:60])}</a>\n"
                     f"  <i>{html.escape(r.snippet[:150])}</i>\n"
                 )
-            await message.answer(
-                "\n".join(lines),
-                parse_mode=ParseMode.HTML,
-                disable_web_page_preview=True,
-            )
+            await message.answer("\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
         except (AttributeError, TypeError) as e:
-            log.error(
-                f"[search] Searcher not properly configured: {e}",
-                exc_info=True,
-                extra={"context": "search_command", "error_type": type(e).__name__},
-            )
+            log.error(f"[search] Searcher not properly configured: {e}", exc_info=True,
+                      extra={"context": "search_command", "error_type": type(e).__name__})
             await message.answer("❌ Serviço de busca não está disponível")
         except ValueError as e:
-            log.error(
-                f"[search] Invalid search query: {e}",
-                exc_info=True,
-                extra={"context": "search_command", "error_type": "ValueError"},
-            )
+            log.error(f"[search] Invalid search query: {e}", exc_info=True,
+                      extra={"context": "search_command", "error_type": "ValueError"})
             await message.answer("❌ Erro na busca: consulta inválida")
         except asyncio.TimeoutError:
             log.warning("[search] Search operation timeout")
-            await message.answer(
-                "⏱️ Timeout na busca (>30s). Tente novamente com uma query mais simples."
-            )
+            await message.answer("⏱️ Timeout na busca (>30s). Tente novamente com uma query mais simples.")
         except (RuntimeError, OSError) as e:
-            log.error(
-                f"[search] Search service error: {e}",
-                exc_info=True,
-                extra={"context": "search_command", "error_type": type(e).__name__},
-            )
+            log.error(f"[search] Search service error: {e}", exc_info=True,
+                      extra={"context": "search_command", "error_type": type(e).__name__})
             await message.answer(f"❌ Erro na busca: {str(e)[:100]}")
         except Exception as e:
-            log.critical(
-                f"[search] Unexpected error in search: {e}",
-                exc_info=True,
-                extra={"context": "search_command", "error_type": type(e).__name__},
-            )
+            log.critical(f"[search] Unexpected error in search: {e}", exc_info=True,
+                         extra={"context": "search_command", "error_type": type(e).__name__})
             await message.answer("❌ Erro inesperado na busca")
+        finally:
+            stop_typing.set()
+            try:
+                await typing_task
+            except asyncio.CancelledError:
+                pass
+
+    @dp.message(F.text.startswith("/deep "))
+    async def cmd_deep_research(message: Message):
+        query = message.text[6:].strip()
+        if not query:
+            await message.answer("Uso: /deep [tópico para investigação profunda]")
+            return
+
+        await message.answer(
+            f"🕵️‍♂️ <b>S.A.R.A RESEARCH ATIVADO</b>\n\n"
+            f"<i>Iniciando investigação autônoma sobre:</i>\n"
+            f"<code>{html.escape(query)}</code>\n\n"
+            f"⏳ <i>Ista pode levar de 30 a 90 segundos. O agente irá navegar na web, ler artigos e cruzar fontes antes de responder.</i>",
+            parse_mode=ParseMode.HTML
+        )
+
+        stop_typing = asyncio.Event()
+        typing_task = asyncio.create_task(
+            keep_typing(message.bot, message.chat.id, stop_typing)
+        )
+        
+        try:
+            from src.providers.base import LLMRequest, invoke_with_fallback
+            
+            prompt = (
+                f"Sua missão é atuar como um investigador sênior de inteligência. "
+                f"Pesquise profundamente sobre o tópico abaixo. Use a ferramenta $web_search "
+                f"quantas vezes forem necessárias para cobrir todos os ângulos, fatos recentes e divergências.\n\n"
+                f"TÓPICO:\n{query}\n\n"
+                f"Entregue um dossiê completo, estruturado e cite os links/fontes que você encontrou. "
+                f"Seja analítico, fuja do óbvio."
+            )
+            
+            req = LLMRequest(
+                messages=[{"role": "user", "content": prompt}],
+                system="Você é um Agente de Pesquisa Autônomo. Use $web_search sem hesitar para encontrar fatos no mundo real.",
+                max_tokens=8192,
+                temperature=0.3
+            )
+            
+            resp = await invoke_with_fallback(
+                CognitiveRole.RESEARCH,
+                req,
+                pipeline.model_router,
+                pipeline.api_keys
+            )
+            
+            # Divide e envia a resposta (pode ser longa)
+            final_text = resp.text
+            final_text += f"\n\n💰 <i>Custo da Pesquisa: ${resp.cost_usd:.4f} | Tempo: {resp.latency_ms / 1000:.1f}s</i>"
+            
+            from src.channels.telegram.formatter import split_message, md_to_telegram_html
+            chunks = split_message(md_to_telegram_html(final_text))
+            for chunk in chunks:
+                await message.answer(chunk, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+                
+        except asyncio.TimeoutError:
+            await message.answer("⏱️ Timeout: A pesquisa foi muito profunda e excedeu o tempo limite (90s). Tente um tópico mais restrito.")
+        except Exception as e:
+            log.error(f"[deep] Erro na pesquisa autônoma: {e}", exc_info=True)
+            await message.answer(f"❌ Erro durante a investigação: {str(e)[:100]}")
         finally:
             stop_typing.set()
             try:
@@ -480,18 +459,16 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     async def cmd_test_email(message: Message):
         """Força execução do email_monitor para diagnóstico"""
 
-        await message.answer(
-            "🧪 Disparando teste do Email Monitor...", parse_mode=ParseMode.HTML
-        )
+        await message.answer("🧪 Disparando teste do Email Monitor...", parse_mode=ParseMode.HTML)
 
         try:
             # Estratégia de busca: pipeline → scheduler → fallback
             email_goal = None
 
             # 1. Tenta em pipeline._goals (setado no startup)
-            if hasattr(pipeline, "_goals") and pipeline._goals:
+            if hasattr(pipeline, '_goals') and pipeline._goals:
                 for goal in pipeline._goals:
-                    if hasattr(goal, "name") and goal.name == "email_monitor":
+                    if hasattr(goal, 'name') and goal.name == 'email_monitor':
                         email_goal = goal
                         log.debug("[telegram] Email goal encontrado em pipeline._goals")
                         break
@@ -499,40 +476,34 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             # 2. Fallback: tenta em scheduler._goals
             if not email_goal:
                 scheduler = dp.get("scheduler")
-                if scheduler and hasattr(scheduler, "_goals"):
+                if scheduler and hasattr(scheduler, '_goals'):
                     for goal in scheduler._goals.values():
-                        if hasattr(goal, "name") and goal.name == "email_monitor":
+                        if hasattr(goal, 'name') and goal.name == 'email_monitor':
                             email_goal = goal
-                            log.debug(
-                                "[telegram] Email goal encontrado em scheduler._goals"
-                            )
+                            log.debug("[telegram] Email goal encontrado em scheduler._goals")
                             break
 
             # 3. Último fallback: tenta pipeline._scheduler
-            if not email_goal and hasattr(pipeline, "_scheduler"):
+            if not email_goal and hasattr(pipeline, '_scheduler'):
                 scheduler = pipeline._scheduler
-                if scheduler and hasattr(scheduler, "_goals"):
+                if scheduler and hasattr(scheduler, '_goals'):
                     for goal in scheduler._goals.values():
-                        if hasattr(goal, "name") and goal.name == "email_monitor":
+                        if hasattr(goal, 'name') and goal.name == 'email_monitor':
                             email_goal = goal
-                            log.debug(
-                                "[telegram] Email goal encontrado em pipeline._scheduler"
-                            )
+                            log.debug("[telegram] Email goal encontrado em pipeline._scheduler")
                             break
 
             if not email_goal:
                 # Debug: lista o que encontrou
                 goals_available = []
-                if hasattr(pipeline, "_goals"):
-                    goals_available = [
-                        g.name for g in pipeline._goals if hasattr(g, "name")
-                    ]
+                if hasattr(pipeline, '_goals'):
+                    goals_available = [g.name for g in pipeline._goals if hasattr(g, 'name')]
 
                 await message.answer(
                     f"❌ Email Monitor não encontrado.\n"
                     f"Goals disponíveis: {', '.join(goals_available) if goals_available else 'nenhum'}\n"
                     f"Execute `/saude` para verificar.",
-                    parse_mode=ParseMode.HTML,
+                    parse_mode=ParseMode.HTML
                 )
                 return
 
@@ -569,47 +540,51 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             log.error(
                 f"[email_test] Erro estrutural ao testar email: {e}",
                 exc_info=True,
-                extra={"context": "email_test", "error_type": type(e).__name__},
+                extra={"context": "email_test", "error_type": type(e).__name__}
             )
             await message.answer(
                 "❌ Erro: Email Monitor não está configurado corretamente. Execute `/saude` para mais detalhes.",
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.HTML
             )
         except asyncio.TimeoutError:
             log.warning("[email_test] Timeout ao executar email monitor (>30s)")
             await message.answer(
                 "⏱️ Timeout: o Email Monitor demorou muito tempo para responder.",
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.HTML
             )
         except (RuntimeError, ValueError) as e:
             # Erro de execução: problema na lógica do goal
             log.error(
                 f"[email_test] Erro de execução: {e}",
                 exc_info=True,
-                extra={"context": "email_test", "error_type": type(e).__name__},
+                extra={"context": "email_test", "error_type": type(e).__name__}
             )
             await message.answer(
                 f"❌ Erro ao executar Email Monitor: {str(e)[:100]}",
-                parse_mode=ParseMode.HTML,
+                parse_mode=ParseMode.HTML
             )
         except Exception as e:
             # Catch-all para exceções inesperadas
             log.critical(
                 f"[email_test] Erro inesperado: {e}",
                 exc_info=True,
-                extra={"context": "email_test", "error_type": type(e).__name__},
+                extra={"context": "email_test", "error_type": type(e).__name__}
             )
             await message.answer(
-                "❌ Erro ao executar Email Monitor", parse_mode=ParseMode.HTML
+                "❌ Erro ao executar Email Monitor",
+                parse_mode=ParseMode.HTML
             )
 
     # SherlockNews is handled by sherlock_router (registered above via dp.include_router)
 
 
 async def main():
-    # .env já foi carregado no topo do módulo (antes dos imports do pipeline)
-    # para garantir que ASSISTANT_NAME e outros env vars lidos em import-time
-    # estejam disponíveis.
+    # ── Load .env ─────────────────────────────────────────
+    env_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+        "config", ".env"
+    )
+    load_dotenv(env_path) if os.path.exists(env_path) else load_dotenv()
 
     log_level = getattr(logging, os.getenv("LOG_LEVEL", "INFO"))
     log_fmt = logging.Formatter(
@@ -622,23 +597,27 @@ async def main():
 
     # File handler — persistência para o self_improvement_loop
     from logging.handlers import RotatingFileHandler
-
     _log_dir = os.path.join(
-        os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        ),
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
         "logs",
     )
     os.makedirs(_log_dir, exist_ok=True)
     _file_handler = RotatingFileHandler(
         os.path.join(_log_dir, "seeker.log"),
-        maxBytes=5 * 1024 * 1024,  # 5 MB por arquivo
-        backupCount=3,  # mantém seeker.log.1, .2, .3
+        maxBytes=5 * 1024 * 1024,    # 5 MB por arquivo
+        backupCount=3,                # mantém seeker.log.1, .2, .3
         encoding="utf-8",
     )
     _file_handler.setLevel(log_level)
     _file_handler.setFormatter(log_fmt)
     logging.getLogger().addHandler(_file_handler)
+
+    # Inicializa servidor de métricas Prometheus na porta 9090
+    try:
+        start_http_server(9090)
+        log.info("Servidor de métricas Prometheus iniciado na porta 9090")
+    except OSError as e:
+        log.warning(f"Não foi possível iniciar o servidor Prometheus: {e}")
 
     token = os.getenv("TELEGRAM_BOT_TOKEN", "")
     if not token:
@@ -646,7 +625,6 @@ async def main():
         raise SystemExit(1)
 
     api_keys = {
-        "cerebras": os.getenv("CEREBRAS_API_KEY", ""),
         "deepseek": os.getenv("DEEPSEEK_API_KEY", ""),
         "gemini": os.getenv("GEMINI_API_KEY", ""),
         "groq": os.getenv("GROQ_API_KEY", ""),
@@ -703,7 +681,7 @@ async def main():
     setup_handlers(dp, pipeline, allowed_users)
 
     # ── Init Autonomous Skills (Goal Engine) ──────────────
-
+    
     # ── Email (opcional — falha não impede boot) ──────────
     email_client = None
     email_recipients = []
@@ -720,6 +698,7 @@ async def main():
         admin_chats=allowed_users,
         email_client=email_client,
         email_recipients=email_recipients,
+        pipeline=pipeline,
     )
 
     # ── Scheduler + Auto-discovery de Goals ───────────────
@@ -737,7 +716,7 @@ async def main():
         pipeline._goals = goals  # Também guarda goals no pipeline
         for goal in goals:
             # Injeta notifier em goals que suportam (como RemoteExecutor)
-            if hasattr(goal, "notifier") and goal.notifier is None:
+            if hasattr(goal, 'notifier') and goal.notifier is None:
                 goal.notifier = notifier
             scheduler.register(goal)
     except Exception as e:
@@ -746,11 +725,13 @@ async def main():
     if scheduler._goals:
         await scheduler.start()
         log.info(f"  Goal Engine ativado ({len(scheduler._goals)} goals)")
+        
+        # Pilar 3: HealthCheck de Storage ativo no startup
+        asyncio.create_task(check_storage_health(notifier))
     else:
         log.warning("  Nenhum goal registrado — rodando só pipeline conversacional.")
 
     from src.core.habits.tracker import HabitTracker
-
     habit_tracker = HabitTracker()
     afk_protocol = AFKProtocol(bot, allowed_users, habit_tracker=habit_tracker)
     dp["afk_protocol"] = afk_protocol
@@ -769,43 +750,19 @@ async def main():
         log.info(f"Bot verificado: @{test_me.username}")
     except Exception as e:
         if "Logged out" in str(e):
-            log.warning(
-                "Bot retornou 'Logged out' em bot.me(), mas continuando com polling..."
-            )
+            log.warning("Bot retornou 'Logged out' em bot.me(), mas continuando com polling...")
             # Cria um User fake para permitir que dispatcher inicie
             # Nota: polling ainda funcionará porque bot.me() foi cacheado internamente
             fake_user = User(
                 id=int(token.split(":")[0]),  # Extrai bot ID do token
                 is_bot=True,
                 first_name="SeekerBot",
-                username="SeekerBR1_bot",
+                username="SeekerBR1_bot"
             )
             bot._me = fake_user  # Cache do aiogram
             log.warning("Usando User fake para bypass de session check")
         else:
             raise
-
-    async def connectivity_watchdog(bot: Bot):
-        """
-        Monitor de conectividade interna. Se a rede cair por muito tempo, 
-        força o encerramento do processo para que o watchdog externo o reinicie.
-        Isso evita o estado 'zumbi' onde o scheduler funciona mas o Telegram não.
-        """
-        failures = 0
-        while True:
-            await asyncio.sleep(120) # 2 min
-            try:
-                await bot.get_me()
-                failures = 0
-            except Exception as e:
-                failures += 1
-                log.warning(f"[net_watchdog] Falha de conexão com Telegram ({failures}/3): {e}")
-                if failures >= 3:
-                    log.error("[net_watchdog] Rede inacessível por 6 minutos. Forçando restart.")
-                    os._exit(1)
-
-    # Inicia monitor de rede em background
-    asyncio.create_task(connectivity_watchdog(bot))
 
     try:
         await dp.start_polling(bot, allowed_updates=["message", "callback_query"])

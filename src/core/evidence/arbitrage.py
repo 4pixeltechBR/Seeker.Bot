@@ -428,9 +428,18 @@ class EvidenceArbitrage:
                 temperature=0.0,
                 response_format="json",
             )
-            response = await provider.complete(request)
+            # Timeout por modelo: evita que um provider lento trave toda a arbitragem.
+            # O asyncio.gather com return_exceptions=True garante fallback gracioso.
+            response = await asyncio.wait_for(
+                provider.complete(request), timeout=15.0
+            )
             claims = self._parse_claims(response, model)
             return response, claims
+        except asyncio.TimeoutError:
+            log.warning(
+                f"[arbitrage] {model.display_name} excedeu timeout de 15s — ignorado"
+            )
+            raise
         finally:
             await provider.close()
 

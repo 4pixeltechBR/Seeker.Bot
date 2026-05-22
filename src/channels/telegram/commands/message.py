@@ -9,7 +9,6 @@ from aiogram.types import Message, BufferedInputFile, InlineKeyboardMarkup, Inli
 from aiogram.enums import ParseMode, ChatAction
 
 from src.core.pipeline import SeekerPipeline
-from src.channels.telegram.bot import keep_typing
 from src.core.router.cognitive_load import CognitiveDepth
 from src.channels.telegram.formatter import (
     md_to_telegram_html,
@@ -300,7 +299,7 @@ class MessageController:
 
     # ─── 4. CORE PROCESSING PIPELINE ──────────────────────────────────────────────
     async def _process_and_reply(self, message: Message, user_input: str) -> None:
-        """Main routing pipeline execution - Decoupled for clean architecture."""
+        """Main routing pipeline execution com streaming progressivo de estágios."""
         if await self._handle_bug_wizard(message, user_input):
             return
 
@@ -316,35 +315,72 @@ class MessageController:
         session_id = f"telegram:{message.chat.id}"
         self._record_rl_feedback(message, user_input)
 
-        stop_typing = asyncio.Event()
-        typing_task = asyncio.create_task(
-            keep_typing(message.bot, message.chat.id, stop_typing)
+        # Envia mensagem placeholder — será editada progressivamente
+        # em vez de abrir nova mensagem no final (AI-style streaming)
+        placeholder = await message.answer("⏳ <i>Processando...</i>", parse_mode=ParseMode.HTML)
+
+        afk_protocol = getattr(self.pipeline, "afk_protocol", None)
+
+        # Inicia o pipeline como task em background
+        pipeline_task = asyncio.create_task(
+            self.pipeline.process(user_input, session_id=session_id, afk_protocol=afk_protocol)
         )
 
+        # Estágios visíveis (rotação enquanto pipeline processa)
+        # Cada frame fica visível por ~1.5s (throttle Telegram: max ~1 edit/s)
+        _STAGES = [
+            "🔍 <i>Analisando pergunta...</i>",
+            "📡 <i>Consultando modelos...</i>",
+            "🧩 <i>Verificando evidências...</i>",
+            "🌐 <i>Pesquisando na web...</i>",
+            "⚗️ <i>Sintetizando resposta...</i>",
+            "🔬 <i>Revisando qualidade...</i>",
+        ]
+        _THROTTLE_S = 1.5   # Telegram: ~20 edits/min por chat é seguro
+        _EDIT_MAX = 40      # Cap de segurança (60s máximo de espera)
+
+        stage_idx = 0
+        edits = 0
+        last_text = ""
+
         try:
-            # Pegando referencias que precisavam do dispatcher global antes.
-            # No Aiogram, vc pode recuperar pelo contexto ou assumir nulo.
-            # Vamos recuperar o afk_protocol do pipeline que injetamos no bot.py
-            afk_protocol = getattr(self.pipeline, "afk_protocol", None)
+            while not pipeline_task.done() and edits < _EDIT_MAX:
+                # Espera a task terminar OU o timeout de 1.5s expirar
+                await asyncio.wait({pipeline_task}, timeout=_THROTTLE_S)
 
-            result = await self.pipeline.process(
-                user_input, session_id=session_id, afk_protocol=afk_protocol
-            )
+                if pipeline_task.done():
+                    break
 
-            self._record_ooda_loop(message, user_input, result)
-            self._prepare_next_rl_feedback(message, result)
-            await self._format_and_send_response(message, result)
+                # Rotaciona estágio — permanece no último após percorrer todos
+                stage_text = _STAGES[min(stage_idx, len(_STAGES) - 1)]
+                stage_idx = min(stage_idx + 1, len(_STAGES) - 1)
+
+                if stage_text != last_text:
+                    try:
+                        await placeholder.edit_text(stage_text, parse_mode=ParseMode.HTML)
+                        last_text = stage_text
+                    except Exception:
+                        pass  # Edit pode falhar se Telegram throttle — não é crítico
+                edits += 1
+
+            # Pipeline terminou — obter resultado
+            result = await pipeline_task
 
         except Exception as e:
+            pipeline_task.cancel()
             log.error(f"Erro no pipeline: {e}", exc_info=True)
-            await message.answer(f"❌ Erro: {str(e)[:200]}")
-        finally:
-            stop_typing.set()
-            typing_task.cancel()
             try:
-                await typing_task
-            except asyncio.CancelledError:
-                pass
+                await placeholder.edit_text(f"❌ Erro: {str(e)[:200]}")
+            except Exception:
+                await message.answer(f"❌ Erro: {str(e)[:200]}")
+            return
+
+        self._record_ooda_loop(message, user_input, result)
+        self._prepare_next_rl_feedback(message, result)
+
+        # Formata resposta final e edita a mensagem placeholder
+        await self._format_and_send_response(message, result, stream_msg=placeholder)
+
 
     # ─── 5. ISOLATED SUB-SERVICES ─────────────────────────────────────────────────
     async def _handle_bug_wizard(self, message: Message, user_input: str) -> bool:
@@ -531,7 +567,7 @@ class MessageController:
         except Exception as e:
             log.debug(f"OODA logging failed: {e}")
 
-    async def _format_and_send_response(self, message: Message, result):
+    async def _format_and_send_response(self, message: Message, result, stream_msg=None):
         badge = {
             CognitiveDepth.REFLEX: "⚡",
             CognitiveDepth.DELIBERATE: "🧠",
@@ -576,16 +612,39 @@ class MessageController:
                 remaining = response_text[1024:]
                 for part in split_message(remaining):
                     await message.answer(part, parse_mode=ParseMode.HTML)
+            # Remove placeholder se havia stream_msg
+            if stream_msg:
+                try:
+                    await stream_msg.delete()
+                except Exception:
+                    pass
             return
 
         parts = list(split_message(response_text))
+        first_sent = False
+
         for i, part in enumerate(parts):
+            is_last = (i == len(parts) - 1)
+            markup = feedback_keyboard if is_last else None
+
+            # Primeiro chunk: edita o placeholder (streaming effect)
+            if not first_sent and stream_msg:
+                try:
+                    await stream_msg.edit_text(part, parse_mode=ParseMode.HTML, reply_markup=markup)
+                    first_sent = True
+                    continue
+                except Exception:
+                    # Se editar falhar (ex: mensagem deletada), cai no answer normal
+                    pass
+
+            # Chunks restantes ou fallback: answer normal
             try:
-                # Add feedback buttons only to the last part
-                markup = feedback_keyboard if i == len(parts) - 1 else None
                 await message.answer(part, parse_mode=ParseMode.HTML, reply_markup=markup)
+                first_sent = True
             except Exception:
                 await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
+
+
 
 
 # Factory function to preserve bot.py setup flow compatibility

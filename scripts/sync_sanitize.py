@@ -31,8 +31,10 @@ from pathlib import Path
 # ============================================================
 
 COMMERCIAL_DIRS = [
+    "apps",
     "src/skills/seeker_sales",
     "src/skills/seeker_sales_week",
+    "src/skills/show_leads_daily",
     "src/skills/event_map_scout",
     "src/skills/cortex",
     "src/skills/revenue_hunter",
@@ -283,7 +285,7 @@ def patch_hierarchy_init(root: Path) -> list[str]:
     patterns = [
         re.compile(r"\s+hunter_crew,\s*\n"),
         re.compile(r'\s+"hunter_crew",\s*\n'),
-        re.compile(r"\s*from \. import hunter_crew\s*\n"),
+        re.compile(r"\s*from \. import hunter_crew[^\n]*\n"),
     ]
     for path in targets:
         if not path.exists():
@@ -296,6 +298,24 @@ def patch_hierarchy_init(root: Path) -> list[str]:
             path.write_text(content, encoding="utf-8")
             patched.append(str(path.relative_to(root)))
     return patched
+
+
+def patch_skills_yaml(path: Path) -> bool:
+    if not path.exists():
+        return False
+    original = path.read_text(encoding="utf-8")
+    patterns = [
+        re.compile(r"\s*seeker_sales:\s*[^\n]+\n"),
+        re.compile(r"\s*seeker_sales_week:\s*[^\n]+\n"),
+        re.compile(r"\s*show_leads_daily:\s*[^\n]+\n"),
+    ]
+    content = original
+    for pat in patterns:
+        content = pat.sub("", content)
+    if content != original:
+        path.write_text(content, encoding="utf-8")
+        return True
+    return False
 
 
 # ============================================================
@@ -384,7 +404,12 @@ def main() -> int:
     for p in patched_init:
         print(f"  ~ patchado:      {p}")
 
-    # 5) security scan
+    # 6) patch skills.yaml
+    skills_yaml = dest / "config/skills.yaml"
+    if patch_skills_yaml(skills_yaml):
+        print("  ~ patchado:      config/skills.yaml")
+
+    # 7) security scan
     print()
     issues = security_scan(dest)
     if issues:

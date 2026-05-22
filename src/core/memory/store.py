@@ -403,20 +403,41 @@ class MemoryStore:
         )
         await self._db.commit()
 
-    async def load_all_embeddings(self) -> dict[int, list[float]]:
+    async def load_all_embeddings(self, load_vectors: bool = False) -> dict[int, list[float]]:
         """
-        Carrega IDs de todos os embeddings (lazy loading).
+        Carrega embeddings do banco.
 
-        Performance:
-          100 fatos  → ~5ms
-          1.000      → ~20ms
-          5.000      → ~80ms
-          50.000     → ~800ms (hora de considerar formato binário)
+        Args:
+            load_vectors: Se True, carrega os vetores completos em RAM (RAM Vector Cache).
+                          Se False (default), retorna apenas os IDs com listas vazias
+                          (comportamento legado para lazy loading).
+
+        Performance (load_vectors=True):
+          100 fatos  → ~5ms,  ~0.3MB RAM
+          1.000      → ~20ms, ~3MB RAM
+          5.000      → ~80ms, ~15MB RAM
+          50.000     → ~800ms, ~150MB RAM (hora de migrar para FAISS)
         """
-        async with self._db.execute("SELECT fact_id FROM fact_embeddings") as cur:
-            rows = await cur.fetchall()
-        # Retorna dict vazio (só usamos para saber quais IDs existem)
-        return {row["fact_id"]: [] for row in rows}
+        if load_vectors:
+            # RAM Vector Cache: carrega todos os vetores de uma vez
+            async with self._db.execute(
+                "SELECT fact_id, vector FROM fact_embeddings"
+            ) as cur:
+                rows = await cur.fetchall()
+            result: dict[int, list[float]] = {}
+            for row in rows:
+                try:
+                    result[row["fact_id"]] = json.loads(row["vector"])
+                except (json.JSONDecodeError, TypeError):
+                    log.warning(
+                        f"[memory] Embedding corrompido ignorado: fact_id={row['fact_id']}"
+                    )
+            return result
+        else:
+            # Lazy loading legado: retorna apenas IDs (vetores vazios)
+            async with self._db.execute("SELECT fact_id FROM fact_embeddings") as cur:
+                rows = await cur.fetchall()
+            return {row["fact_id"]: [] for row in rows}
 
     async def load_embedding(self, fact_id: int) -> list[float] | None:
         """Carrega um embedding individual (lazy load sob demanda)."""

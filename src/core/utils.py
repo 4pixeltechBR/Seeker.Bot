@@ -49,25 +49,20 @@ def parse_llm_json(text: str) -> dict | list:
     if idx_obj == -1 and idx_arr == -1:
         raise ValueError(f"Nenhum JSON encontrado no texto: {clean[:100]}...")
 
+    start_idx = -1
     # Decide se é objeto ou array baseado em qual vem primeiro
     if idx_arr != -1 and (idx_obj == -1 or idx_arr < idx_obj):
-        start_char, end_char = "[", "]"
         start_idx = idx_arr
     else:
-        start_char, end_char = "{", "}"
         start_idx = idx_obj
 
-    end_idx = clean.rfind(end_char)
-    if end_idx <= start_idx:
-        raise ValueError(
-            f"JSON malformado — '{start_char}' sem '{end_char}' correspondente."
-        )
-
-    candidate = clean[start_idx : end_idx + 1]
+    candidate = clean[start_idx:]
 
     try:
-        return json.loads(candidate)
+        decoder = json.JSONDecoder()
+        obj, _ = decoder.raw_decode(candidate)
+        return obj
     except json.JSONDecodeError as e:
         raise ValueError(
-            f"JSON inválido entre posições {start_idx}-{end_idx}: {e}"
+            f"JSON inválido a partir da posição {start_idx}: {e}"
         ) from e

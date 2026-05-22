@@ -135,6 +135,7 @@ REGRAS CRÍTICAS — MEMÓRIA REFLEXIVA:
   crie URGENTE um fato `reflexive_rule`.
   Exemplo: "Sempre que gerar relatórios, usar formato de data BR (DD/MM/AAAA)".
 - Fatos `reflexive_rule` registram como o bot deve se comportar no futuro. Prioridade máxima.
+- ECHO CHAMBER GUARD: NUNCA extraia fatos `general` ou `tech_context` baseados APENAS no `RESUMO DA RESPOSTA`. Fatos destas categorias DEVEM originar-se de informações fornecidas no `INPUT DO USUÁRIO`. O resumo da resposta serve APENAS para contexto, não como fonte de novos fatos para a base de conhecimento.
 
 PROIBIDO — NUNCA CRIE FATOS SOBRE:
 - Nome do bot ou identidade do assistente (ex: "deve se chamar X", "recusa o nome Y",
@@ -195,7 +196,7 @@ class FactExtractor:
             data = parse_llm_json(response.text)
 
             return {
-                "facts": self._sanitize_facts(data.get("facts", [])),
+                "facts": self._sanitize_facts(data.get("facts", []), user_input),
                 "entities": data.get("entities", []),
                 "triples": data.get("triples", []),
                 "summary": data.get("response_summary", "")[:500],
@@ -209,13 +210,18 @@ class FactExtractor:
                 "summary": user_input[:200],
             }
 
-    def _sanitize_facts(self, facts: list) -> list[dict]:
+    def _sanitize_facts(self, facts: list, user_input: str) -> list[dict]:
         valid = []
         dropped_identity = 0
+        dropped_echo = 0
+        
+        user_words = set(re.findall(r'\b\w{4,}\b', user_input.lower()))
+
         for f in facts:
             if not (isinstance(f, dict) and f.get("fact") and len(f["fact"]) > 5):
                 continue
             fact_text = f["fact"][:200]
+            category = f.get("category", "general")
 
             # Identity-rule guard — incident 2026-05-16. Defense in depth: o
             # prompt já avisa, mas se o LLM mesmo assim destilar uma regra de
@@ -227,10 +233,20 @@ class FactExtractor:
                 )
                 continue
 
+            # Echo Chamber guard (onda 2)
+            if category in ("general", "tech_context"):
+                fact_words = set(re.findall(r'\b\w{4,}\b', fact_text.lower()))
+                # Se o fato não compartilha NENHUMA palavra significativa (>=4 chars) com o input do usuário, 
+                # é provável que o LLM tenha extraído da própria resposta (echo chamber).
+                if fact_words and not fact_words.intersection(user_words):
+                    dropped_echo += 1
+                    log.info(f"[extractor] Echo chamber guard dropped fact: {fact_text[:100]!r}")
+                    continue
+
             valid.append(
                 {
                     "fact": fact_text,
-                    "category": f.get("category", "general"),
+                    "category": category,
                     "confidence": min(
                         0.95, max(0.1, float(f.get("confidence", 0.5)))
                     ),
@@ -241,4 +257,6 @@ class FactExtractor:
                 f"[extractor] Bloqueou {dropped_identity} regra(s) de identidade — "
                 f"ver _looks_like_identity_rule em src/core/memory/extractor.py"
             )
+        if dropped_echo:
+            log.warning(f"[extractor] Bloqueou {dropped_echo} fato(s) por risco de Echo Chamber.")
         return valid

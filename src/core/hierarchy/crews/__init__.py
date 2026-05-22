@@ -1,10 +1,6 @@
 """
 Seeker.Bot v1.0 - Crews
 
-The crew sub-module imports at the bottom of this file are intentional —
-BaseCrew must be defined first because the sub-modules import it from
-this package. Tell ruff to ignore E402 file-wide.
-
 6 specialized hierarchical crews:
 1. MONITOR CREW - Always-on sensing
 2. HUNTER CREW - Seeking opportunities
@@ -13,8 +9,6 @@ this package. Tell ruff to ignore E402 file-wide.
 5. VISION CREW - OCR and visual analysis
 6. ADMIN CREW - Meta-skills and governance
 """
-
-# ruff: noqa: E402
 
 from abc import ABC, abstractmethod
 from typing import Any
@@ -76,11 +70,11 @@ class BaseCrew(ABC, Crew):
 
 
 # Import crew implementations (will be empty for Phase 0)
-from . import monitor_crew
-from . import executor_crew
-from . import analyst_crew
-from . import vision_crew
-from . import admin_crew
+from . import monitor_crew  # noqa: E402
+from . import executor_crew  # noqa: E402
+from . import analyst_crew  # noqa: E402
+from . import vision_crew  # noqa: E402
+from . import admin_crew  # noqa: E402
 
 __all__ = [
     "BaseCrew",

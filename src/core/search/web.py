@@ -19,6 +19,10 @@ Brave é o fallback porque:
   - 99.99% uptime
 """
 
+import os
+import time
+import json
+import sqlite3
 import asyncio
 import logging
 from dataclasses import dataclass, field
@@ -42,6 +46,27 @@ class SearchResult:
         score_str = f" (relevância: {self.score:.2f})" if self.score > 0 else ""
         return f"[{self.position}] {self.title}{score_str}\n{self.snippet}\nFonte: {self.url}"
 
+    def to_dict(self) -> dict:
+        return {
+            "title": self.title,
+            "url": self.url,
+            "snippet": self.snippet,
+            "source": self.source,
+            "position": self.position,
+            "score": self.score
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SearchResult":
+        return cls(
+            title=d.get("title", ""),
+            url=d.get("url", ""),
+            snippet=d.get("snippet", ""),
+            source=d.get("source", ""),
+            position=d.get("position", 0),
+            score=d.get("score", 0.0)
+        )
+
 
 @dataclass
 class SearchResponse:
@@ -57,6 +82,22 @@ class SearchResponse:
             lines.append(r.to_context())
             lines.append("")
         return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        return {
+            "query": self.query,
+            "backend": self.backend,
+            "results": [r.to_dict() for r in self.results]
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "SearchResponse":
+        results = [SearchResult.from_dict(r) for r in d.get("results", [])]
+        return cls(
+            query=d.get("query", ""),
+            backend=d.get("backend", ""),
+            results=results
+        )
 
 
 class SearchBackend(ABC):
@@ -258,28 +299,158 @@ async def fetch_page_text(url: str, max_chars: int = 5000) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# WEB SEARCHER — Tavily → Brave
+# GOOGLE — GLOBAL SEARCH
+# ─────────────────────────────────────────────────────────────────────
+
+
+class GoogleBackend(SearchBackend):
+    """
+    Google Custom Search API — busca global na web.
+    Usa cx específico e billing habilitado no projeto para ignorar restrições de site.
+    """
+
+    BASE_URL = "https://www.googleapis.com/customsearch/v1"
+
+    def __init__(self, api_key: str, cx: str):
+        self.api_key = api_key
+        self.cx = cx
+
+    async def search(self, query: str, max_results: int = 5) -> SearchResponse:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(
+                    self.BASE_URL,
+                    params={
+                        "key": self.api_key,
+                        "cx": self.cx,
+                        "q": query,
+                        "num": min(max_results, 10),
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+                results = []
+                for i, r in enumerate(data.get("items", [])):
+                    results.append(
+                        SearchResult(
+                            title=r.get("title", ""),
+                            url=r.get("link", ""),
+                            snippet=r.get("snippet", ""),
+                            source="google",
+                            position=i + 1,
+                        )
+                    )
+
+                return SearchResponse(query=query, results=results, backend="google")
+        except Exception as e:
+            log.warning(f"[google] Busca falhou: {e}")
+            return SearchResponse(query=query, backend="google")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# LOCAL SEARCH CACHE — SQLite (24 Hours TTL)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class SearchCache:
+    """
+    Cache local em SQLite para evitar buscas idênticas duplicadas dentro de 24 horas.
+    """
+
+    def __init__(self, db_path: str = None):
+        if db_path is None:
+            db_path = os.path.join(os.getcwd(), "data", "search_cache.db")
+        self.db_path = db_path
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        self._init_db()
+
+    def _init_db(self):
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS cache (
+                        query TEXT PRIMARY KEY,
+                        response TEXT,
+                        timestamp REAL
+                    )
+                """)
+                conn.commit()
+        except Exception as e:
+            log.error(f"[search-cache] Falha ao inicializar banco de dados: {e}")
+
+    def get(self, query: str, ttl_seconds: float = 86400) -> dict | None:
+        """Busca no cache e invalida se estourar o TTL (24h)"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT response, timestamp FROM cache WHERE query = ?", (query.strip().lower(),))
+                row = cursor.fetchone()
+                if row:
+                    response_str, timestamp = row
+                    if time.time() - timestamp < ttl_seconds:
+                        log.debug(f"[search-cache] Hit de cache para query: {query}")
+                        return json.loads(response_str)
+                    else:
+                        # Limpa registro expirado
+                        log.debug(f"[search-cache] TTL Expirado para: {query}. Deletando.")
+                        conn.execute("DELETE FROM cache WHERE query = ?", (query.strip().lower(),))
+                        conn.commit()
+        except Exception as e:
+            log.error(f"[search-cache] Falha ao buscar no cache: {e}")
+        return None
+
+    def set(self, query: str, response_data: dict):
+        """Salva a resposta da query no banco de dados"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO cache (query, response, timestamp) VALUES (?, ?, ?)",
+                    (query.strip().lower(), json.dumps(response_data), time.time())
+                )
+                conn.commit()
+        except Exception as e:
+            log.error(f"[search-cache] Falha ao salvar no cache: {e}")
+
+
+# ─────────────────────────────────────────────────────────────────────
+# WEB SEARCHER — Google → Tavily → Brave
 # ─────────────────────────────────────────────────────────────────────
 
 
 class WebSearcher:
     """
-    Tavily (primary) → Brave (fallback).
+    Google (primary) → Tavily (fallback) → Brave (fallback).
 
     Uso:
-        searcher = WebSearcher(tavily_key="tvly-...", brave_key="BSA...")
+        searcher = WebSearcher(google_key="...", google_cx="...", tavily_key="tvly-...", brave_key="BSA...")
         results = await searcher.search("MCP Anthropic 2026")
     """
 
-    def __init__(self, tavily_key: str = "", brave_key: str = "", cost_tracker=None):
+    def __init__(self, tavily_key: str = "", brave_key: str = "", cost_tracker=None, google_key: str = "", google_cx: str = ""):
         self.backends: list[SearchBackend] = []
         self.cost_tracker = cost_tracker
+        self.cache = SearchCache()
+
+        # Válvula de segurança anti-loop (Sprint 12)
+        self._session_query_count = 0
+        self._last_search_time = 0.0
+        self.max_session_queries = int(os.getenv("MAX_SEARCHES_PER_SESSION", "4"))
+
+        if not google_key:
+            google_key = os.getenv("GOOGLE_SEARCH_API_KEY", "")
+        if not google_cx:
+            google_cx = os.getenv("GOOGLE_SEARCH_CX", "")
+
+        if google_key and google_cx:
+            self.backends.append(GoogleBackend(google_key, google_cx))
+            log.info("[search] ✅ Google Custom Search (primary) — ativado com escopo global")
 
         if tavily_key:
             keys = [k.strip() for k in tavily_key.split(",") if k.strip()]
             for k in keys:
                 self.backends.append(TavilyBackend(k))
-            log.info(f"[search] ✅ Tavily (primary) — {len(keys)} key(s) carregada(s)")
+            log.info(f"[search] ✅ Tavily (fallback) — {len(keys)} key(s) carregada(s)")
 
         if brave_key:
             self.backends.append(BraveBackend(brave_key))
@@ -289,17 +460,54 @@ class WebSearcher:
             log.warning("[search] ⚠️ Nenhum backend de busca configurado!")
 
     async def search(self, query: str, max_results: int = 5) -> SearchResponse:
+        # 1. Tenta recuperar do cache local primeiro (24h TTL)
+        # O cache NÃO consome cota externa e NÃO conta para a trava de loop!
+        cached_data = self.cache.get(query)
+        if cached_data:
+            log.info(f"[search] Cache HIT para query: '{query[:40]}'")
+            return SearchResponse.from_dict(cached_data)
+
+        # 2. Válvula de segurança anti-loop
+        # Se a inatividade for maior que 30s, assume que é uma nova interação/requisição
+        now = time.time()
+        if now - self._last_search_time > 30.0:
+            self._session_query_count = 0
+        
+        self._last_search_time = now
+
+        if self._session_query_count >= self.max_session_queries:
+            log.warning(
+                f"[search] 🛑 Válvula de segurança acionada! "
+                f"Limite de {self.max_session_queries} buscas por sessão atingido "
+                f"(prevenção de loops de IA). Pulando busca externa."
+            )
+            return SearchResponse(query=query)
+
+        # 3. Executa a busca através dos backends configurados com queda preventiva por cota
         for backend in self.backends:
+            backend_name = backend.__class__.__name__.lower().replace("backend", "")
+            
+            # Verifica limites preventivos de cota antes de bater na API
+            if self.cost_tracker and hasattr(self.cost_tracker, "quota_manager"):
+                if not self.cost_tracker.quota_manager.has_quota(backend_name):
+                    log.warning(f"[search] ⚠️ Cota preventiva diária/mensal esgotada para '{backend_name}'. Pulando.")
+                    continue
+
             response = await backend.search(query, max_results)
             if response.results:
                 log.info(
                     f"[search] '{query[:40]}' → {len(response.results)} "
                     f"resultados via {response.backend}"
                 )
-                # Registra consumo de cota (Sprint 11)
+                # Incrementa contador de busca real desta sessão
+                self._session_query_count += 1
+
+                # Registra consumo de cota
                 if self.cost_tracker and hasattr(self.cost_tracker, "quota_manager"):
                     self.cost_tracker.quota_manager.consume_usage(response.backend)
                 
+                # Salva no cache
+                self.cache.set(query, response.to_dict())
                 return response
             log.warning(f"[search] {response.backend} sem resultados, tentando próximo")
 
