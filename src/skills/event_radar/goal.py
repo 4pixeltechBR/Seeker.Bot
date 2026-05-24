@@ -56,7 +56,7 @@ class EventRadarGoal:
 
     @property
     def interval_seconds(self) -> int:
-        return 3600  # 1 hora
+        return 1800  # 30 minutos
 
     @property
     def budget(self) -> GoalBudget:
