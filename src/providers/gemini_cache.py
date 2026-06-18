@@ -61,8 +61,9 @@ class CachedContentManager:
         self._cache_store: dict[str, CachedContent] = {}
         self._client = None
 
-    def get_cache_name_or_create(
+    async def get_cache_name_or_create(
         self,
+        client,  # httpx.AsyncClient
         system_content: str,
         estimated_tokens: int,
     ) -> Optional[str]:
@@ -101,7 +102,7 @@ class CachedContentManager:
         # Miss — criar novo cache via API
         log.info(f"[gemini-cache] Cache miss — criando novo ({estimated_tokens} tokens)...")
         try:
-            cache_name = self._create_cache(system_content, estimated_tokens)
+            cache_name = await self._create_cache(client, system_content, estimated_tokens)
             if cache_name:
                 self._cache_store[content_hash] = CachedContent(
                     content_hash=content_hash,
@@ -116,20 +117,31 @@ class CachedContentManager:
 
         return None
 
-    def _create_cache(self, content: str, estimated_tokens: int) -> Optional[str]:
+    async def _create_cache(self, client, content: str, estimated_tokens: int) -> Optional[str]:
         """
         Cria cache explícito via Gemini API.
 
         Requer: httpx async client, headers com API key.
         Retorna: "cachedContents/{id}" ou None
         """
-        # Este método será chamado do GeminiProvider com client já disponível
-        # Para agora, apenas logamos a intenção
-        log.debug(
-            f"[gemini-cache] _create_cache chamado "
-            f"(conteúdo: {len(content)} chars, ~{estimated_tokens} tokens)"
-        )
-        return None  # TODO: Implementar após integração com GeminiProvider
+        model_name = self.model_id if self.model_id.startswith("models/") else f"models/{self.model_id}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/cachedContents?key={self.api_key}"
+        
+        payload = {
+            "model": model_name,
+            "systemInstruction": {
+                "parts": [{"text": content}]
+            },
+            "ttl": f"{GEMINI_CACHE_EXPIRY_SECONDS}s"
+        }
+        
+        log.debug(f"[gemini-cache] POST para cachedContents com payload para modelo {model_name}")
+        resp = await client.post(url, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        cache_name = data.get("name")
+        return cache_name
 
     @staticmethod
     def _hash_content(content: str) -> str:

@@ -50,12 +50,14 @@ class DeepPhase:
         searcher: WebSearcher,
         arbitrage: EvidenceArbitrage,
         gate: VerificationGate,
+        signature_guardrail,
     ):
         self.router = router
         self.api_keys = api_keys
         self.searcher = searcher
         self.arbitrage = arbitrage
         self.gate = gate
+        self.signature_guardrail = signature_guardrail
 
     async def execute(self, ctx: PhaseContext) -> PhaseResult:
         total_cost = 0.0
@@ -69,7 +71,7 @@ class DeepPhase:
 
         arb_result, web_result = await asyncio.gather(
             self._safe_arbitrage(ctx.user_input),
-            self._safe_web_search(ctx.user_input),
+            self._safe_web_search(ctx),
             return_exceptions=False,
         )
 
@@ -118,6 +120,7 @@ class DeepPhase:
                 memory_context=ctx.memory_prompt,
                 session_context=ctx.session_context,
                 god_mode=ctx.decision.god_mode,
+                active_toolsets=ctx.decision.active_toolsets,
             )
 
             user_message = get_date_context() + ctx.user_input
@@ -272,10 +275,10 @@ class DeepPhase:
             log.warning(f"[deep] Arbitrage falhou: {e}")
             return None
 
-    async def _safe_web_search(self, user_input: str) -> str:
+    async def _safe_web_search(self, ctx: PhaseContext) -> str:
         """Wrapper com timeout e error handling pro gather."""
         try:
-            return await asyncio.wait_for(self._web_search(user_input), timeout=25.0)
+            return await asyncio.wait_for(self._web_search(ctx), timeout=25.0)
         except asyncio.TimeoutError:
             log.warning("[deep] Web search falhou por timeout (25s)")
             return ""
@@ -283,14 +286,27 @@ class DeepPhase:
             log.warning(f"[deep] Web search falhou: {e}")
             return ""
 
-    async def _web_search(self, user_input: str) -> str:
+    async def _web_search(self, ctx: PhaseContext) -> str:
         """Gera queries determinísticas e busca na web."""
         from src.core.phases.deliberate import DeliberatePhase
 
         try:
             # Cria instância de DeliberatePhase pra acessar _generate_search_queries
-            deliberate = DeliberatePhase(self.router, self.api_keys, self.searcher)
-            search_queries = await deliberate._generate_search_queries(user_input)
+            deliberate = DeliberatePhase(
+                self.router, self.api_keys, self.searcher, self.signature_guardrail
+            )
+            search_queries = await deliberate._generate_search_queries(ctx.user_input)
+            
+            # Signature Guardrail Check — se a mesma query já rodou neste turno,
+            # pulamos a busca redundante (retornando vazio) e deixamos a síntese
+            # seguir com a evidência/arbitragem já coletada. A mensagem sintética
+            # do guardrail NUNCA deve vazar para a resposta do usuário.
+            sig_text = " | ".join(search_queries)
+            allowed, _ = self.signature_guardrail.check_loop(ctx.session_id, sig_text)
+            if not allowed:
+                log.info("[deep] Busca duplicada no mesmo turno — pulando; síntese segue sem nova busca")
+                return ""
+
             search_results = await self.searcher.search_multiple(
                 search_queries, max_results_per_query=3
             )
@@ -368,5 +384,3 @@ class DeepPhase:
         except Exception as e:
             log.warning(f"[deep] Research loop falhou para '{zone.topic}': {e}")
         return ""
-
-    # _generate_search_queries removido — usa DeliberatePhase._build_search_queries (DRY)

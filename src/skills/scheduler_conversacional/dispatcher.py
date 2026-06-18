@@ -21,14 +21,16 @@ log = logging.getLogger("seeker.scheduler.dispatcher")
 class TaskDispatcher:
     """Executa tarefas agendadas que venceram"""
 
-    def __init__(self, store: SchedulerStore, cascade_adapter=None):
+    def __init__(self, store: SchedulerStore, cascade_adapter=None, notifier=None):
         """
         Args:
             store: SchedulerStore instance
             cascade_adapter: CascadeAdapter para executar instrução (opcional)
+            notifier: GoalNotifier para enviar resultados (opcional)
         """
         self.store = store
         self.cascade_adapter = cascade_adapter
+        self.notifier = notifier
 
     async def dispatch_overdue_tasks(self) -> dict:
         """
@@ -97,21 +99,54 @@ class TaskDispatcher:
             run.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await self.store.create_run(run)
 
+            # Lembrete (notify_only): apenas envia o texto, sem rodar LLM.
+            if getattr(task, "notify_only", False):
+                run.execution_id = "reminder"
+                run.status = "success"
+                if self.notifier and getattr(self.notifier, "bot", None) and task.chat_id:
+                    msg = f"🔔 <b>Lembrete</b>\n\n{task.instruction_text or task.title}"
+                    try:
+                        await self.notifier.bot.send_message(task.chat_id, msg, parse_mode="HTML")
+                        log.info(f"[scheduler.dispatcher] Lembrete enviado para chat_id {task.chat_id}")
+                    except Exception as ne:
+                        run.status = "failed"
+                        run.error = str(ne)
+                        log.error(f"[scheduler.dispatcher] Falha ao enviar lembrete: {ne}")
+                else:
+                    log.warning("[scheduler.dispatcher] Lembrete sem notifier/bot — modo degradado")
+
             # Executar instrução (via Cascade)
-            if self.cascade_adapter:
+            elif self.cascade_adapter:
                 try:
-                    await self.cascade_adapter.call(
+                    resp = await self.cascade_adapter.call(
                         role="FAST",
                         messages=[{"role": "user", "content": task.instruction_text}],
                         temperature=0.1,
                         max_tokens=200,
                     )
+                    content = resp.get("content", "")
                     execution_id = str(uuid.uuid4())
                     run.execution_id = execution_id
                     run.status = "success"
                     log.info(
                         f"[scheduler.dispatcher] Task {task.id} executed successfully"
                     )
+
+                    # Envia a notificação individual da tarefa para o chat_id que a agendou
+                    if content and self.notifier and getattr(self.notifier, "bot", None) and task.chat_id:
+                        msg = (
+                            f"🔔 <b>Tarefa Executada: {task.title}</b>\n\n"
+                            f"{content}"
+                        )
+                        try:
+                            await self.notifier.bot.send_message(
+                                task.chat_id,
+                                msg,
+                                parse_mode="HTML"
+                            )
+                            log.info(f"[scheduler.dispatcher] Notificação enviada para chat_id {task.chat_id}")
+                        except Exception as ne:
+                            log.error(f"[scheduler.dispatcher] Falha ao notificar chat_id {task.chat_id}: {ne}")
                 except Exception as e:
                     run.status = "failed"
                     run.error = str(e)
@@ -127,7 +162,14 @@ class TaskDispatcher:
             # Atualizar task
             task.last_run_at = datetime.now(timezone.utc).replace(tzinfo=None)
             task.last_status = run.status
-            task.next_run_at = NextRunCalculator.calculate_next_run(task)
+
+            # ONCE: disparo único — não reagenda; desativa após executar.
+            from src.skills.scheduler_conversacional.models import ScheduleType
+            if task.schedule_type == ScheduleType.ONCE:
+                task.is_enabled = False
+                task.next_run_at = None
+            else:
+                task.next_run_at = NextRunCalculator.calculate_next_run(task)
 
             if run.status == "failed":
                 task.failure_count += 1

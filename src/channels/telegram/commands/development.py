@@ -185,3 +185,25 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
         except Exception as e:
             log.error(f"[bug_analyzer] Erro em /bug_approve: {e}", exc_info=True)
             await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)
+
+    @dp.message(F.text.startswith("/criar_skill"))
+    async def cmd_criar_skill(message: Message):
+        prompt = message.text.replace("/criar_skill", "").strip()
+        if not prompt:
+            await message.answer(
+                "💡 **Uso do Comando:**\n"
+                "<code>/criar_skill crie uma skill que consulta o clima de SP todo dia às 8h</code>",
+                parse_mode=ParseMode.HTML
+            )
+            return
+
+        await message.answer("🧠 **Iniciando geração autônoma de Skill (Patcher L3)...**\n<i>Construindo lógica, definindo schedules e gerando código Python...</i>", parse_mode=ParseMode.HTML)
+
+        try:
+            from src.skills.skill_creator.coder import CodeGenerator
+            coder = CodeGenerator(pipeline)
+            res = await coder.process_coding_request(prompt)
+            await message.answer(res)
+        except Exception as e:
+            log.error(f"[skill_creator] Erro ao criar skill manualmente: {e}", exc_info=True)
+            await message.answer(f"❌ Erro ao criar skill: <code>{str(e)[:200]}</code>", parse_mode=ParseMode.HTML)

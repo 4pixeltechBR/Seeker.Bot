@@ -176,6 +176,10 @@ echo   git_automation: !SPEC_ENABLED!
 echo  ✅ Skills configured!
 echo.
 
+REM ── Create Directories ──
+if not exist "data" mkdir data
+if not exist "logs" mkdir logs
+
 REM ── Generate .env ──
 echo  ═══════════════════════════════════════════════════
 echo   🔑 Configuring environment...

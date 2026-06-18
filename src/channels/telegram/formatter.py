@@ -26,6 +26,70 @@ MAX_MSG_LENGTH = 4096
 _ALLOWED_TAGS = {"b", "i", "s", "u", "code", "pre", "a"}
 _TAG_RE = re.compile(r"<(/?)(\w+)([^>]*)>")
 
+_REASONING_TAGS = (
+    "REASONING_SCRATCHPAD",
+    "think",
+    "thinking",
+    "reasoning",
+    "thought",
+)
+
+
+def strip_reasoning_tags(text: str) -> str:
+    """
+    Remove reasoning/thinking blocks and leaked tool calls from displayed text.
+    Resilient to truncations and unclosed tags.
+    """
+    cleaned = text
+    for tag in _REASONING_TAGS:
+        # Closed pair
+        cleaned = re.sub(
+            rf"<{tag}>.*?</{tag}>\s*",
+            "",
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        # Unterminated open tag
+        cleaned = re.sub(
+            rf"<{tag}>.*$",
+            "",
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        # Stray close tag
+        cleaned = re.sub(
+            rf"</{tag}>\s*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+    # Tool-call XML blocks
+    for tc_tag in ("tool_call", "tool_calls", "tool_result",
+                   "function_call", "function_calls"):
+        cleaned = re.sub(
+            rf"<{tc_tag}\b[^>]*>.*?</{tc_tag}>\s*",
+            "",
+            cleaned,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+    # <function name="...">
+    cleaned = re.sub(
+        r'(?:(?<=^)|(?<=[\n\r.!?:]))[ \t]*'
+        r'<function\b[^>]*\bname\s*=[^>]*>'
+        r'(?:(?:(?!</function>).)*)</function>\s*',
+        '',
+        cleaned,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+    # Stray tool-call close tags
+    cleaned = re.sub(
+        r'</(?:tool_call|tool_calls|tool_result|function_call|function_calls|function)>\s*',
+        '',
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()
+
 
 def format_cost_line(result: "PipelineResult") -> str:
     """Formata o rodapé de custo/latência de uma resposta do pipeline."""
@@ -97,14 +161,18 @@ def md_to_telegram_html(text: str) -> str:
     Converte Markdown → HTML compatível com Telegram.
 
     Processa nesta ordem (importa pra evitar conflitos):
-    1. Protege blocos de código (não processa dentro deles)
-    2. Escapa caracteres HTML especiais
-    3. Converte patterns Markdown → HTML tags
-    4. Restaura blocos de código
-    5. Sanitiza tags não suportadas
-    6. Balanceia tags abertas/fechadas
+    1. Remove/limpa tags de raciocínio e tool calls vazados
+    2. Protege blocos de código (não processa dentro deles)
+    3. Escapa caracteres HTML especiais
+    4. Converte patterns Markdown → HTML tags
+    5. Restaura blocos de código
+    6. Sanitiza tags não suportadas
+    7. Balanceia tags abertas/fechadas
     """
-    # ── 1. Extrai e protege blocos de código ──────────────
+    # ── 1. Remove reasoning tags e tool calls vazados ─────
+    text = strip_reasoning_tags(text)
+
+    # ── 2. Extrai e protege blocos de código ──────────────
     code_blocks = []
 
     def protect_code_block(match):

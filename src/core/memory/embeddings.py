@@ -64,9 +64,25 @@ class GeminiEmbedder:
     CACHE_EVICT = 100
 
     def __init__(self, api_key: str):
-        self.api_key = api_key
+        # Suporta tanto uma única chave quanto uma lista separada por vírgulas
+        self.api_keys_pool = [k.strip() for k in api_key.split(",") if k.strip()]
+        self.api_key = self.api_keys_pool[0] if self.api_keys_pool else api_key
+        self.current_key_idx = 0
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
         self._client = httpx.AsyncClient(timeout=10.0)
+
+    def _get_active_key(self) -> str:
+        if not self.api_keys_pool:
+            return self.api_key
+        return self.api_keys_pool[self.current_key_idx]
+
+    def _rotate_key(self):
+        if len(self.api_keys_pool) > 1:
+            self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys_pool)
+            new_key = self._get_active_key()
+            log.warning(
+                f"[embedding] Rate Limit ou falha. Rotacionando chave do pool para a posição {self.current_key_idx}."
+            )
 
     async def embed(self, text: str) -> list[float]:
         """Gera embedding para um texto. Cache LRU em memória por sessão."""
@@ -75,15 +91,30 @@ class GeminiEmbedder:
             self._cache.move_to_end(cache_key)  # LRU: move para o final
             return self._cache[cache_key]
 
+        active_key = self._get_active_key()
+        url = f"{self.BASE_URL}/{self.MODEL}:embedContent"
+        payload = {
+            "model": f"models/{self.MODEL}",
+            "content": {"parts": [{"text": text[:2000]}]},
+        }
+
         try:
             resp = await self._client.post(
-                f"{self.BASE_URL}/{self.MODEL}:embedContent",
-                headers={"x-goog-api-key": self.api_key},
-                json={
-                    "model": f"models/{self.MODEL}",
-                    "content": {"parts": [{"text": text[:2000]}]},
-                },
+                url,
+                headers={"x-goog-api-key": active_key},
+                json=payload,
             )
+            
+            # Se for Too Many Requests (429), tenta rotacionar imediatamente e tentar de novo com a nova chave
+            if resp.status_code == 429 and len(self.api_keys_pool) > 1:
+                self._rotate_key()
+                active_key = self._get_active_key()
+                resp = await self._client.post(
+                    url,
+                    headers={"x-goog-api-key": active_key},
+                    json=payload,
+                )
+                
             resp.raise_for_status()
             data = resp.json()
             vector = data["embedding"]["values"]
@@ -96,6 +127,26 @@ class GeminiEmbedder:
             return vector
 
         except Exception as e:
+            # Tenta um retry de rotação genérica caso seja outro tipo de HTTP error retryable
+            if isinstance(e, httpx.HTTPStatusError) and e.response.status_code == 429 and len(self.api_keys_pool) > 1:
+                try:
+                    self._rotate_key()
+                    active_key = self._get_active_key()
+                    resp = await self._client.post(
+                        url,
+                        headers={"x-goog-api-key": active_key},
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    vector = data["embedding"]["values"]
+                    self._cache[cache_key] = vector
+                    while len(self._cache) > self.CACHE_MAX:
+                        self._cache.popitem(last=False)
+                    return vector
+                except Exception as retry_e:
+                    log.warning(f"[embedding] Falha após rotação: {retry_e}")
+                    return []
             log.warning(f"[embedding] Falha: {e}")
             return []
 

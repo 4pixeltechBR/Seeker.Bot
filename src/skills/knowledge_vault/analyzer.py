@@ -56,24 +56,32 @@ class KnowledgeAnalyzer:
         extra_meta = extra_meta or {}
 
         if source_type == "ideia-victor":
-            return await self._analyze_idea(raw_text)
+            return await self._analyze_idea(raw_text, extra_meta)
         elif source_type == "youtube":
             return await self._analyze_youtube(raw_text, source_url, extra_meta)
         elif source_type == "site":
             return await self._analyze_site(raw_text, source_url, extra_meta)
+        elif source_type == "repo":
+            return await self._analyze_repo(raw_text, source_url, extra_meta)
+        elif source_type == "pdf":
+            return await self._analyze_pdf(raw_text, extra_meta)
         elif source_type in ("print", "ocr"):
             return await self._analyze_ocr(raw_text, extra_meta)
         else:
             # Fallback generico (nota de texto, etc.)
             return await self._analyze_generic(
-                raw_text, source_type, source_url, user_hint
+                raw_text, source_type, source_url, user_hint, extra_meta
             )
 
     # ── Especialistas ─────────────────────────────────────────────────
 
-    async def _analyze_idea(self, raw_text: str) -> NoteData:
+    async def _analyze_idea(self, raw_text: str, meta: dict = None) -> NoteData:
         """Desenvolvedor de ideias."""
-        prompt_user = IDEA_PROMPT_USER.format(raw_text=raw_text[:6000])
+        meta = meta or {}
+        web_context = meta.get("web_context", "")
+        web_snippet = f"\n\nOBS. DO CONTEXTO WEB:\n{web_context}" if web_context else ""
+
+        prompt_user = IDEA_PROMPT_USER.format(raw_text=raw_text[:6000] + web_snippet)
         data = await self._call_llm(IDEA_PROMPT_SYSTEM, prompt_user)
 
         tags = data.get("tags", [])
@@ -89,15 +97,18 @@ class KnowledgeAnalyzer:
             related_topics=data.get("related_topics", []),
             source_type="ideia-victor",
         )
-        note.content_body = self._build_idea_body(note)
+        note.content_body = self._build_idea_body(note, web_context)
         return note
 
     async def _analyze_youtube(
         self, raw_text: str, source_url: str, meta: dict
     ) -> NoteData:
         """Curador de videos do YouTube."""
+        web_context = meta.get("web_context", "")
+        web_snippet = f"\n\nOBS. DO CONTEXTO WEB:\n{web_context}" if web_context else ""
+
         prompt_user = YOUTUBE_PROMPT_USER.format(
-            raw_text=raw_text[:10000],
+            raw_text=raw_text[:10000] + web_snippet,
             source_url=source_url,
             video_title=meta.get("title", "Desconhecido"),
             channel=meta.get("channel", "Desconhecido"),
@@ -114,15 +125,18 @@ class KnowledgeAnalyzer:
             related_topics=data.get("related_topics", []),
             source_type="youtube",
         )
-        note.content_body = self._build_youtube_body(note, source_url, meta)
+        note.content_body = self._build_youtube_body(note, source_url, meta, web_context)
         return note
 
     async def _analyze_site(
         self, raw_text: str, source_url: str, meta: dict
     ) -> NoteData:
         """Pesquisador web para artigos."""
+        web_context = meta.get("web_context", "")
+        web_snippet = f"\n\nOBS. DO CONTEXTO WEB:\n{web_context}" if web_context else ""
+
         prompt_user = SITE_PROMPT_USER.format(
-            raw_text=raw_text[:12000],
+            raw_text=raw_text[:12000] + web_snippet,
             source_url=source_url,
             page_title=meta.get("title", ""),
             author=meta.get("author", "Desconhecido"),
@@ -139,7 +153,7 @@ class KnowledgeAnalyzer:
             related_topics=data.get("related_topics", []),
             source_type="site",
         )
-        note.content_body = self._build_site_body(note, source_url, meta)
+        note.content_body = self._build_site_body(note, source_url, meta, web_context)
         return note
 
     async def _analyze_ocr(self, raw_text: str, meta: dict) -> NoteData:
@@ -176,14 +190,18 @@ class KnowledgeAnalyzer:
         return note
 
     async def _analyze_generic(
-        self, raw_text: str, source_type: str, source_url: str, user_hint: str
+        self, raw_text: str, source_type: str, source_url: str, user_hint: str, extra_meta: dict = None
     ) -> NoteData:
         """Fallback generico."""
+        extra_meta = extra_meta or {}
+        web_context = extra_meta.get("web_context", "")
+        web_snippet = f"\n\nOBS. DO CONTEXTO WEB:\n{web_context}" if web_context else ""
+
         prompt_user = ANALYSIS_PROMPT_USER.format(
             source_type=source_type,
             source_url=source_url,
             user_hint=user_hint,
-            raw_text=raw_text[:8000],
+            raw_text=raw_text[:8000] + web_snippet,
         )
         data = await self._call_llm(ANALYSIS_PROMPT_SYSTEM, prompt_user)
 
@@ -196,7 +214,60 @@ class KnowledgeAnalyzer:
             related_topics=data.get("related_topics", []),
             source_type=source_type,
         )
-        note.content_body = self._build_generic_body(note)
+        note.content_body = self._build_generic_body(note, web_context)
+        return note
+
+    async def _analyze_repo(self, raw_text: str, source_url: str, meta: dict) -> NoteData:
+        """Analista de repositórios GitHub."""
+        web_context = meta.get("web_context", "")
+        web_snippet = f"\n\nOBS. DO CONTEXTO WEB:\n{web_context}" if web_context else ""
+        repo_owner = meta.get("repo_owner", "")
+        repo_name = meta.get("repo_name", "")
+
+        prompt_user = SITE_PROMPT_USER.format(
+            raw_text=raw_text[:12000] + web_snippet,
+            source_url=source_url,
+            page_title=f"{repo_owner}/{repo_name}",
+            author=repo_owner or "Desconhecido",
+            description="Repositório GitHub",
+        )
+        data = await self._call_llm(SITE_PROMPT_SYSTEM, prompt_user)
+
+        note = NoteData(
+            title=data.get("title", f"{repo_owner}/{repo_name}"),
+            summary=data.get("summary", ""),
+            tags=data.get("tags", []),
+            key_insights=data.get("key_insights", []),
+            category=data.get("category", "Repositório"),
+            related_topics=data.get("related_topics", []),
+            source_type="repo",
+        )
+        note.content_body = self._build_site_body(note, source_url, meta, web_context)
+        return note
+
+    async def _analyze_pdf(self, raw_text: str, meta: dict) -> NoteData:
+        """Analista de PDFs."""
+        web_context = meta.get("web_context", "")
+        web_snippet = f"\n\nOBS. DO CONTEXTO WEB:\n{web_context}" if web_context else ""
+
+        prompt_user = ANALYSIS_PROMPT_USER.format(
+            source_type="pdf",
+            source_url="",
+            user_hint="",
+            raw_text=raw_text[:12000] + web_snippet,
+        )
+        data = await self._call_llm(ANALYSIS_PROMPT_SYSTEM, prompt_user)
+
+        note = NoteData(
+            title=data.get("title", "PDF sem titulo"),
+            summary=data.get("summary", ""),
+            tags=data.get("tags", []),
+            key_insights=data.get("key_insights", []),
+            category=data.get("category", "Documento"),
+            related_topics=data.get("related_topics", []),
+            source_type="pdf",
+        )
+        note.content_body = self._build_generic_body(note, web_context)
         return note
 
     # ── LLM Call ──────────────────────────────────────────────────────
@@ -248,7 +319,7 @@ class KnowledgeAnalyzer:
 
     # ── Markdown Builders ─────────────────────────────────────────────
 
-    def _build_idea_body(self, note: NoteData) -> str:
+    def _build_idea_body(self, note: NoteData, web_context: str = "") -> str:
         lines = [f"## Ideia\n{note.summary}\n"]
 
         if note.key_insights:
@@ -263,6 +334,11 @@ class KnowledgeAnalyzer:
                 lines.append(f"- [[{topic}]]")
             lines.append("")
 
+        if web_context:
+            lines.append("## Contexto Adicional (Web)")
+            lines.append(web_context[:1500])
+            lines.append("")
+
         connections = self._find_connections(note)
         if connections:
             lines.append("## Notas Relacionadas no Cofre")
@@ -272,7 +348,7 @@ class KnowledgeAnalyzer:
 
         return "\n".join(lines)
 
-    def _build_youtube_body(self, note: NoteData, source_url: str, meta: dict) -> str:
+    def _build_youtube_body(self, note: NoteData, source_url: str, meta: dict, web_context: str = "") -> str:
         lines = []
 
         channel = meta.get("channel", "Desconhecido")
@@ -307,6 +383,11 @@ class KnowledgeAnalyzer:
                 lines.append(f"- {topic}")
             lines.append("")
 
+        if web_context:
+            lines.append("## Contexto Adicional (Web)")
+            lines.append(web_context[:1500])
+            lines.append("")
+
         connections = self._find_connections(note)
         if connections:
             lines.append("## Notas Relacionadas no Cofre")
@@ -316,7 +397,7 @@ class KnowledgeAnalyzer:
 
         return "\n".join(lines)
 
-    def _build_site_body(self, note: NoteData, source_url: str, meta: dict) -> str:
+    def _build_site_body(self, note: NoteData, source_url: str, meta: dict, web_context: str = "") -> str:
         lines = []
 
         author = meta.get("author", "")
@@ -344,6 +425,11 @@ class KnowledgeAnalyzer:
                 lines.append(f"- {topic}")
             lines.append("")
 
+        if web_context:
+            lines.append("## Contexto Adicional (Web)")
+            lines.append(web_context[:1500])
+            lines.append("")
+
         connections = self._find_connections(note)
         if connections:
             lines.append("## Notas Relacionadas no Cofre")
@@ -353,7 +439,7 @@ class KnowledgeAnalyzer:
 
         return "\n".join(lines)
 
-    def _build_generic_body(self, note: NoteData) -> str:
+    def _build_generic_body(self, note: NoteData, web_context: str = "") -> str:
         lines = [f"## Resumo Executivo\n{note.summary}\n"]
 
         if note.key_insights:
@@ -366,6 +452,11 @@ class KnowledgeAnalyzer:
             lines.append(
                 f"**Topicos Relacionados:** {', '.join(note.related_topics)}\n"
             )
+
+        if web_context:
+            lines.append("## Contexto Adicional (Web)")
+            lines.append(web_context[:1500])
+            lines.append("")
 
         connections = self._find_connections(note)
         if connections:

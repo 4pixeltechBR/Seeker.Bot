@@ -33,6 +33,8 @@ class SchedulerStore:
         day_of_month INTEGER,
         month INTEGER,
         hour INTEGER NOT NULL,
+        minute INTEGER DEFAULT 0,
+        notify_only BOOLEAN DEFAULT 0,
         timezone TEXT DEFAULT 'America/Sao_Paulo',
         instruction_text TEXT,
         is_enabled BOOLEAN DEFAULT 1,
@@ -93,15 +95,33 @@ class SchedulerStore:
         """
         self.db = db
 
+    # Colunas adicionadas após o schema inicial — migradas via ALTER TABLE
+    # para bancos já existentes (ADD COLUMN é idempotente via try/except).
+    _MIGRATIONS = [
+        "ALTER TABLE scheduler_tasks ADD COLUMN minute INTEGER DEFAULT 0",
+        "ALTER TABLE scheduler_tasks ADD COLUMN notify_only BOOLEAN DEFAULT 0",
+    ]
+
     async def init(self) -> None:
         """Inicializa schema"""
         try:
             await self.db.executescript(self.SCHEMA)
             await self.db.commit()
+            await self._migrate()
             log.info("[scheduler] Schema initialized")
         except Exception as e:
             log.error(f"[scheduler] Schema init failed: {e}")
             raise
+
+    async def _migrate(self) -> None:
+        """Aplica migrações de coluna em bancos pré-existentes (idempotente)."""
+        for stmt in self._MIGRATIONS:
+            try:
+                await self.db.execute(stmt)
+                await self.db.commit()
+            except Exception:
+                # Coluna já existe — ignorar ("duplicate column name")
+                pass
 
     # ────────────────────────────────────────────────────────
     # SCHEDULED TASKS
@@ -112,9 +132,9 @@ class SchedulerStore:
         sql = """
             INSERT INTO scheduler_tasks
             (id, title, schedule_type, day_of_week, day_of_month, month, hour,
-             timezone, instruction_text, is_enabled, status, created_at, updated_at,
-             next_run_at, chat_id, created_by, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             minute, notify_only, timezone, instruction_text, is_enabled, status,
+             created_at, updated_at, next_run_at, chat_id, created_by, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         await self.db.execute(
             sql,
@@ -126,6 +146,8 @@ class SchedulerStore:
                 task.day_of_month,
                 task.month,
                 task.hour,
+                task.minute,
+                task.notify_only,
                 task.timezone,
                 task.instruction_text,
                 task.is_enabled,
@@ -173,7 +195,8 @@ class SchedulerStore:
         sql = """
             UPDATE scheduler_tasks SET
                 title = ?, schedule_type = ?, day_of_week = ?, day_of_month = ?,
-                month = ?, hour = ?, timezone = ?, instruction_text = ?,
+                month = ?, hour = ?, minute = ?, notify_only = ?, timezone = ?,
+                instruction_text = ?,
                 is_enabled = ?, status = ?, updated_at = ?, next_run_at = ?,
                 last_run_at = ?, last_status = ?, failure_count = ?, last_error = ?
             WHERE id = ?
@@ -187,6 +210,8 @@ class SchedulerStore:
                 task.day_of_month,
                 task.month,
                 task.hour,
+                task.minute,
+                task.notify_only,
                 task.timezone,
                 task.instruction_text,
                 task.is_enabled,
@@ -359,13 +384,25 @@ class SchedulerStore:
     # ────────────────────────────────────────────────────────
 
     @staticmethod
+    def _row_keys(row) -> set:
+        try:
+            return set(row.keys())
+        except Exception:
+            return set()
+
+    @staticmethod
     def _row_to_task(row) -> ScheduledTask:
         """Converte linha DB em ScheduledTask"""
+        keys = SchedulerStore._row_keys(row)
+        minute = row["minute"] if "minute" in keys and row["minute"] is not None else 0
+        notify_only = bool(row["notify_only"]) if "notify_only" in keys and row["notify_only"] is not None else False
         return ScheduledTask(
             id=row["id"],
             title=row["title"],
             schedule_type=ScheduleType(row["schedule_type"]),
             hour=row["hour"],
+            minute=minute,
+            notify_only=notify_only,
             timezone=row["timezone"],
             day_of_week=row["day_of_week"],
             day_of_month=row["day_of_month"],

@@ -33,9 +33,15 @@ class SystemProfiler:
             goal_id=goal_id, phase_name=phase_name, start_time=start_time
         )
 
-        # Iniciar cProfile
+        # Iniciar cProfile — tolerante a conflito com outro profiler ativo
         pr = cProfile.Profile()
-        pr.enable()
+        try:
+            pr.enable()
+        except ValueError:
+            # Outro profiler já está ativo (ex: múltiplas instâncias ou Start-Job).
+            # Continua sem profiling em vez de crashar o processo inteiro.
+            log.warning("[profiler] cProfile já ativo — profiling desabilitado para %s/%s", goal_id, phase_name)
+            pr = None
         self.active_profiles[f"{goal_id}_{phase_name}"] = {
             "profile": pr,
             "metric": metric,
@@ -68,8 +74,9 @@ class SystemProfiler:
         metric = prof_data["metric"]
         pr = prof_data["profile"]
 
-        # Parar profiling
-        pr.disable()
+        # Parar profiling (se estava ativo)
+        if pr is not None:
+            pr.disable()
 
         # Preencher métricas
         try:

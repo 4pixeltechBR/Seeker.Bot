@@ -143,9 +143,24 @@ class SessionManager:
 
         Isso mantém o contexto relevante sem explodir o prompt.
         """
+        import os
+        soul_content = ""
+        base = os.path.dirname(
+            os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+        )
+        soul_path = os.path.join(base, "SOUL.md")
+        if os.path.exists(soul_path):
+            try:
+                with open(soul_path, "r", encoding="utf-8") as f:
+                    soul_content = "=== DIRETRIZES DE IDENTIDADE (SOUL.md) ===\n" + f.read() + "\n\n"
+            except Exception as e:
+                log.warning(f"[session] Falha ao ler SOUL.md: {e}")
+
         turns = self._cache.get(session_id, [])
         if not turns:
-            return ""
+            return soul_content
 
         lines = ["=== CONVERSA RECENTE ==="]
         total_chars = 0
@@ -174,7 +189,7 @@ class SessionManager:
                 break
             lines.append(line)
 
-        return "\n".join(lines)
+        return soul_content + "\n".join(lines)
 
     def has_context(self, session_id: str) -> bool:
         """Verifica se há contexto de sessão disponível."""

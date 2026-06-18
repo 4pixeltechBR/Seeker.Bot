@@ -124,12 +124,21 @@ class GoalScheduler:
         )
 
     async def start(self) -> None:
-        """Inicia todos os goals registrados em tasks independentes."""
+        """Inicia todos os goals registrados em tasks independentes com espaçamento em lotes de 3 a cada 60s."""
         self.running = True
-        for name, goal in self._goals.items():
-            task = asyncio.create_task(self._run_goal_loop(goal))
+        for i, (name, goal) in enumerate(self._goals.items()):
+            # Agrupa os goals em lotes de 3. i // 3 define o lote (0, 1, 2...)
+            lote = i // 3
+            # Lote 0 (primeiros 3 goals) inicia com 10s. Lote 1 inicia com 70s, Lote 2 com 130s, etc.
+            startup_delay = 10 + (lote * 60)
+            
+            task = asyncio.create_task(self._run_goal_loop(goal, startup_delay=startup_delay))
             self._tasks[name] = task
-        log.info(f"[scheduler] {len(self._goals)} goals iniciados.")
+            log.info(
+                f"[scheduler] Goal '{name}' escalonado (Lote {lote + 1}) | "
+                f"delay inicial = {startup_delay}s"
+            )
+        log.info(f"[scheduler] {len(self._goals)} goals iniciados com espaçamento dinâmico.")
 
     async def stop(self) -> None:
         """Para todos os goals e persiste estado."""
@@ -376,25 +385,27 @@ class GoalScheduler:
         return False
 
     def _should_execute_goal(self, goal_name: str) -> bool:
-        """
-        Determina se um goal deve executar agora, levando em conta preemption.
-        """
         priority = self._goal_priorities.get(goal_name, GoalPriority.NORMAL)
-
-        # Goals em pausa por preemption não executam
-        if goal_name in self._paused_by_preemption:
-            return False
-
-        # Se há CRITICAL em execução e este é NORMAL/LOW, pausar
+        
+        # Verifica se há algum goal CRITICAL em execução
+        is_critical_running = False
         if priority in [GoalPriority.NORMAL, GoalPriority.LOW]:
             for other_name, other_priority in self._goal_priorities.items():
                 if (
                     other_priority == GoalPriority.CRITICAL
                     and other_name in self._running_goals
                 ):
-                    self._paused_by_preemption.add(goal_name)
-                    return False
+                    is_critical_running = True
+                    break
 
+        if is_critical_running:
+            self._paused_by_preemption.add(goal_name)
+            return False
+            
+        # Se não há critical running, despausa o goal se estava pausado
+        if goal_name in self._paused_by_preemption:
+            self._paused_by_preemption.discard(goal_name)
+            
         return True
 
     def _get_next_priority_goal(self) -> str | None:
@@ -432,9 +443,9 @@ class GoalScheduler:
         except Exception:
             pass
 
-    async def _run_goal_loop(self, goal: AutonomousGoal) -> None:
+    async def _run_goal_loop(self, goal: AutonomousGoal, startup_delay: float = 10.0) -> None:
         """Loop independente para um goal. Roda até stop() com preemption support."""
-        await asyncio.sleep(10)  # Respira pós-boot
+        await asyncio.sleep(startup_delay)  # Respira pós-boot escalonado
 
         while self.running:
             try:
@@ -489,9 +500,9 @@ class GoalScheduler:
                         # Heartbeat: atualiza timestamp para o watchdog
                         self._write_heartbeat()
 
-                        # Executa ciclo
+                        # Executa ciclo com timeout para prevenir deadlocks latentes
                         _cycle_start = time.monotonic()
-                        result = await goal.run_cycle()
+                        result = await asyncio.wait_for(goal.run_cycle(), timeout=600.0)
                         _cycle_latency = time.monotonic() - _cycle_start
                     finally:
                         self._running_goals.discard(goal.name)
@@ -576,7 +587,10 @@ class GoalScheduler:
 
             finally:
                 self._save_goal_state(goal)
-                await asyncio.sleep(goal.interval_seconds)
+                
+            # Se chegou aqui sem erro, ou se erro foi tratado, dorme o intervalo do goal.
+            # Os continue dão bypass nesta etapa, usando seus sleeps curtos próprios.
+            await asyncio.sleep(goal.interval_seconds)
 
     # ── Background Task Management ──────────────────────────
     def _create_tracked_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
@@ -621,7 +635,11 @@ class GoalScheduler:
             # No scheduler não temos self.pipeline_api_keys diretamente, então pegamos do environment se possível,
             # Ou passamos uma LLMRequest para o fallback resolver (invoke defaults).
             # Hack seguro se o router global nao for mandado
-            from config.models import ModelRouter
+            from config.models import build_default_router
+
+            pipeline = self.notifier.pipeline if self.notifier else None
+            router = pipeline.model_router if (pipeline and getattr(pipeline, "model_router", None)) else build_default_router()
+            api_keys = pipeline.api_keys if (pipeline and getattr(pipeline, "api_keys", None)) else {}
 
             resp = await invoke_with_fallback(
                 CognitiveRole.FAST,
@@ -631,8 +649,8 @@ class GoalScheduler:
                     temperature=0.1,
                     max_tokens=300,
                 ),
-                ModelRouter(),
-                {},  # Dict de api keys empty delega pro os.environ na lib base
+                router,
+                api_keys,  # Dict de api keys real ou vazio (fallback para os.environ na lib base)
             )
             report = resp.text
             self.friction_metrics["rethinks_blocked"] += 1

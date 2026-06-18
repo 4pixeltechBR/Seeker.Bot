@@ -7,6 +7,7 @@ qualquer um derrubaria a importação do módulo e travaria o boot do bot
 (incident 2026-05-17 — crash loop yt_dlp ausente na venv).
 """
 
+import os
 import re
 import logging
 from typing import List, Tuple, Dict, Optional
@@ -14,6 +15,73 @@ from typing import List, Tuple, Dict, Optional
 from src.core.search.web import fetch_page_text
 
 log = logging.getLogger("seeker.knowledge_vault.extractors")
+
+
+async def fetch_raw_text(url: str, max_chars: int = 12000) -> str:
+    """
+    Busca texto bruto de uma URL — diferente de fetch_page_text, NÃO rejeita
+    conteúdo não-HTML (READMEs no raw.githubusercontent vêm como text/plain).
+    Retorna "" em qualquer falha (degradação graciosa).
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=15.0,
+            follow_redirects=True,
+            headers={"User-Agent": "SeekerBot/1.0 (research agent)"},
+        ) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                return ""
+            return resp.text[:max_chars]
+    except Exception as e:
+        log.debug(f"[extractors] fetch_raw_text falhou {url}: {e}")
+        return ""
+
+
+async def fetch_github_readme(owner: str, repo: str) -> str:
+    """Tenta múltiplos nomes/locais de README via raw.githubusercontent."""
+    candidates = [
+        "README.md", "readme.md", "Readme.md",
+        "README.rst", "README", "docs/README.md",
+    ]
+    base = f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD"
+    for name in candidates:
+        text = await fetch_raw_text(f"{base}/{name}")
+        if text and len(text.strip()) > 30:
+            return text
+    return ""
+
+
+async def fetch_github_metadata(owner: str, repo: str) -> Dict:
+    """
+    Metadados do repo via API pública do GitHub.
+    Usa GITHUB_TOKEN do env se presente (eleva o rate limit). Retorna {} em falha.
+    """
+    import httpx
+
+    headers = {"Accept": "application/vnd.github+json", "User-Agent": "SeekerBot/1.0"}
+    token = os.getenv("GITHUB_TOKEN")
+    if token and not token.startswith("your_"):
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
+            resp = await client.get(f"https://api.github.com/repos/{owner}/{repo}")
+            if resp.status_code != 200:
+                return {}
+            data = resp.json()
+            return {
+                "description": data.get("description") or "",
+                "language": data.get("language") or "",
+                "stars": data.get("stargazers_count", 0),
+                "topics": data.get("topics", []),
+                "homepage": data.get("homepage") or "",
+            }
+    except Exception as e:
+        log.debug(f"[extractors] fetch_github_metadata falhou {owner}/{repo}: {e}")
+        return {}
 
 
 async def extract_from_images(image_bytes_list: List[bytes], vlm_client) -> str:
@@ -159,3 +227,65 @@ async def extract_from_audio(audio_bytes: bytes) -> str:
     # Nota: O fallback local Whisper Turbo será implementado no stt_local.py
     # e injetado no stt_groq.py conforme o plano.
     return await transcribe_audio_groq(audio_bytes)
+
+
+async def extract_from_pdf(pdf_bytes: bytes, vlm_client) -> str:
+    """
+    Extrai texto de PDF. Para páginas escaneadas (pouco texto),
+    renderiza como imagem e usa VLM OCR.
+
+    Lazy import de PyMuPDF (fitz) — se faltar, erro claro.
+    Limita a ~15 páginas para custo controlado.
+    """
+    try:
+        import fitz
+    except ImportError as e:
+        log.error(
+            f"[extractors] pymupdf ausente: {e}. "
+            f"Instale com: pip install pymupdf"
+        )
+        raise RuntimeError(
+            "Dependências do PDF não instaladas. Veja log para o pip install."
+        ) from e
+
+    import io
+
+    try:
+        pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
+    except Exception as e:
+        raise ValueError(f"PDF inválido: {e}") from e
+
+    results = []
+    total_pages = len(pdf)
+    MAX_PAGES = 15
+    page_limit = min(MAX_PAGES, total_pages)
+
+    for page_num in range(page_limit):
+        page = pdf[page_num]
+        page_text = page.get_text(sort=True).strip()
+
+        # Se página tem pouco texto (< 100 chars), trata como escaneada
+        if len(page_text) < 100 and vlm_client:
+            try:
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                img_bytes = pix.tobytes("png")
+                ocr_text = await vlm_client.ocr_fast(img_bytes)
+                page_text = ocr_text or page_text
+            except Exception as e:
+                log.debug(f"[extractors] OCR falhou página {page_num + 1}: {e}")
+
+        if page_text:
+            results.append(f"--- PÁGINA {page_num + 1} ---\n{page_text}")
+
+    pdf.close()
+
+    if not results:
+        return "[PDF vazio ou falha na extração]"
+
+    body = "\n\n".join(results)
+    if total_pages > MAX_PAGES:
+        body += (
+            f"\n\n[⚠️ Documento truncado: {MAX_PAGES} de {total_pages} "
+            f"páginas processadas]"
+        )
+    return body

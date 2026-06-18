@@ -84,16 +84,17 @@ class DailyNewsGoal:
     async def run_cycle(self) -> GoalResult:
         now = datetime.now()
 
-        # Encontra o horário alvo que já passou no dia de hoje e que tá mais perto
+        # Encontra o horário alvo de hoje que já passou e não foi executado (Catch-up robusto)
         applicable_schedule = None
         for hour, minute in self.schedules:
             target_today = now.replace(
                 hour=hour, minute=minute, second=0, microsecond=0
             )
-            # Damos uma janela de segurança de 1 hora para ele não rodar catch-up atrasadíssimo de ontem
-            if 0 <= (now - target_today).total_seconds() < 3600:
-                applicable_schedule = target_today
-                break
+            if now >= target_today:
+                run_identifier = target_today.strftime("%Y-%m-%d:%H:%M")
+                if run_identifier not in self._last_runs:
+                    applicable_schedule = target_today
+                    break
 
         if not applicable_schedule:
             self._status = GoalStatus.IDLE
@@ -102,14 +103,6 @@ class DailyNewsGoal:
             )
 
         run_identifier = applicable_schedule.strftime("%Y-%m-%d:%H:%M")
-
-        if run_identifier in self._last_runs:
-            self._status = GoalStatus.IDLE
-            return GoalResult(
-                success=True,
-                summary="DailyNews já executado para este horário",
-                cost_usd=0.0,
-            )
 
         # 🚀 HORA DO DAILYNEWS 🚀
         self._status = GoalStatus.RUNNING

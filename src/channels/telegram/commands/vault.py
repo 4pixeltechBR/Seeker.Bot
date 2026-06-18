@@ -4,7 +4,6 @@ from aiogram import Dispatcher, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.enums import ParseMode
 from src.core.pipeline import SeekerPipeline
-from src.skills.knowledge_vault.vault_searcher import VaultSearcher
 
 log = logging.getLogger("seeker.telegram.vault")
 
@@ -48,7 +47,8 @@ def setup_vault_handlers(
                 "Envie a próxima mensagem para salvar no Obsidian. Pode ser:\n"
                 "• 🎙️ Áudio (será salvo como Ideia)\n"
                 "• 📷 Print/Foto (com extração OCR)\n"
-                "• 🔗 Link do YouTube ou site\n"
+                "• 📄 PDF/Documento\n"
+                "• 🔗 Link do YouTube, site ou repositório GitHub\n"
                 "• 📝 Texto livre\n\n"
                 "<i>(Para cancelar, envie /cancelar)</i>",
                 parse_mode=ParseMode.HTML,
@@ -62,15 +62,9 @@ def setup_vault_handlers(
             status_msg = await message.answer(f"⏳ Processando link: {url}...")
 
             try:
-                if "youtube.com" in url or "youtu.be" in url:
-                    resp = await vault.process_youtube(
-                        url, user_hint=args.replace(url, "").strip()
-                    )
-                else:
-                    resp = await vault.process_site(
-                        url, user_hint=args.replace(url, "").strip()
-                    )
-
+                resp = await vault.process_url(
+                    url, user_hint=args.replace(url, "").strip()
+                )
                 await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
             except Exception as e:
                 log.error(f"[obsidian] Erro ao processar URL: {e}", exc_info=True)
@@ -87,7 +81,7 @@ def setup_vault_handlers(
 
     @dp.message(F.text.startswith("/cofre"))
     async def cmd_cofre_search(message: Message):
-        """Pesquisa direta no cofre"""
+        """Pesquisa semântica no cofre com resposta sintetizada por LLM"""
 
         query = message.text.replace("/cofre", "").strip()
         if not query:
@@ -96,23 +90,14 @@ def setup_vault_handlers(
             )
             return
 
-        searcher = VaultSearcher()
-        results = searcher.search(query, max_results=5)
+        status_msg = await message.answer(f"🔍 Buscando no cofre: *{query}*...", parse_mode=ParseMode.MARKDOWN)
 
-        if not results:
-            await message.reply(
-                f"🔍 Nenhuma nota encontrada para: *{query}*",
-                parse_mode=ParseMode.MARKDOWN,
-            )
-            return
-
-        text = [f"🔍 **Resultados no Cofre para: {query}**\n"]
-        for note in results:
-            text.append(f"📄 **{note.title}**")
-            text.append(f"🏷️ {', '.join([f'#{t}' for t in note.tags])}")
-            text.append(f"🔗 {note.path.name}\n")
-
-        await message.answer("\n".join(text), parse_mode=ParseMode.MARKDOWN)
+        try:
+            resp = await vault.search_and_answer(query, max_results=5)
+            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+        except Exception as e:
+            log.error(f"[cofre] Erro na busca: {e}", exc_info=True)
+            await status_msg.edit_text(f"❌ Erro ao buscar no cofre: {str(e)[:100]}")
 
     # Closure-scoped set para evitar bugs de dp["key"] no Aiogram 3.x
     # O dp.__getitem__ usa workflow_data e é incompatível com o in operator

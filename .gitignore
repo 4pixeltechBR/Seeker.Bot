@@ -61,3 +61,16 @@ drive_decompiled.py
 
 # Build artifacts (gerado por pip install -e .)
 *.egg-info/
+
+# Cookies e dados sensiveis adicionais do Seeker
+docs/all_cookies.txt
+planilha_eventos_br153.csv
+
+# Habilidades Comerciais (Exclusao do Repositorio Publico)
+src/skills/viralx9/
+src/skills/seeker_sales/
+src/skills/seeker_sales_week/
+src/skills/show_leads_daily/
+src/skills/event_map_scout/
+
+

@@ -56,7 +56,8 @@ class EventQuery:
     def all(self, uf: Optional[str] = None) -> list[dict]:
         events = self._load()
         if uf:
-            return events
+            uf_norm = uf.strip().upper()
+            return [e for e in events if str(e.get("uf", "")).upper() == uf_norm]
         return events
 
     def by_month(self, mes: int, mes_fim: Optional[int] = None) -> list[dict]:

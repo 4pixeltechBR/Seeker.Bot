@@ -55,6 +55,7 @@ class MessageController:
 
     def _register_handlers(self):
         self.router.message.register(self.handle_vault_photo, F.photo)
+        self.router.message.register(self.handle_document, F.document)
         self.router.message.register(self.handle_audio, F.voice | F.audio)
         self.router.message.register(self.handle_text, F.text)
 
@@ -82,6 +83,21 @@ class MessageController:
         else:
             await self._process_single_photo(message, caption, is_obsidian)
 
+    async def _download_file_with_retry(self, bot, file_id: str, max_retries: int = 3) -> bytes:
+        import aiohttp
+        for attempt in range(1, max_retries + 1):
+            try:
+                file_info = await bot.get_file(file_id)
+                file_obj = await bot.download_file(file_info.file_path)
+                return file_obj.read()
+            except (aiohttp.ClientError, Exception) as e:
+                if attempt == max_retries:
+                    log.error(f"Falha definitiva ao baixar arquivo {file_id} após {max_retries} tentativas: {e}")
+                    raise e
+                log.warning(f"Erro ao baixar arquivo {file_id} (Tentativa {attempt}/{max_retries}). Retentando em {2 ** attempt}s... Erro: {e}")
+                await asyncio.sleep(2 ** attempt)
+
+
     def _is_obsidian_request(self, caption: str, message: Message) -> bool:
         if "/obsidian" in caption.lower() or "/cofre" in caption.lower():
             return True
@@ -106,8 +122,11 @@ class MessageController:
                 self._debounce_photo_group(mg_id, message, caption, is_obsidian)
             )
 
-        file_info = await message.bot.get_file(message.photo[-1].file_id)
-        photo_file = await message.bot.download_file(file_info.file_path)
+        try:
+            photo_bytes = await self._download_file_with_retry(message.bot, message.photo[-1].file_id)
+        except Exception as e:
+            await message.reply(f"❌ Erro de conexão ao baixar imagem (Timeout/Rede): {e}")
+            return
 
         if mg_id not in self._vault_debouncer:
             self._vault_debouncer[mg_id] = []
@@ -115,7 +134,7 @@ class MessageController:
                 self._debounce_photo_group(mg_id, message, caption, is_obsidian)
             )
 
-        self._vault_debouncer[mg_id].append(photo_file.read())
+        self._vault_debouncer[mg_id].append(photo_bytes)
 
     async def _debounce_photo_group(
         self, mg_id: str, message: Message, caption: str, is_obsidian: bool
@@ -147,9 +166,11 @@ class MessageController:
     async def _process_single_photo(
         self, message: Message, caption: str, is_obsidian: bool
     ):
-        file_info = await message.bot.get_file(message.photo[-1].file_id)
-        photo_file = await message.bot.download_file(file_info.file_path)
-        photo_bytes = photo_file.read()
+        try:
+            photo_bytes = await self._download_file_with_retry(message.bot, message.photo[-1].file_id)
+        except Exception as e:
+            await message.reply(f"❌ Erro de conexão ao baixar imagem (Timeout/Rede): {e}")
+            return
 
         if is_obsidian:
             status_msg = await message.answer(
@@ -173,6 +194,48 @@ class MessageController:
             except Exception as e:
                 await message.reply(f"❌ Erro ao analisar imagem: {e}")
 
+    # ─── 1.5. DOCUMENT HANDLING ──────────────────────────────────────────────────────
+    async def handle_document(self, message: Message):
+        """Handler para documentos (PDF, etc). Encaminha para cofre ou pipeline."""
+        if not message.document:
+            return
+
+        mime_type = message.document.mime_type or ""
+        caption = message.caption or ""
+        is_obsidian = self._is_obsidian_request(caption, message)
+
+        # Apenas PDF suportado por enquanto
+        if mime_type != "application/pdf":
+            await message.reply(
+                f"❌ Tipo de documento não suportado: {mime_type}\n"
+                f"Por enquanto, apenas PDF é suportado."
+            )
+            return
+
+        try:
+            pdf_bytes = await self._download_file_with_retry(message.bot, message.document.file_id)
+        except Exception as e:
+            await message.reply(f"❌ Erro de conexão ao baixar documento: {e}")
+            return
+
+        if is_obsidian:
+            status_msg = await message.answer("⏳ Lendo PDF e salvando no Obsidian...")
+            resp = await self.vault.process_pdf(
+                pdf_bytes,
+                user_hint=caption.replace("/obsidian", "").replace("/cofre", ""),
+            )
+            await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+        else:
+            status_msg = await message.answer("⏳ Processando PDF...")
+            try:
+                from src.skills.knowledge_vault.extractors import extract_from_pdf
+                raw_text = await extract_from_pdf(pdf_bytes, self.vault.vlm_client)
+                user_input = f"{caption}\n\n[PDF Extraído]:\n{raw_text}".strip()
+                await status_msg.delete()
+                await self._process_and_reply(message, user_input)
+            except Exception as e:
+                await status_msg.edit_text(f"❌ Erro ao processar PDF: {e}")
+
     # ─── 2. AUDIO HANDLING ────────────────────────────────────────────────────────
     async def handle_audio(self, message: Message):
         file_id = message.voice.file_id if message.voice else message.audio.file_id
@@ -180,8 +243,11 @@ class MessageController:
 
         await message.bot.send_chat_action(message.chat.id, ChatAction.RECORD_VOICE)
 
-        audio_file = await message.bot.download_file(file_info.file_path)
-        audio_bytes = audio_file.read()
+        try:
+            audio_bytes = await self._download_file_with_retry(message.bot, file_id)
+        except Exception as e:
+            await message.reply(f"❌ Erro de conexão ao baixar áudio (Timeout/Rede): {e}")
+            return
 
         caption = (message.caption or "").lower()
         is_obsidian = "/obsidian" in caption or "/cofre" in caption
@@ -271,14 +337,9 @@ class MessageController:
             url = url_match.group(0)
             status_msg = await message.answer(f"⏳ Processando link: {url}...")
             try:
-                if "youtube.com" in url or "youtu.be" in url:
-                    resp = await self.vault.process_youtube(
-                        url, user_hint=user_input.replace(url, "").strip()
-                    )
-                else:
-                    resp = await self.vault.process_site(
-                        url, user_hint=user_input.replace(url, "").strip()
-                    )
+                resp = await self.vault.process_url(
+                    url, user_hint=user_input.replace(url, "").strip()
+                )
                 await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
             except Exception as e:
                 log.error(
@@ -304,6 +365,9 @@ class MessageController:
             return
 
         if await self._handle_scheduler_wizard(message, user_input):
+            return
+
+        if await self._handle_nl_reminder(message, user_input):
             return
 
         user_input = await self._inject_url_context(message, user_input)
@@ -456,6 +520,80 @@ class MessageController:
         except Exception as e:
             log.debug(f"[wizard] Erro ao verificar wizard: {e}")
         return False
+
+    async def _handle_nl_reminder(self, message: Message, user_input: str) -> bool:
+        """
+        Intercepta lembretes em linguagem natural ("me lembre daqui a 5 min ...")
+        e cria uma tarefa one-shot (ONCE + notify_only). Retorna True se tratou.
+
+        Só age quando há intenção de lembrete E um horário reconhecível; caso
+        contrário devolve False para o fluxo cognitivo normal seguir.
+        """
+        try:
+            from src.skills.scheduler_conversacional.reminder_parser import (
+                parse_reminder,
+                REMINDER_INTENT,
+            )
+
+            if not REMINDER_INTENT.search(user_input):
+                return False
+
+            spec = parse_reminder(user_input)
+            if spec is None:
+                return False
+
+            import uuid
+            from datetime import datetime, timezone
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+            from src.skills.scheduler_conversacional.models import (
+                ScheduledTask,
+                ScheduleType,
+            )
+
+            store = SchedulerStore(self.pipeline.memory._db)
+            await store.init()
+
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            task = ScheduledTask(
+                id=str(uuid.uuid4()),
+                title=spec.title,
+                schedule_type=ScheduleType.ONCE,
+                hour=spec.run_at_local.hour,
+                minute=spec.run_at_local.minute,
+                notify_only=True,
+                instruction_text=spec.body,
+                next_run_at=spec.run_at_utc,
+                chat_id=message.chat.id,
+                created_by=str(message.from_user.id),
+            )
+
+            # UNIQUE(chat_id, title): se colidir, torna o título único
+            try:
+                await store.create_task(task)
+            except Exception:
+                task.title = f"{spec.title} ({spec.run_at_local:%H:%M})"
+                await store.create_task(task)
+
+            # Tempo relativo amigável
+            delta = spec.run_at_utc - now_utc
+            mins = max(1, int(delta.total_seconds() // 60))
+            if mins < 60:
+                quando = f"daqui a ~{mins} min"
+            elif mins < 1440:
+                quando = f"daqui a ~{mins // 60}h{mins % 60:02d}"
+            else:
+                quando = f"em {spec.run_at_local:%d/%m}"
+
+            await message.answer(
+                f"🔔 <b>Lembrete agendado</b>\n\n"
+                f"📝 {spec.body}\n"
+                f"⏰ {spec.run_at_local:%d/%m %H:%M} ({quando})",
+                parse_mode=ParseMode.HTML,
+            )
+            return True
+        except Exception as e:
+            log.debug(f"[nl_reminder] Falha ao criar lembrete: {e}")
+            return False
 
     def _handle_god_mode(self, message: Message, user_input: str) -> str:
         # Avoid relying on Dispatcher global state; use instance state or pipeline
@@ -633,16 +771,21 @@ class MessageController:
                     await stream_msg.edit_text(part, parse_mode=ParseMode.HTML, reply_markup=markup)
                     first_sent = True
                     continue
-                except Exception:
-                    # Se editar falhar (ex: mensagem deletada), cai no answer normal
-                    pass
+                except Exception as e:
+                    log.warning(f"[message] Falha ao editar placeholder (fallback para answer normal): {e}")
+                    # Não define first_sent=True nem chama continue, caindo no answer normal abaixo
 
             # Chunks restantes ou fallback: answer normal
             try:
                 await message.answer(part, parse_mode=ParseMode.HTML, reply_markup=markup)
                 first_sent = True
-            except Exception:
-                await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
+            except Exception as e:
+                log.error(f"[message] Falha no fallback HTML answer: {e}")
+                try:
+                    await message.answer(html.escape(part)[:MAX_MSG_LENGTH])
+                    first_sent = True
+                except Exception as final_err:
+                    log.critical(f"[message] Falha critica no envio de mensagem: {final_err}")
 
 
 

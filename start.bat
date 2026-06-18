@@ -5,7 +5,7 @@ echo   SEEKER.BOT — Inicio Rapido
 echo ══════════════════════════════════════════════
 echo.
 
-cd /d E:\Seeker.Bot
+cd /d "%~dp0"
 
 :: Ativa o venv
 call .venv\Scripts\activate.bat

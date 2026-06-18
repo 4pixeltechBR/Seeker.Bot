@@ -26,7 +26,7 @@ class IMAPReader:
     @classmethod
     def from_env(cls) -> "IMAPReader | None":
         host = os.getenv("IMAP_SERVER", "imap.gmail.com")
-        user = os.getenv("SMTP_USER", "")
+        user = os.getenv("IMAP_USER", os.getenv("SMTP_USER", ""))
         password = os.getenv("IMAP_PASSWORD", os.getenv("SMTP_PASSWORD", ""))
 
         if not all([host, user, password]):
@@ -44,43 +44,40 @@ class IMAPReader:
 
     async def fetch_unread_emails(self, max_emails: int = 15) -> list[dict]:
         """Busca emails UNSEEN e extrai os dados essenciais."""
+        client = None
         try:
             log.info(f"[imap] Conectando a {self.host}:{self.user}...")
             # 60s timeout na inicializacao tcp tls
             client = aioimaplib.IMAP4_SSL(host=self.host, timeout=60.0)
             await asyncio.wait_for(client.wait_hello_from_server(), timeout=30.0)
             log.info("[imap] ✓ Conectado ao servidor IMAP")
-        except (asyncio.TimeoutError, Exception) as e:
-            log.error(
-                f"[imap] ❌ Falha na conexão (Timeout ou Auth): {e}", exc_info=True
-            )
-            return []
 
-        try:
             log.info(f"[imap] Autenticando como {self.user}...")
-            res, _ = await client.login(self.user, self.password)
+            res, _ = await asyncio.wait_for(
+                client.login(self.user, self.password), timeout=20.0
+            )
             if res != "OK":
-                log.error(f"[imap] ❌ Falha no login: {res}", exc_info=True)
+                log.error(f"[imap] ❌ Falha no login: {res}")
                 return []
             log.info("[imap] ✓ Autenticado com sucesso")
 
             log.info("[imap] Selecionando INBOX...")
-            res, _ = await client.select("INBOX")
+            res, _ = await asyncio.wait_for(client.select("INBOX"), timeout=15.0)
             if res != "OK":
-                log.error("[imap] ❌ Falha ao selecionar INBOX", exc_info=True)
+                log.error(f"[imap] ❌ Falha ao selecionar INBOX: {res}")
                 return []
             log.info("[imap] ✓ INBOX selecionado")
 
             # Busca emails não lidos
             log.info("[imap] Procurando emails UNSEEN...")
-            res, data = await client.search("UNSEEN")
+            res, data = await asyncio.wait_for(client.search("UNSEEN"), timeout=20.0)
 
             raw_ids = data[0] if data else b""
             if isinstance(raw_ids, bytes):
                 raw_ids = raw_ids.decode("utf-8", errors="ignore")
 
             if res != "OK":
-                log.error(f"[imap] ❌ Falha na busca UNSEEN: {res}", exc_info=True)
+                log.error(f"[imap] ❌ Falha na busca UNSEEN: {res}")
                 return []
 
             if not raw_ids.strip():
@@ -100,65 +97,76 @@ class IMAPReader:
 
             emails_data = []
             for b_id in email_ids:
-                # Faz fetch do corpo sem marcar como lido (PEEK)
-                res, fetch_data = await client.fetch(b_id, "(BODY.PEEK[])")
-                if res != "OK":
-                    log.debug(f"[imap] fetch retornou res={res} para id={b_id}")
-                    continue
-
-                # DIAGNÓSTICO temporário — remove após confirmar fix
-                log.warning(
-                    f"[imap:diag] id={b_id} fetch_data len={len(fetch_data)} "
-                    f"types={[type(x).__name__ for x in fetch_data]} "
-                    f"sizes={[len(x) if isinstance(x, (bytes, bytearray, str)) else '?' for x in fetch_data]}"
-                )
-
-                raw_email = self._extract_raw_email(fetch_data, b_id)
-
-                if not raw_email:
-                    log.warning(
-                        f"[imap] ⚠ Não foi possível extrair raw_email para id={b_id}"
+                try:
+                    # Faz fetch do corpo sem marcar como lido (PEEK) com timeout individual
+                    res, fetch_data = await asyncio.wait_for(
+                        client.fetch(b_id, "(BODY.PEEK[])"), timeout=15.0
                     )
-                    continue
+                    if res != "OK":
+                        log.debug(f"[imap] fetch retornou res={res} para id={b_id}")
+                        continue
 
-                msg = email.message_from_bytes(raw_email)
+                    # DIAGNÓSTICO temporário — remove após confirmar fix
+                    log.warning(
+                        f"[imap:diag] id={b_id} fetch_data len={len(fetch_data)} "
+                        f"types={[type(x).__name__ for x in fetch_data]} "
+                        f"sizes={[len(x) if isinstance(x, (bytes, bytearray, str)) else '?' for x in fetch_data]}"
+                    )
 
-                # Extrai metadados
-                subject = self._decode_header(msg.get("Subject", "(Sem Assunto)"))
-                sender = self._decode_header(msg.get("From", "(Desconhecido)"))
-                date_str = msg.get("Date", "")
+                    raw_email = self._extract_raw_email(fetch_data, b_id)
 
-                # Extrai corpo plaintext
-                body = self._extract_text_body(msg)
+                    if not raw_email:
+                        log.warning(
+                            f"[imap] ⚠ Não foi possível extrair raw_email para id={b_id}"
+                        )
+                        continue
 
-                emails_data.append(
-                    {
-                        "id": b_id.decode("utf-8")
-                        if isinstance(b_id, bytes)
-                        else str(b_id),
-                        "subject": subject,
-                        "sender": sender,
-                        "date": date_str,
-                        "body": body[
-                            :2000
-                        ],  # Limita tamanho para não estourar contexto do LLM
-                    }
-                )
+                    msg = email.message_from_bytes(raw_email)
+
+                    # Extrai metadados
+                    subject = self._decode_header(msg.get("Subject", "(Sem Assunto)"))
+                    sender = self._decode_header(msg.get("From", "(Desconhecido)"))
+                    date_str = msg.get("Date", "")
+
+                    # Extrai corpo plaintext
+                    body = self._extract_text_body(msg)
+
+                    emails_data.append(
+                        {
+                            "id": b_id.decode("utf-8")
+                            if isinstance(b_id, bytes)
+                            else str(b_id),
+                            "subject": subject,
+                            "sender": sender,
+                            "date": date_str,
+                            "body": body[
+                                :2000
+                            ],  # Limita tamanho para não estourar contexto do LLM
+                        }
+                    )
+                except asyncio.TimeoutError:
+                    log.error(f"[imap] Timeout ao baixar email {b_id}")
+                except Exception as e_inner:
+                    log.error(f"[imap] Erro ao processar email {b_id}: {e_inner}")
 
             log.info(f"[imap] ✅ Retornando {len(emails_data)} emails processados")
             return emails_data
 
+        except asyncio.TimeoutError as e:
+            log.error(f"[imap] ❌ Operação IMAP expirou (Timeout): {e}", exc_info=True)
+            return []
         except Exception as e:
             log.error(f"[imap] ❌ Erro durante o fetch: {e}", exc_info=True)
             return []
         finally:
-            try:
-                await client.logout()
-                log.debug("[imap] Desconectado do servidor IMAP")
-            except Exception:
-                # Windows ProactorEventLoop lança AttributeError 'NoneType'.send
-                # no cleanup do SSL após o event loop fechar — é noise, não erro real.
-                pass
+            if client is not None:
+                try:
+                    await asyncio.wait_for(client.logout(), timeout=10.0)
+                    log.debug("[imap] Desconectado do servidor IMAP")
+                except Exception:
+                    # Windows ProactorEventLoop lança AttributeError 'NoneType'.send
+                    # no cleanup do SSL após o event loop fechar — é noise, não erro real.
+                    pass
 
     def _extract_raw_email(self, fetch_data: list, b_id) -> bytes | None:
         """

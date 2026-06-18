@@ -125,6 +125,7 @@ OBRIGATÓRIO:
 - Se a busca não retornar resultados claros: "Não encontrei confirmação — pode ter sido lançado após meu cutoff ou o nome está diferente"
 - Nunca recomendar modelos/ferramentas baseado apenas nos seus pesos — preços, versões e capacidades mudam
 - Inclua a data da fonte quando disponível
+- Se você identificar no decorrer do raciocínio que a consulta envolve fatos mutáveis atuais de data mutável ou eventos dinâmicos (como versões, preços ou documentação recente) e o contexto de pesquisa web disponível é insuficiente, você DEVE interromper a geração e retornar a tag estruturada exata: `[SEARCH_REQUIRED: "<query de busca detalhada>"]` para que o pipeline recarregue seu contexto com dados atualizados da web.
 
 AUTOCONHECIMENTO — Suas capacidades reais (não sugira implementar o que já tem):
 - CognitiveLoadRouter: gatekeeper via regex, 0 LLM calls, 0ms, classifica REFLEX/DELIBERATE/DEEP
@@ -138,18 +139,28 @@ AUTOCONHECIMENTO — Suas capacidades reais (não sugira implementar o que já t
 """
 
 # ─────────────────────────────────────────────────────────────────────
-# REFLEX — resposta direta, sem pipeline
+# REFLEX — resposta direta com kernel completo da Sexta-feira
+# SYSTEM_BASE é o kernel real. REFLEX herda tudo + diretriz de brevidade.
+# NUNCA usar stub genérico aqui — identidade não tem modo econômico.
 # ─────────────────────────────────────────────────────────────────────
 
-REFLEX_SYSTEM = (
-    f"Você é {ASSISTANT_NAME} — parceiro cognitivo sênior. "
-    "Responda de forma direta e concisa em português do Brasil. "
-    "REGRA DE IDIOMA: Sempre que encontrar material em inglês ou em qualquer outro idioma, TRADUZA PARA O PORTUGUÊS DO BRASIL em sua resposta. "
-    "Sem formalidades, sem preâmbulo. Tom: colega sênior. "
-    "Quando houver dados de busca web, USE-OS diretamente na resposta como fonte primária. "
-    "Se a web contradiz seu conhecimento interno, o dado da web tem prioridade absoluta. "
-    "Nunca diga 'verifique no site oficial' se a informação já está disponível."
-)
+REFLEX_ADDENDUM = """
+━━━ MODO REFLEX (contexto de baixa complexidade) ━━━
+Este é um contexto simples ou conversacional. Aplique o kernel completo internamente,
+but entregue a resposta de forma concisa — sem relatório, sem estrutura de tópicos.
+Prosa fluida, telegráfica quando o conteúdo permitir.
+
+Se for uma saudação ou abertura de conversa: responda como um colega chegando,
+não como um sistema de helpdesk. Natural, presente, sem protocolo.
+
+Se houver dados de busca web: USE-OS como fonte primária, não mencione "verifique".
+Se a web contradiz seu conhecimento interno, a web tem prioridade absoluta.
+"""
+
+# REFLEX_SYSTEM = kernel completo (SYSTEM_BASE) + addendum de brevidade
+# Montado dinamicamente em build_reflex_prompt para manter a mesma
+# estrutura de PromptBundle e aproveitar o prefix caching do SYSTEM_BASE.
+REFLEX_SYSTEM = SYSTEM_BASE + REFLEX_ADDENDUM
 
 # ─────────────────────────────────────────────────────────────────────
 # DEEP — análise profunda com triangulação
@@ -304,9 +315,17 @@ def build_deliberate_prompt(
     memory_context: str = "",
     session_context: str = "",
     web_context: str = "",
+    active_toolsets: list[str] | None = None,
 ) -> PromptBundle:
     """System prompt para DELIBERATE: síntese com memória."""
     stable_parts = [SYSTEM_BASE]
+    
+    if active_toolsets:
+        from src.core.execution.registry import get_toolsets_prompt
+        tool_prompt = get_toolsets_prompt(active_toolsets)
+        if tool_prompt:
+            stable_parts.append(tool_prompt)
+
     dynamic_parts = []
 
     if module_context:
@@ -332,19 +351,28 @@ def build_deep_prompt(
     memory_context: str = "",
     session_context: str = "",
     god_mode: bool = False,
+    active_toolsets: list[str] | None = None,
 ) -> PromptBundle:
     """System prompt para DEEP: análise profunda com triangulação."""
     web_section = (
         f"\n\n━━━ PESQUISA WEB (fontes reais) ━━━\n{web_context}" if web_context else ""
     )
 
-    stable_parts = [
-        SYSTEM_BASE,
+    stable_parts = [SYSTEM_BASE]
+    
+    if active_toolsets:
+        from src.core.execution.registry import get_toolsets_prompt
+        tool_prompt = get_toolsets_prompt(active_toolsets)
+        if tool_prompt:
+            stable_parts.append(tool_prompt)
+
+    stable_parts.append(
         DEEP_ADDENDUM.format(
             evidence_context=evidence_context,
             web_context=web_section,
-        ),
-    ]
+        )
+    )
+    
     dynamic_parts = []
 
     if module_context:

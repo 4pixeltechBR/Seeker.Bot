@@ -63,6 +63,7 @@ class LLMRequest:
     temperature: float = 0.0
     system: str | None = None
     response_format: str | None = None
+    tools: list[dict] | None = None
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -131,14 +132,15 @@ def _get_rate_limiter(config: ModelConfig) -> AsyncRateLimiter:
 # ─────────────────────────────────────────────────────────────────────
 
 PROVIDER_TIMEOUTS = {
-    "nvidia": 25.0,  # Aumentado para 25s (era 15s) — suporta latência de rede melhor
-    "groq": 10.0,  # Groq é LPU, deve responder instantaneamente para acionar fallback rápido
-    "cerebras": 10.0,  # Cerebras LPU, velocidade extrema (~700 tok/s), fallback de 10s
-    "gemini": 30.0,  # Padrão, às vezes tem cold start na API
-    "deepseek": 40.0,  # Aumentado para 40s (era 30s) — China firewall pode ser lento
-    "kimi": 40.0,  # Moonshot API
-    "mistral": 30.0,
-    "ollama": 120.0,  # GPU local ou offload CPU (lento por padrão no fallback)
+    "groq": 4.0,       # LPU ultra rápida, se travar aciona fallback imediato
+    "cerebras": 4.0,   # Wafer-scale LPU ultra rápida, velocidade extrema (~700 tok/s)
+    "nvidia": 6.0,     # NVIDIA NIM trial (Nemotron/R1), timeout curto para evitar timeouts de rede longos
+    "gemini": 10.0,    # Google AI Studio, tempo reduzido de 30s para 10s
+    "deepseek": 30.0,  # API paga oficial (China firewall pode ter oscilações)
+    "kimi": 30.0,      # Moonshot API
+    "mistral": 20.0,   # Mistral Platform free
+    "openrouter": 20.0, # OpenRouter Hub
+    "ollama": 120.0,   # Execução local na máquina do usuário (offload CPU)
 }
 
 _client_pool: dict[str, httpx.AsyncClient] = {}
@@ -367,9 +369,11 @@ class OpenAICompatibleProvider(BaseProvider):
         resp.raise_for_status()
         data = resp.json()
         choice = data["choices"][0]
+        msg = choice.get("message", {})
+        text = msg.get("content") or msg.get("reasoning") or ""
         usage = data.get("usage", {})
         return LLMResponse(
-            text=choice["message"]["content"],
+            text=text,
             model=data.get("model", self.config.model_id),
             provider=self.config.provider,
             input_tokens=usage.get("prompt_tokens", 0),
@@ -397,7 +401,24 @@ class NvidiaProvider(OpenAICompatibleProvider):
 
 
 class KimiProvider(OpenAICompatibleProvider):
-    BASE_URL = "https://api.moonshot.cn/v1/chat/completions"
+    # Prioriza o endpoint Global (.ai), com fallback dinâmico para a regional da China (.cn)
+    BASE_URL = "https://api.moonshot.ai/v1/chat/completions"
+
+    async def _call(self, request: LLMRequest) -> LLMResponse:
+        try:
+            return await super()._call(request)
+        except httpx.HTTPStatusError as e:
+            # Se der 401 no endpoint global, chave provavelmente é regional chinesa (.cn)
+            if e.response.status_code == 401 and "api.moonshot.ai" in self.BASE_URL:
+                log.warning(
+                    "[kimi] Autenticação global falhou. Tentando endpoint regional da China (.cn)..."
+                )
+                self.BASE_URL = "https://api.moonshot.cn/v1/chat/completions"
+                try:
+                    return await super()._call(request)
+                finally:
+                    self.BASE_URL = "https://api.moonshot.ai/v1/chat/completions"
+            raise e
 
 
 class CerebrasProvider(OpenAICompatibleProvider):
@@ -413,19 +434,55 @@ class CerebrasProvider(OpenAICompatibleProvider):
     BASE_URL = "https://api.cerebras.ai/v1/chat/completions"
 
 
+class OpenRouterProvider(OpenAICompatibleProvider):
+    """
+    OpenRouter API — hub de modelos e roteador inteligente.
+    Suporta chaves e modelos gratuitos com sufixo ':free'.
+    """
+    BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
+
+
 class GeminiProvider(BaseProvider):
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
     def __init__(self, config: ModelConfig, api_key: str):
         super().__init__(config, api_key)
-        self._cache_manager = CachedContentManager(api_key, config.model_id)
+        # Suporta tanto uma única chave quanto uma lista separada por vírgulas
+        self.api_keys_pool = [k.strip() for k in api_key.split(",") if k.strip()]
+        self.current_key_idx = 0
+        
+        # Inicializa o cache manager com a chave ativa inicial
+        active_key = self.api_keys_pool[0] if self.api_keys_pool else api_key
+        self._cache_manager = CachedContentManager(active_key, config.model_id)
+
+    def _get_active_key(self) -> str:
+        if not self.api_keys_pool:
+            return self.api_key
+        return self.api_keys_pool[self.current_key_idx]
+
+    def _rotate_key(self):
+        if len(self.api_keys_pool) > 1:
+            self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys_pool)
+            new_key = self._get_active_key()
+            log.warning(
+                f"[gemini] Rate Limit atingido. Rotacionando chave do pool para a posição {self.current_key_idx}."
+            )
+            # Re-inicializa o cache manager para a nova chave ativa
+            self._cache_manager = CachedContentManager(new_key, self.config.model_id)
 
     async def _call(self, request: LLMRequest) -> LLMResponse:
         client = self._get_client()
+        
+        # O Seeker.Bot usa PromptBundle para separar prefixo estável de dinâmico
+        is_bundle = hasattr(request.system, "stable_prefix")
+        stable_system = request.system.stable_prefix if is_bundle else request.system
+        dynamic_system = request.system.dynamic_suffix if is_bundle else ""
+
         contents = []
         for msg in request.messages:
             role = "user" if msg["role"] == "user" else "model"
             contents.append({"role": role, "parts": [{"text": msg["content"]}]})
+            
         payload: dict = {
             "contents": contents,
             "generationConfig": {
@@ -433,29 +490,67 @@ class GeminiProvider(BaseProvider):
                 "temperature": request.temperature,
             },
         }
-        if request.system:
-            payload["systemInstruction"] = {"parts": [{"text": request.system}]}
-            # Phase 2: Preparar cache explícito se conteúdo >= 4k tokens
+        
+        if hasattr(request, "tools") and request.tools:
+            payload["tools"] = request.tools
+        
+        active_key = self._get_active_key()
+        cache_name = None
+        
+        if stable_system:
             if self._cache_manager:
-                system_tokens = self._cache_manager.estimate_tokens(request.system)
+                system_tokens = self._cache_manager.estimate_tokens(stable_system)
                 if system_tokens >= 4000:
-                    # TODO: Implementar caches.create() via httpx quando Gemini
-                    # liberar acesso à API de caching explícito.
-                    # Por enquanto, apenas log da oportunidade de caching.
-                    cache_info = self._cache_manager.stats()
-                    log.debug(
-                        f"[gemini] Sistema elegível para caching explícito "
-                        f"({system_tokens} tokens). Cache manager: {cache_info}"
+                    cache_name = await self._cache_manager.get_cache_name_or_create(
+                        client, stable_system, system_tokens
                     )
+            
+            if cache_name:
+                payload["cachedContent"] = cache_name
+                # Se tiver contexto dinâmico, prependamos na primeira mensagem para não quebrar regras de alternância do Gemini
+                if dynamic_system and contents:
+                    contents[0]["parts"][0]["text"] = f"{dynamic_system.strip()}\n\n{contents[0]['parts'][0]['text']}"
+            else:
+                # Se não cacheou, envia o prompt concatenado completo no systemInstruction
+                full_system = f"{stable_system}\n\n{dynamic_system}" if dynamic_system else stable_system
+                payload["systemInstruction"] = {"parts": [{"text": full_system}]}
+
         if request.response_format == "json":
             payload["generationConfig"]["responseMimeType"] = "application/json"
         url = f"{self.BASE_URL}/{self.config.model_id}:generateContent"
-        resp = await client.post(
-            url,
-            headers={"x-goog-api-key": self.api_key},
-            json=payload,
-        )
-        resp.raise_for_status()
+        
+        # Fazemos a chamada com interceptador de rate limit para rotacionar a chave
+        try:
+            resp = await client.post(
+                url,
+                headers={"x-goog-api-key": active_key},
+                json=payload,
+            )
+            
+            # Se for Too Many Requests (429), tenta rotacionar imediatamente e tentar de novo com a nova chave
+            if resp.status_code == 429 and len(self.api_keys_pool) > 1:
+                self._rotate_key()
+                active_key = self._get_active_key()
+                resp = await client.post(
+                    url,
+                    headers={"x-goog-api-key": active_key},
+                    json=payload,
+                )
+                
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429 and len(self.api_keys_pool) > 1:
+                self._rotate_key()
+                active_key = self._get_active_key()
+                resp = await client.post(
+                    url,
+                    headers={"x-goog-api-key": active_key},
+                    json=payload,
+                )
+                resp.raise_for_status()
+            else:
+                raise e
+                
         data = resp.json()
         candidate = data["candidates"][0]
         content = candidate.get("content", {})
@@ -539,6 +634,7 @@ PROVIDER_MAP = {
     "kimi": KimiProvider,
     "mistral": MistralProvider,
     "nvidia": NvidiaProvider,
+    "openrouter": OpenRouterProvider,
     "ollama": OllamaProvider,
 }
 

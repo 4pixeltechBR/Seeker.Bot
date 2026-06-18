@@ -23,11 +23,9 @@ from .memory.events import GoalEventLog, GoalEvent, GoalEventType
 
 from .crews import (
     BaseCrew,
-    monitor_crew,
+    hunter_crew,
     executor_crew,
     analyst_crew,
-    vision_crew,
-    admin_crew,
 )
 
 __all__ = [
@@ -49,9 +47,7 @@ __all__ = [
     "GoalEventType",
     # Crews
     "BaseCrew",
-    "monitor_crew",
+    "hunter_crew",
     "executor_crew",
     "analyst_crew",
-    "vision_crew",
-    "admin_crew",
 ]

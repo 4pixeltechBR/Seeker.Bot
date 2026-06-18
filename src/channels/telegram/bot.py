@@ -60,6 +60,7 @@ async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
 async def setup_commands(bot: Bot):
     commands = [
         BotCommand(command="/start", description="Menu de ajuda e inicialização"),
+        BotCommand(command="/criar_skill", description="🛠️ Cria dinamicamente uma nova skill (Patcher L3)"),
         BotCommand(command="/status", description="Painel de providers, memória e metas"),
         BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
         BotCommand(command="/perf", description="Dashboard de performance e latência"),
@@ -79,13 +80,22 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/dashboard", description="Dashboard financeiro com status atual"),
         BotCommand(command="/forecast", description="Previsoes de custos para proximos 7 e 30 dias"),
         BotCommand(command="/habits", description="Padrões de decisão aprendidos"),
+        BotCommand(command="/bandit", description="🎯 LinUCB em shadow mode (progresso de RL)"),
+        BotCommand(command="/audit_sara", description="📊 Audit integrado do S.A.R.A"),
         BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
         BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
+        BotCommand(command="/scout", description="Dispara campanha B2B Scout (leads qualificados)"),
+        BotCommand(command="/scout_config", description="⚙️ Configura parâmetros do Scout"),
         BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
+        BotCommand(command="/crm", description="Lista histórico de leads qualificados"),
         BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
+        BotCommand(command="/switch", description="🔄 Alterna entre modelos LLM (opinião, performance)"),
+        BotCommand(command="/feedback", description="💬 Envia feedback/problema sobre o bot"),
+        BotCommand(command="/restart", description="🔄 Reinicia o bot (admin)"),
         BotCommand(command="/agendar", description="📅 Agenda nova tarefa (wizard conversacional)"),
         BotCommand(command="/listar", description="📋 Lista tarefas agendadas do chat"),
+        BotCommand(command="/radar", description="🗺️ Configura e controla o Radar de Eventos"),
         BotCommand(command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"),
         BotCommand(command="/pausar", description="⏸ Pausa tarefa (/pausar <ID>)"),
         BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
@@ -99,6 +109,12 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
         BotCommand(command="/drive", description="📁 Google Drive: listar, criar, enviar e baixar arquivos"),
         BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
+        BotCommand(command="/instascraper", description="📸 InstaScraper: Clona Instagram para o Obsidian"),
+        BotCommand(command="/rl_tune", description="🧠 Tuning de parâmetros do LinUCB"),
+        BotCommand(command="/rl_activate", description="🟢 Ativa o aprendizado por reforço (produção)"),
+        BotCommand(command="/rl_deactivate", description="🔴 Desativa o aprendizado por reforço (shadow)"),
+        BotCommand(command="/rl_stats", description="📈 Estatísticas do LinUCB (conversão, arm stats)"),
+        BotCommand(command="/test_email", description="🧪 Força execução do Email Monitor (diagnóstico)"),
     ]
     await bot.set_my_commands(commands)
 
@@ -138,6 +154,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     from src.channels.telegram.commands.sherlock import sherlock_router
     dp.include_router(sherlock_router)
 
+    from src.channels.telegram.commands.instascraper import instascraper_router
+    dp.include_router(instascraper_router)
+
     # --- AUTH MIDDLEWARE (covers every message + callback_query) ---
     from src.channels.telegram.middlewares.auth import AuthMiddleware
     _auth = AuthMiddleware(allowed_users)
@@ -151,6 +170,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     web_searcher = WebSearcher(
         tavily_key=os.getenv("TAVILY_API_KEY", ""),
         brave_key=os.getenv("BRAVE_API_KEY", ""),
+        gemini_key=os.getenv("GEMINI_API_KEY", ""),
+        google_key=os.getenv("GOOGLE_SEARCH_API_KEY", ""),
+        google_cx=os.getenv("GOOGLE_SEARCH_CX", ""),
     )
     vault = KnowledgeVault(pipeline.cascade_adapter, vlm_client=vlm, web_searcher=web_searcher)
     dp["vault_debouncer"] = {}  # Para agrupamento de mídias
@@ -161,7 +183,10 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     _bug_context = {}
     
     def _check_obsidian_state(uid: int) -> bool:
-        return uid in _obsidian_wait_users
+        if uid in _obsidian_wait_users:
+            _obsidian_wait_users.discard(uid)
+            return True
+        return False
 
     def _check_transcribe_state(uid: int) -> bool:
         if uid in _transcribe_wait_users:
@@ -172,6 +197,12 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     # Import and call factories
     from src.channels.telegram.commands.system import setup_system_handlers
     from src.channels.telegram.commands.tasks import setup_tasks_handlers
+    try:
+        from src.channels.telegram.commands.sales import setup_sales_handlers
+        has_sales = True
+    except ImportError:
+        has_sales = False
+
     from src.channels.telegram.commands.vision import setup_vision_handlers
     from src.channels.telegram.commands.vault import setup_vault_handlers
     from src.channels.telegram.commands.development import setup_development_handlers
@@ -179,6 +210,8 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     setup_system_handlers(dp, pipeline)
     setup_tasks_handlers(dp, pipeline)
+    if has_sales:
+        setup_sales_handlers(dp, pipeline)
     setup_vision_handlers(dp, pipeline)
     setup_vault_handlers(dp, pipeline, vault, _obsidian_wait_users)
     setup_development_handlers(dp, pipeline, _bug_context)
@@ -186,6 +219,12 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     from src.channels.telegram.commands.drive import setup_drive_handlers
     setup_drive_handlers(dp, pipeline)
+
+    from src.channels.telegram.commands.radar import setup_radar_handlers
+    setup_radar_handlers(dp, pipeline)
+
+    from src.channels.telegram.commands.viralx9 import setup_viralx9_handlers
+    setup_viralx9_handlers(dp, pipeline)
 
 
 
@@ -206,7 +245,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/print — screenshot rápido do desktop\n"
             "/watch — ativa vigilância AFK (2 min)\n"
             "/watchoff — desativa vigilância\n"
-            "/sherlock [modelo] — monitora lançamento de modelo\n\n"
+            "/sherlock [modelo] — monitora lançamento de modelo\n"
+            "/obsidian — 📝 salva conteúdo no cofre Obsidian\n"
+            "/cofre [termo] — 🔍 pesquisa no cofre\n\n"
             "<b>📊 Sistema & Performance:</b>\n"
             "/status — painel de providers e metas\n"
             "/saude — dashboard detalhado de goals\n"
@@ -218,9 +259,13 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/decay — limpeza manual de memória\n\n"
             "<b>🤖 Aprendizado (RL):</b>\n"
             "/bandit — progresso do LinUCB (shadow mode)\n\n"
-            "<b>🚀 Utilitários:</b>\n"            "/git_backup — backup manual no GitHub\n"
+            "<b>🚀 Produção:</b>\n"
+            "/scout — campanha B2B (leads qualificados)\n"
+            "/crm — histórico de leads\n"
+            "/git_backup — backup manual no GitHub\n"
             "/configure_news — personaliza notícias\n"
-            "/drive — 📁 acesso ao Google Drive"
+            "/drive — 📁 acesso ao Google Drive\n"
+            "/instascraper — 📸 clona vídeos/metadados do Instagram"
         )
 
         await message.answer(help_text, parse_mode=ParseMode.HTML)
@@ -631,6 +676,8 @@ async def main():
         "kimi": os.getenv("KIMI_API_KEY", ""),
         "mistral": os.getenv("MISTRAL_API_KEY", ""),
         "nvidia": os.getenv("NVIDIA_API_KEY", ""),
+        "cerebras": os.getenv("CEREBRAS_API_KEY", ""),
+        "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
     }
 
     allowed_raw = os.getenv("TELEGRAM_ALLOWED_USERS", "")
@@ -737,6 +784,19 @@ async def main():
     dp["afk_protocol"] = afk_protocol
     pipeline.afk_protocol = afk_protocol  # Injeta no pipeline
 
+    # ── Servidor RPC Local ────────────────────────────────
+    from src.core.execution.rpc import RPCServer
+    rpc_server = RPCServer()
+    await rpc_server.start()
+
+    # Inicia tarefas em background das ferramentas portadas (Sprint 7.2)
+    try:
+        from src.core.execution.adapters.manager import start_background_tasks
+        await start_background_tasks()
+        log.info("Tarefas em background das ferramentas portadas iniciadas com sucesso.")
+    except Exception as e:
+        log.warning(f"Erro ao iniciar tarefas em background das ferramentas portadas: {e}")
+
     log.info("Seeker.Bot iniciado")
     log.info("  Memória persistente ativa")
     log.info("  Session context ativo")
@@ -764,9 +824,28 @@ async def main():
         else:
             raise
 
+    hb_stop_event = asyncio.Event()
+    hb_task = None
     try:
+        from src.channels.telegram.heartbeat import start_heartbeat_loop
+        hb_task = asyncio.create_task(start_heartbeat_loop(pipeline, hb_stop_event))
+
         await dp.start_polling(bot, allowed_updates=["message", "callback_query"])
     finally:
+        # Encerra heartbeat task
+        if hb_task:
+            hb_stop_event.set()
+            try:
+                await asyncio.wait_for(hb_task, timeout=5.0)
+            except Exception as e:
+                log.warning(f"Erro ao parar heartbeat loop: {e}")
+
+        # Encerra RPCServer
+        try:
+            await rpc_server.stop()
+        except Exception as e:
+            log.warning(f"Erro ao parar RPCServer: {e}")
+
         # Cleanup Goal Engine
         scheduler = dp.get("scheduler")
         if scheduler:
@@ -781,6 +860,14 @@ async def main():
         # Cleanup: pipeline (cancela decay, aguarda tasks, fecha memória)
         await pipeline.close()
         await cleanup_client_pool()
+        
+        # Cleanup: fecha a sessão do bot para evitar vazamento de aiohttp.ClientSession
+        if bot and getattr(bot, "session", None):
+            try:
+                await bot.session.close()
+            except Exception as e:
+                log.warning(f"Erro ao fechar bot.session: {e}")
+                
         log.info("Shutdown completo")
 
 

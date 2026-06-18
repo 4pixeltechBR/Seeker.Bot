@@ -102,10 +102,10 @@ class ModelRouter:
 
 NVIDIA_NEMOTRON_SUPER = ModelConfig(
     provider="nvidia",
-    model_id="nvidia/llama-3.3-nemotron-super-49b-v1.5",
-    display_name="Nemotron Super 49B v1.5",
+    model_id="nvidia/nemotron-3-super-120b-a12b",
+    display_name="Nemotron-3 Super 120B",
     max_tokens=4096,
-    context_window=128_000,
+    context_window=1_000_000,
     supports_tool_use=True,
     training_data_cutoff="2025-06",
     rpm_limit=40,
@@ -133,14 +133,14 @@ NVIDIA_QWQ_32B = ModelConfig(
     rpm_limit=40,
 )
 
-NVIDIA_DEEPSEEK_V32 = ModelConfig(
+NVIDIA_DEEPSEEK_R1 = ModelConfig(
     provider="nvidia",
-    model_id="deepseek-ai/deepseek-v3.2",
-    display_name="DeepSeek V3.2 via NIM",
+    model_id="deepseek-ai/deepseek-v4-pro",
+    display_name="DeepSeek V4 Pro (NIM)",
     max_tokens=4096,
     context_window=128_000,
     supports_tool_use=True,
-    training_data_cutoff="2025-07",
+    training_data_cutoff="2026-01",
     rpm_limit=40,
 )
 
@@ -162,10 +162,10 @@ NVIDIA_GEMMA_4_31B = ModelConfig(
 
 GEMINI_31_FLASH_LITE = ModelConfig(
     provider="gemini",
-    model_id="gemini-3.1-flash-lite-preview",
+    model_id="gemini-3.1-flash-lite",
     display_name="Gemini 3.1 Flash Lite",
     max_tokens=4096,
-    context_window=128_000,
+    context_window=1_000_000,
     supports_tool_use=True,
     training_data_cutoff="2025-01",
     rpm_limit=15,
@@ -174,7 +174,7 @@ GEMINI_31_FLASH_LITE = ModelConfig(
 
 GEMINI_3_FLASH = ModelConfig(
     provider="gemini",
-    model_id="gemini-3-flash-preview",
+    model_id="gemini-3-flash",
     display_name="Gemini 3 Flash",
     max_tokens=8192,
     context_window=1_000_000,
@@ -248,34 +248,35 @@ DEEPSEEK_REASONER = ModelConfig(
 )
 
 # ─────────────────────────────────────────────────────────────────────
-# CEREBRAS — FREE TIER (1M tokens/dia, 30 RPM, ctx 8K)
+# CEREBRAS — FREE TIER (1M tokens/dia, 30 RPM, ctx 131K)
 # Signup: https://cloud.cerebras.ai/
 # ─────────────────────────────────────────────────────────────────────
 
-CEREBRAS_LLAMA_70B = ModelConfig(
+CEREBRAS_GPT_OSS_120B = ModelConfig(
     provider="cerebras",
-    model_id="llama-3.3-70b",
-    display_name="Cerebras Llama 3.3 70B",
+    model_id="gpt-oss-120b",
+    display_name="Cerebras GPT-OSS 120B",
     max_tokens=8192,
-    context_window=8_000,
+    context_window=131_072,
     cost_per_1m_input=0.0,   # free tier
     cost_per_1m_output=0.0,  # free tier
     supports_tool_use=True,
-    training_data_cutoff="2024-12",
+    training_data_cutoff="2025-06",
     rpm_limit=30,  # 30 RPM, 1M tokens/dia
 )
 
-CEREBRAS_QWEN_32B = ModelConfig(
+CEREBRAS_ZAI_GLM_4_7 = ModelConfig(
     provider="cerebras",
-    model_id="qwen-3-32b",
-    display_name="Cerebras Qwen-3 32B",
+    model_id="zai-glm-4.7",
+    display_name="Cerebras Zai-GLM 4.7",
     max_tokens=8192,
-    context_window=8_000,
+    context_window=131_072,
     cost_per_1m_input=0.0,
     cost_per_1m_output=0.0,
     supports_tool_use=True,
-    training_data_cutoff="2025-09",
-    rpm_limit=30,
+    training_data_cutoff="2026-04",
+    rpm_limit=10,
+    rpd_limit=100,
 )
 
 # ─────────────────────────────────────────────────────────────────────
@@ -292,6 +293,33 @@ MOONSHOT_KIMI_V1 = ModelConfig(
     cost_per_1m_output=1.65,
     supports_tool_use=True,
     training_data_cutoff="2025-10",
+)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# OPENROUTER — FREE TIER (20 RPM, 200 RPD)
+# ─────────────────────────────────────────────────────────────────────
+
+OPENROUTER_DEEPSEEK_R1 = ModelConfig(
+    provider="openrouter",
+    model_id="google/gemma-4-31b-it:free",
+    display_name="Gemma 4 31B (OpenRouter)",
+    max_tokens=8192,
+    context_window=128_000,
+    supports_tool_use=True,
+    rpm_limit=20,
+    rpd_limit=200,
+)
+
+OPENROUTER_QWEN3_235B = ModelConfig(
+    provider="openrouter",
+    model_id="qwen/qwen3-coder:free",
+    display_name="Qwen3 Coder (OpenRouter)",
+    max_tokens=4096,
+    context_window=128_000,
+    supports_tool_use=True,
+    rpm_limit=20,
+    rpd_limit=200,
 )
 
 
@@ -318,6 +346,30 @@ GROQ_LLAMA_70B = ModelConfig(
     context_window=128_000,
     supports_tool_use=True,
     training_data_cutoff="2024-12",
+    rpm_limit=30,
+    rpd_limit=14_400,
+)
+
+GROQ_LLAMA_70B_SPECDEC = ModelConfig(
+    provider="groq",
+    model_id="llama-3.3-70b-specdec",
+    display_name="Llama 3.3 70B SpecDec via Groq",
+    max_tokens=8192,
+    context_window=128_000,
+    supports_tool_use=True,
+    training_data_cutoff="2024-12",
+    rpm_limit=30,
+    rpd_limit=14_400,
+)
+
+GROQ_DEEPSEEK_R1_70B = ModelConfig(
+    provider="groq",
+    model_id="deepseek-r1-distill-llama-70b",
+    display_name="DeepSeek R1 70B via Groq",
+    max_tokens=8192,
+    context_window=128_000,
+    supports_tool_use=True,
+    training_data_cutoff="2025-01",
     rpm_limit=30,
     rpd_limit=14_400,
 )
@@ -370,43 +422,18 @@ OLLAMA_GEMMA_4 = ModelConfig(
 
 def build_default_router() -> ModelRouter:
     """
-    Roteamento reavaliado pós-teste de carga (15 goals paralelos).
-    Nvidia NIM (Nemotron) sofreu timeouts crônicos (>25s) no cold start.
-    Groq sofreu 429 imediato pela alta concorrência.
-    Gemini 3.1 Flash Lite foi o único que segurou o tranco (com retries 503).
-
-    FAST (alta frequência / extração):
-      → Gemini 3.1 Flash Lite (Suportou carga paralela incrivelmente bem)
-      → Groq Llama 4 (Para requisições espaçadas/isoladas)
-      → DeepSeek V3.2 via NIM (NIM DeepSeek costuma ser mais rápido que o Nemotron)
-
-    DEEP (qualidade + contexto longo):
-      → DeepSeek V3.2 via NIM (40 RPM, excelente lógica)
-      → Gemini 3 Flash (Free tier limitado, 5 RPM)
-      → Nemotron Ultra 253B (Pesado, timeouts frequentes, bom como último recurso free)
-      → DeepSeek Chat (Pago, infalível)
-
-    ADVERSARIAL (reasoning, red team):
-      → NVIDIA QwQ 32B (Raciocínio nativo, rápido no NIM)
-      → DeepSeek Reasoner (Pago, melhor do mercado)
-      → Gemini 3 Flash
-
-    SYNTHESIS (relatório final):
-      → Gemini 3.1 Flash Lite
-      → NVIDIA DeepSeek V3.2
-      → DeepSeek Chat
-
-    JUDGE (verificação independente):
-      → Gemini 3 Flash
-      → Groq Llama 4
-      → Mistral
+    Roteamento otimizado pós-teste de carga e latência.
+    Prioriza LPUs ultra rápidas (Cerebras, Groq) para FAST e JUDGE.
+    Usa Gemini Flash Lite para volumes robustos e contextos longos.
+    Reserva modelos de CoT (DeepSeek R1) estritamente para DEEP e ADVERSARIAL.
     """
     return ModelRouter(
         routes={
             CognitiveRole.FAST: [
-                CEREBRAS_LLAMA_70B,
-                GROQ_LLAMA_70B,
-                GEMINI_35_FLASH,
+                CEREBRAS_GPT_OSS_120B,  # Primário: Wafer-scale LPU (~700 tok/s), sem custo
+                GROQ_LLAMA_70B,         # Fallback 1: Llama 3.3 70B via Groq LPU
+                GEMINI_31_FLASH_LITE,   # Fallback 2: Gemini 3.1 Flash Lite grátis (volume 500 RPD)
+                DEEPSEEK_CHAT,          # Fallback 3: Backup pago oficial v4 Flash
             ],
             CognitiveRole.LOCAL: [
                 OLLAMA_GEMMA_4,
@@ -414,29 +441,28 @@ def build_default_router() -> ModelRouter:
                 GEMINI_31_FLASH_LITE,
             ],
             CognitiveRole.DEEP: [
-                CEREBRAS_LLAMA_70B,  # 1M tok/dia free, ~700 tok/s — primário
-                NVIDIA_DEEPSEEK_V32,
-                GEMINI_3_FLASH,
-                NVIDIA_NEMOTRON_ULTRA,
-                DEEPSEEK_CHAT,
+                NVIDIA_DEEPSEEK_R1,     # Primário: Raciocínio profundo (R1) grátis via NIM (40 RPM)
+                DEEPSEEK_REASONER,      # Fallback 1: Backup oficial pago v4 Pro
+                GEMINI_3_FLASH,         # Fallback 2: Gemini 3 Flash grátis
+                OPENROUTER_DEEPSEEK_R1, # Fallback 3: R1 grátis via OpenRouter
             ],
             CognitiveRole.ADVERSARIAL: [
-                NVIDIA_GEMMA_4_31B,  # Perspectiva "Google" sem gastar cota do Gemini API
-                NVIDIA_QWQ_32B,
-                DEEPSEEK_REASONER,
-                GEMINI_3_FLASH,
+                NVIDIA_GEMMA_4_31B,     # Primário: Gemma 4 via NIM grátis (40 RPM)
+                DEEPSEEK_REASONER,      # Fallback 1: DeepSeek Reasoner pago
+                GROQ_LLAMA_70B,         # Fallback 2: Groq Llama 3.3 70B
+                OPENROUTER_QWEN3_235B,  # Fallback 3: Qwen3 235B grátis via OpenRouter
             ],
             CognitiveRole.SYNTHESIS: [
-                GEMINI_31_FLASH_LITE,
-                CEREBRAS_QWEN_32B,   # free, rápido, ctx 8K basta pra synthesis
-                NVIDIA_DEEPSEEK_V32,
-                DEEPSEEK_CHAT,
+                GEMINI_31_FLASH_LITE,   # Primário: Grande janela de contexto grátis (1M context)
+                GEMINI_35_FLASH,        # Fallback 1: Gemini 3.5 Flash grátis (1500 RPD)
+                CEREBRAS_ZAI_GLM_4_7,   # Fallback 2: Cerebras Zai-GLM 4.7
+                DEEPSEEK_CHAT,          # Fallback 3: DeepSeek Chat pago
             ],
             CognitiveRole.JUDGE: [
-                NVIDIA_GEMMA_4_31B,  # O melhor árbitro divergente e denso
-                GEMINI_3_FLASH,
-                GROQ_LLAMA,
-                MISTRAL_FREE,
+                GROQ_LLAMA_70B,         # Primário: Llama 3.3 70B via Groq LPU
+                CEREBRAS_GPT_OSS_120B,  # Fallback 1: 120B grátis via Cerebras LPU
+                NVIDIA_GEMMA_4_31B,     # Fallback 2: Gemma 4 via NIM
+                MISTRAL_FREE,           # Fallback 3: Mistral Small free
             ],
             CognitiveRole.EMBEDDING: [
                 GEMINI_EMBEDDING_2,

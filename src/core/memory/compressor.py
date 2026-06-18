@@ -51,11 +51,13 @@ class SessionCompressor:
         self,
         model_router: ModelRouter,
         api_keys: dict[str, str],
+        session_store=None,
         compress_after_turns: int = 16,
         keep_recent_turns: int = 6,
     ):
         self.model_router = model_router
         self.api_keys = api_keys
+        self.session_store = session_store
         self.compress_after_turns = compress_after_turns
         self.keep_recent_turns = keep_recent_turns
         self._summaries: dict[str, str] = {}
@@ -73,9 +75,21 @@ class SessionCompressor:
 
         history_text = self._format_for_compression(old)
 
+        # Fusão incremental com resumo existente
+        if self.session_store:
+            existing_summary = await self.session_store.get_summary(session_id)
+            if existing_summary:
+                history_text = f"RESUMO ANTERIOR:\n{existing_summary}\n\nNOVOS TURNOS:\n{history_text}"
+
         try:
             summary = await self._compress(history_text)
             self._summaries[session_id] = summary
+            
+            # Persiste no banco de dados e remove do SQLite os turnos compactados
+            if self.session_store:
+                await self.session_store.store_summary(session_id, summary)
+                await self.session_store.delete_old_session_turns(session_id, self.keep_recent_turns)
+            
             log.info(
                 f"[compressor] '{session_id}' comprimida: "
                 f"{len(old)} turns → {len(summary)} chars"
@@ -83,6 +97,8 @@ class SessionCompressor:
         except Exception as e:
             log.warning(f"[compressor] Falha, mantendo cache cheio: {e}")
             summary = self._summaries.get(session_id)
+            if not summary and self.session_store:
+                summary = await self.session_store.get_summary(session_id)
             if not summary:
                 return turns
 
@@ -123,3 +139,4 @@ class SessionCompressor:
 
     def load_state(self, state: dict):
         self._summaries = state.get("summaries", {})
+

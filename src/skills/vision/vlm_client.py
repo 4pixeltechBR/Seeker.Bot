@@ -17,11 +17,11 @@ except ImportError:
 # Default VLM via Ollama. Override via env VLM_MODEL.
 # OCR puro vai via Florence-2 (florence_ocr.py); este modelo é usado para
 # tarefas que exigem raciocínio multimodal (locate_element, describe_page).
-# Alternativas testadas:
-#   - qwen3.5:4b        (baseline, 4 GB VRAM) ← default atual
-#   - qwen2.5vl:7b      (Qwen2.5-VL 7B, ~7 GB VRAM, melhor OCR)
-#   - minicpm-v         (MiniCPM-V 2.6, ~6 GB VRAM, OCR specialist)
-DEFAULT_VLM_MODEL = "qwen3.5:4b"
+# Alternativas de VLM instalados no Ollama:
+#   - qwen3-vl:8b       (Qwen3-VL, novo/melhor — default atual) ← default atual
+#   - qwen2.5vl:7b      (Qwen2.5-VL 7B, ~7 GB VRAM)
+#   - minicpm-v:latest  (MiniCPM-V 2.6, ~6 GB VRAM)
+DEFAULT_VLM_MODEL = "qwen3-vl:8b"
 DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434"
 
 
@@ -30,11 +30,10 @@ class VLMClient:
     Cliente multimodal VLM via Ollama.
 
     Suporta múltiplos modelos configuráveis via env var VLM_MODEL:
-    - qwen3.5:4b (baseline atual, 4 GB VRAM)
-    - qwen2.5vl:7b (melhor OCR, 7 GB VRAM)
-    - minicpm-v (OCR specialist, 6 GB VRAM)
-    - minicpm-v
-    - qualquer modelo multimodal do Ollama
+    - qwen3-vl:8b (padrão, melhor qualidade)
+    - qwen2.5vl:7b (alternativa, 7 GB VRAM)
+    - minicpm-v:latest (especialista OCR, 6 GB VRAM)
+    - qualquer modelo multimodal do Ollama (com marcador vl/vision no nome)
 
     v3 (Sprint 12 — Vision 2.0):
     - Modelo configurável via env var (VLM_MODEL)
@@ -396,13 +395,28 @@ class VLMClient:
         log.info(f"[vlm] set_model: troca completa, modelo ativo: {self.model}")
 
     async def health_check(self) -> bool:
-        """Verifica se o Ollama está rodando. Resultado cacheado por 60s."""
+        """
+        Verifica se o Ollama está rodando. Resultado cacheado por 60s.
+
+        Aviso: se o modelo configurado não contém marcador de visão (vl, vision, minicpm-v),
+        loga um warning — o modelo pode ser de texto puro sem suporte multimodal.
+        """
         import time as _time
 
         now = _time.monotonic()
         cached_result, cached_at = self._health_cache
         if (now - cached_at) < self._health_cache_ttl:
             return cached_result
+
+        # Guarda contra modelos de texto puro (não-multimodal)
+        vision_markers = ["vl", "vision", "minicpm-v", "llava"]
+        has_vision_marker = any(m in self.model.lower() for m in vision_markers)
+        if not has_vision_marker:
+            log.warning(
+                f"[vlm] Modelo '{self.model}' pode ser de texto puro (sem multimodal). "
+                f"Esperado: modelo com '{', '.join(vision_markers)}' no nome. "
+                f"Resultado pode estar degradado."
+            )
 
         try:
             res = await self._client.get(f"{self.base_url}/api/tags", timeout=5.0)

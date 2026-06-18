@@ -13,10 +13,12 @@ Quatro tabelas:
 Zero dependências pesadas: aiosqlite + stdlib.
 """
 
+import asyncio
 import aiosqlite
 import json
 import logging
 import os
+import random
 import time
 
 log = logging.getLogger("seeker.memory.store")
@@ -166,6 +168,30 @@ class MemoryStore:
         self.db_path = db_path
         self._db: aiosqlite.Connection | None = None
 
+    async def _execute_write(self, sql: str, params: tuple = (), commit: bool = True, max_retries: int = 15) -> aiosqlite.Cursor:
+        """Executa gravação em transação segura (BEGIN IMMEDIATE) com retentativas baseadas em jitter."""
+        if not self._db:
+            raise RuntimeError("Banco de dados não inicializado.")
+            
+        if not commit:
+            return await self._db.execute(sql, params)
+            
+        for attempt in range(max_retries):
+            try:
+                await self._db.execute("BEGIN IMMEDIATE")
+                cursor = await self._db.execute(sql, params)
+                await self._db.commit()
+                return cursor
+            except aiosqlite.OperationalError as e:
+                try:
+                    await self._db.execute("ROLLBACK")
+                except Exception:
+                    pass
+                if "locked" in str(e) and attempt < max_retries - 1:
+                    await asyncio.sleep(random.uniform(0.02, 0.15))
+                else:
+                    raise e
+
     async def initialize(self) -> None:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._db = await aiosqlite.connect(self.db_path)
@@ -173,8 +199,16 @@ class MemoryStore:
             self._db.row_factory = aiosqlite.Row
 
             # PRAGMA pra performance — WAL mode permite reads concorrentes
-            await self._db.execute("PRAGMA journal_mode=WAL")
+            try:
+                await self._db.execute("PRAGMA journal_mode=WAL")
+            except aiosqlite.OperationalError:
+                # Fallback automático se o ambiente rejeitar WAL (montagens de rede, WSL1 FUSE)
+                await self._db.execute("PRAGMA journal_mode=DELETE")
+                
             await self._db.execute("PRAGMA foreign_keys=ON")
+            # busy_timeout dá margem para retries quando Streamlit (sync) compete
+            # pelo lock — combinado com WAL evita SQLITE_BUSY no uso interativo
+            await self._db.execute("PRAGMA busy_timeout=5000")
 
             await self._db.executescript(SCHEMA)
             await self._db.commit()
@@ -218,27 +252,24 @@ class MemoryStore:
         metadata: dict | None = None,
         _batch: bool = False,
     ) -> None:
-        await self._db.execute(
-            """INSERT INTO episodic
+        sql = """INSERT INTO episodic
             (timestamp, session_id, user_input, response_summary, depth,
              module, had_arbitrage, had_conflicts, cost_usd, latency_ms, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                time.time(),
-                session_id,
-                user_input,
-                response_summary[:500],
-                depth,
-                module,
-                int(had_arbitrage),
-                int(had_conflicts),
-                cost_usd,
-                latency_ms,
-                json.dumps(metadata or {}),
-            ),
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+        params = (
+            time.time(),
+            session_id,
+            user_input,
+            response_summary[:500],
+            depth,
+            module,
+            int(had_arbitrage),
+            int(had_conflicts),
+            cost_usd,
+            latency_ms,
+            json.dumps(metadata or {}),
         )
-        if not _batch:
-            await self._db.commit()
+        await self._execute_write(sql, params, commit=not _batch)
 
     async def get_recent_episodes(self, limit: int = 10) -> list[dict]:
         async with self._db.execute(
@@ -294,28 +325,25 @@ class MemoryStore:
         fact_clean = fact.strip()
 
         try:
-            await self._db.execute(
-                """INSERT INTO semantic (fact, category, confidence, source, first_seen, last_seen, metadata)
+            sql = """INSERT INTO semantic (fact, category, confidence, source, first_seen, last_seen, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(fact) DO UPDATE SET
                     times_seen = times_seen + 1,
                     last_seen = ?,
                     confidence = MIN(0.95, confidence + 0.05),
-                    metadata = ?""",
-                (
-                    fact_clean,
-                    category,
-                    confidence,
-                    source,
-                    now,
-                    now,
-                    meta_json,
-                    now,
-                    meta_json,
-                ),
+                    metadata = ?"""
+            params = (
+                fact_clean,
+                category,
+                confidence,
+                source,
+                now,
+                now,
+                meta_json,
+                now,
+                meta_json,
             )
-            if not _batch:
-                await self._db.commit()
+            await self._execute_write(sql, params, commit=not _batch)
 
             # Retorna o ID (INSERT ou UPDATE — ambos funcionam com essa query)
             async with self._db.execute(
@@ -396,12 +424,10 @@ class MemoryStore:
     async def store_embedding(self, fact_id: int, vector: list[float]) -> None:
         """Persiste embedding no SQLite. Sobrevive a restart."""
         blob = json.dumps(vector)
-        await self._db.execute(
-            """INSERT OR REPLACE INTO fact_embeddings (fact_id, vector, updated_at)
-            VALUES (?, ?, ?)""",
-            (fact_id, blob, time.time()),
-        )
-        await self._db.commit()
+        sql = """INSERT OR REPLACE INTO fact_embeddings (fact_id, vector, updated_at)
+            VALUES (?, ?, ?)"""
+        params = (fact_id, blob, time.time())
+        await self._execute_write(sql, params, commit=True)
 
     async def load_all_embeddings(self, load_vectors: bool = False) -> dict[int, list[float]]:
         """
@@ -470,12 +496,10 @@ class MemoryStore:
         metadata: dict | None = None,
     ) -> None:
         """Registra uma mensagem na sessão ativa."""
-        await self._db.execute(
-            """INSERT INTO session_turns (session_id, timestamp, role, content, metadata)
-            VALUES (?, ?, ?, ?, ?)""",
-            (session_id, time.time(), role, content[:2000], json.dumps(metadata or {})),
-        )
-        await self._db.commit()
+        sql = """INSERT INTO session_turns (session_id, timestamp, role, content, metadata)
+            VALUES (?, ?, ?, ?, ?)"""
+        params = (session_id, time.time(), role, content[:2000], json.dumps(metadata or {}))
+        await self._execute_write(sql, params, commit=True)
 
     async def get_session_turns(
         self,
@@ -754,13 +778,11 @@ class MemoryStore:
         if not self._db:
             return False
         try:
-            await self._db.execute(
-                """INSERT INTO user_preferences (user_id, telegram_id, niches, updated_at)
+            sql = """INSERT INTO user_preferences (user_id, telegram_id, niches, updated_at)
                 VALUES (?, ?, ?, ?)
-                ON CONFLICT(user_id) DO UPDATE SET niches = excluded.niches, updated_at = excluded.updated_at""",
-                (user_id, telegram_id, json.dumps(niches), time.time()),
-            )
-            await self._db.commit()
+                ON CONFLICT(user_id) DO UPDATE SET niches = excluded.niches, updated_at = excluded.updated_at"""
+            params = (user_id, telegram_id, json.dumps(niches), time.time())
+            await self._execute_write(sql, params, commit=True)
             return True
         except Exception as e:
             log.error(f"Falha ao salvar preferências do usuário {user_id}: {e}")

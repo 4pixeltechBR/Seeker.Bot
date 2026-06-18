@@ -44,28 +44,19 @@ _DEFAULT_SKIP_SUBJECTS = [
 ]
 
 SUMMARIZE_PROMPT = """\
-Você é um assistente executivo e triador de caixa de entrada de altíssimo nível.
-Analise os emails não lidos abaixo. Seu objetivo é COMPRIMIR a informação para economizar o tempo do usuário.
+Você é um assistente executivo e triador focado em tecnologia e eficiência.
+Analise os emails abaixo. Seu objetivo é apresentar o conteúdo resumido dos emails de forma direta, destacando especialmente novas ferramentas, tecnologias e atualizações de produtos/serviços mencionados.
 
 EMAILS BRUTOS:
 {emails_block}
 
-INSTRUÇÕES DE TRIAGEM RÍGIDAS:
-1. Classifique na Matriz: URGENTE (requer ação humana), INFORMATIVO (útil ler), RUÍDO (marketing/spam).
-2. Para Urgentes: De | Assunto | Resumo 1 linha | Ação Exigida.
-3. Para Informativos: Agrupe em tópicos curtos de 1 linha.
-4. Para Ruído: Apenas CONTE. Nunca descreva newsletters, a menos que haja ação importante (ex: aviso de cancelamento). Apenas diga "X emails de lojas / newsletters ignorados" e liste botões/links de unsubscribe se encontrar.
+INSTRUÇÕES DE SUMARIZAÇÃO:
+1. NÃO divida em categorias como urgente/ruído/ação necessária.
+2. Apresente um resumo claro e direto do conteúdo relevante de cada email (Remetente, Assunto, e Resumo do Conteúdo).
+3. Destaque em seções específicas quaisquer FERRAMENTAS NOVAS, TECNOLOGIAS ou ATUALIZAÇÕES que foram mencionadas nos emails.
+4. Ignore emails que sejam puramente spam ou confirmação sem conteúdo útil, apenas indicando brevemente a quantidade deles se houver.
 
-Retorne APENAS o briefing formatado em HTML/Markdown do Telegram, usando estritamente este layout:
-
-🔴 <b>URGENTE / AÇÃO NECESSÁRIA</b>
-[Liste emails urgentes]
-
-🟡 <b>INFORMATIVO ÚTIL</b>
-[Liste informativos úteis em 1 linha]
-
-⚪ <b>RUÍDO & NEWSLETTERS</b>
-[Resumo ninja agregado]
+Retorne o briefing formatado em HTML do Telegram, bem visual, limpo e escaneável.
 """
 
 
@@ -240,7 +231,7 @@ class EmailMonitorGoal:
                             ),
                         }
                     ],
-                    system="Você é um assistente executivo implacável. Aplique a Matriz de Triagem rigorosamente.",
+                    system="Você é um assistente executivo sênior. Resuma e trie o conteúdo dos e-mails focando em ferramentas novas, notícias e atualizações.",
                     max_tokens=800,
                     temperature=0.1,
                 ),

@@ -38,10 +38,12 @@ class DeliberatePhase:
         router: ModelRouter,
         api_keys: dict[str, str],
         searcher: WebSearcher,
+        signature_guardrail,
     ):
         self.router = router
         self.api_keys = api_keys
         self.searcher = searcher
+        self.signature_guardrail = signature_guardrail
 
     async def execute(self, ctx: PhaseContext) -> PhaseResult:
         total_cost = 0.0
@@ -142,17 +144,27 @@ class DeliberatePhase:
                 search_queries = await asyncio.wait_for(
                     self._generate_search_queries(ctx.user_input), timeout=15.0
                 )
-                search_results = await asyncio.wait_for(
-                    self.searcher.search_multiple(
-                        search_queries, max_results_per_query=3
-                    ),
-                    timeout=25.0,
-                )
-                web_parts = [
-                    sr.to_context(max_results=3) for sr in search_results if sr.results
-                ]
-                if web_parts:
-                    web_section = "\n\n━━━ DADOS DA WEB ━━━\n" + "\n\n".join(web_parts)
+                
+                # Signature Guardrail para detecção de loops.
+                # Se a MESMA query já foi gerada neste turno, pulamos a busca
+                # redundante e seguimos para a síntese — NUNCA devolvemos a
+                # mensagem sintética como resposta final ao usuário.
+                sig_text = " | ".join(search_queries)
+                allowed, _ = self.signature_guardrail.check_loop(ctx.session_id, sig_text)
+                if allowed:
+                    search_results = await asyncio.wait_for(
+                        self.searcher.search_multiple(
+                            search_queries, max_results_per_query=3
+                        ),
+                        timeout=25.0,
+                    )
+                    web_parts = [
+                        sr.to_context(max_results=3) for sr in search_results if sr.results
+                    ]
+                    if web_parts:
+                        web_section = "\n\n━━━ DADOS DA WEB ━━━\n" + "\n\n".join(web_parts)
+                else:
+                    log.info("[deliberate] Busca duplicada no mesmo turno — pulando; síntese segue sem nova busca")
                 llm_calls += 1  # query generation
             except asyncio.TimeoutError:
                 log.warning("[deliberate] Web search falhou por timeout")
@@ -164,6 +176,7 @@ class DeliberatePhase:
             memory_context=ctx.memory_prompt,
             session_context=ctx.session_context,
             web_context=web_section + tool_context,
+            active_toolsets=ctx.decision.active_toolsets,
         )
 
         # Sem web → modelo FAST (rápido, tier cloud)

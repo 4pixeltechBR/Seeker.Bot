@@ -70,17 +70,13 @@ class BaseCrew(ABC, Crew):
 
 
 # Import crew implementations (will be empty for Phase 0)
-from . import monitor_crew  # noqa: E402
+from . import hunter_crew  # noqa: E402
 from . import executor_crew  # noqa: E402
 from . import analyst_crew  # noqa: E402
-from . import vision_crew  # noqa: E402
-from . import admin_crew  # noqa: E402
 
 __all__ = [
     "BaseCrew",
-    "monitor_crew",
+    "hunter_crew",
     "executor_crew",
     "analyst_crew",
-    "vision_crew",
-    "admin_crew",
 ]

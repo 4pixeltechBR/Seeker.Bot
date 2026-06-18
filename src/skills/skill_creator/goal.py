@@ -63,8 +63,16 @@ class AutoSkillCreatorGoal(AutonomousGoal):
             all_user_messages = []
 
             # memory_store sqlite
-            if hasattr(self.pipeline.memory, "get_session_turns"):
-                # "telegram" é o id da sessão principal
+            if hasattr(self.pipeline.memory, "_db") and self.pipeline.memory._db:
+                async with self.pipeline.memory._db.execute(
+                    """SELECT content, role FROM session_turns
+                    WHERE session_id LIKE 'telegram%' AND role = 'user'
+                    ORDER BY timestamp DESC LIMIT 100"""
+                ) as cur:
+                    rows = [dict(r) for r in await cur.fetchall()]
+                all_user_messages = [r["content"] for r in reversed(rows)]
+            elif hasattr(self.pipeline.memory, "get_session_turns"):
+                # "telegram" é o id da sessão principal (fallback)
                 turns = await self.pipeline.memory.get_session_turns(
                     "telegram", limit=100
                 )

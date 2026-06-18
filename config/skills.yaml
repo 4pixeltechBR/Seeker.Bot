@@ -31,3 +31,6 @@ specialist:
   remote_executor: false     # Remote plan execution
   os_control: false          # Operating system control
   git_automation: false      # Auto-backup to GitHub
+  seeker_sales: true         # B2B & Event mining (commercial)
+  seeker_sales_week: true    # Weekly sales reports (commercial)
+  show_leads_daily: true     # ShowDeck daily briefing 8:00 (commercial)

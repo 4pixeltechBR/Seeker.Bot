@@ -23,6 +23,7 @@ class PhaseContext:
     decision: RoutingDecision
     memory_prompt: str
     session_context: str = ""
+    session_id: str = "telegram"
     afk_protocol: any = None
     execution_mode: str = "interactive"
     intent_card: "IntentCard | None" = None  # Para segurança + auditoria

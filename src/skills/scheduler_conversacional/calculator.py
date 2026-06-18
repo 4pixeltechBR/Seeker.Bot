@@ -31,6 +31,11 @@ class NextRunCalculator:
         if from_time is None:
             from_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
+        # ONCE: disparo único — o next_run_at já é absoluto, definido na criação.
+        # Não recalcula nem reagenda; apenas devolve o alvo existente.
+        if task.schedule_type == ScheduleType.ONCE:
+            return task.next_run_at
+
         # Converter para timezone da tarefa para cálculo
         tz = pytz.timezone(task.timezone)
         from_time_tz = from_time.replace(tzinfo=pytz.UTC).astimezone(tz)
@@ -55,7 +60,7 @@ class NextRunCalculator:
         """Próxima execução diária"""
         # Cria datetime com a hora especificada TODAY
         next_run_tz = from_time_tz.replace(
-            hour=task.hour, minute=0, second=0, microsecond=0
+            hour=task.hour, minute=task.minute, second=0, microsecond=0
         )
 
         # Se já passou, vai pro próximo dia
@@ -76,14 +81,14 @@ class NextRunCalculator:
         # Se é hoje e já passou a hora, vai próxima semana
         if days_ahead == 0:
             next_run_tz = from_time_tz.replace(
-                hour=task.hour, minute=0, second=0, microsecond=0
+                hour=task.hour, minute=task.minute, second=0, microsecond=0
             )
             if next_run_tz <= from_time_tz:
                 days_ahead = 7
 
         next_run_tz = from_time_tz + timedelta(days=days_ahead)
         next_run_tz = next_run_tz.replace(
-            hour=task.hour, minute=0, second=0, microsecond=0
+            hour=task.hour, minute=task.minute, second=0, microsecond=0
         )
 
         # Converter de volta para UTC
@@ -97,7 +102,7 @@ class NextRunCalculator:
         # Tenta no mês atual
         try:
             next_run_tz = from_time_tz.replace(
-                day=target_day, hour=task.hour, minute=0, second=0, microsecond=0
+                day=target_day, hour=task.hour, minute=task.minute, second=0, microsecond=0
             )
         except ValueError:
             # Dia inválido para este mês (ex: 31/fev)
@@ -107,7 +112,7 @@ class NextRunCalculator:
             next_run_tz = from_time_tz.replace(
                 day=min(target_day, last_day),
                 hour=task.hour,
-                minute=0,
+                minute=task.minute,
                 second=0,
                 microsecond=0,
             )
@@ -122,7 +127,7 @@ class NextRunCalculator:
 
             try:
                 next_run_tz = next_month.replace(
-                    day=target_day, hour=task.hour, minute=0, second=0, microsecond=0
+                    day=target_day, hour=task.hour, minute=task.minute, second=0, microsecond=0
                 )
             except ValueError:
                 last_day = (next_month + timedelta(days=32)).replace(day=1) - timedelta(
@@ -131,7 +136,7 @@ class NextRunCalculator:
                 next_run_tz = next_month.replace(
                     day=min(target_day, last_day.day),
                     hour=task.hour,
-                    minute=0,
+                    minute=task.minute,
                     second=0,
                     microsecond=0,
                 )
@@ -151,7 +156,7 @@ class NextRunCalculator:
                 month=target_month,
                 day=target_day,
                 hour=task.hour,
-                minute=0,
+                minute=task.minute,
                 second=0,
                 microsecond=0,
             )
@@ -161,7 +166,7 @@ class NextRunCalculator:
                 month=target_month,
                 day=28,
                 hour=task.hour,
-                minute=0,
+                minute=task.minute,
                 second=0,
                 microsecond=0,
             )
@@ -174,7 +179,7 @@ class NextRunCalculator:
                     month=target_month,
                     day=target_day,
                     hour=task.hour,
-                    minute=0,
+                    minute=task.minute,
                     second=0,
                     microsecond=0,
                 )
@@ -184,7 +189,7 @@ class NextRunCalculator:
                     month=target_month,
                     day=28,
                     hour=task.hour,
-                    minute=0,
+                    minute=task.minute,
                     second=0,
                     microsecond=0,
                 )

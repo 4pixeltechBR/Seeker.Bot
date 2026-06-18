@@ -71,8 +71,8 @@ class ReflexPhase:
             request=LLMRequest(
                 messages=[{"role": "user", "content": user_message}],
                 system=str(prompt_bundle),  # Backward compat: convert to string
-                max_tokens=500,
-                temperature=0.1,
+                max_tokens=1500,  # era 500 → 800 → 1500 para respostas mais completas
+                temperature=0.7,  # era 0.1 — robótico demais para conversas naturais
             ),
             router=self.router,
             api_keys=self.api_keys,

@@ -13,6 +13,7 @@ from typing import Optional, Dict, Any
 class ScheduleType(str, Enum):
     """Tipos de periodicidade suportadas"""
 
+    ONCE = "once"  # disparo único (lembrete one-shot), não reagenda
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -52,6 +53,8 @@ class ScheduledTask:
     title: str
     schedule_type: ScheduleType
     hour: int  # 0-23
+    minute: int = 0  # 0-59 (granularidade de minuto, usada por ONCE e recorrentes)
+    notify_only: bool = False  # True = lembrete: só envia o texto, sem rodar LLM
     timezone: str = "America/Sao_Paulo"
 
     # Complementos da periodicidade

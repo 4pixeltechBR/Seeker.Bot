@@ -5,6 +5,8 @@ CRUD eficiente para fatos semânticos com SQLite
 
 import logging
 import sqlite3
+import random
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
@@ -76,6 +78,32 @@ class ArmazemDados:
         self.conexao: Optional[sqlite3.Connection] = None
         self._inicializar_db()
 
+    def _executar_gravacao(self, sql: str, params: tuple = (), commit: bool = True, max_retries: int = 15) -> sqlite3.Cursor:
+        """Executa gravação síncrona sob transação imediata com retentativas baseadas em jitter."""
+        if not self.conexao:
+            raise RuntimeError("Banco de dados não conectado.")
+            
+        cursor = self.conexao.cursor()
+        if not commit:
+            cursor.execute(sql, params)
+            return cursor
+            
+        for attempt in range(max_retries):
+            try:
+                self.conexao.execute("BEGIN IMMEDIATE")
+                cursor.execute(sql, params)
+                self.conexao.commit()
+                return cursor
+            except sqlite3.OperationalError as e:
+                try:
+                    self.conexao.execute("ROLLBACK")
+                except Exception:
+                    pass
+                if "locked" in str(e) and attempt < max_retries - 1:
+                    time.sleep(random.uniform(0.02, 0.15))
+                else:
+                    raise e
+
     def _inicializar_db(self) -> None:
         """Inicializa banco de dados com schema"""
         self.conexao = sqlite3.connect(
@@ -83,6 +111,11 @@ class ArmazemDados:
             check_same_thread=False
         )
         self.conexao.row_factory = sqlite3.Row
+        
+        try:
+            self.conexao.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            self.conexao.execute("PRAGMA journal_mode=DELETE")
 
         cursor = self.conexao.cursor()
 
@@ -122,17 +155,16 @@ class ArmazemDados:
 
     async def criar(self, fato: Fato) -> int:
         """Cria um novo fato, retorna ID"""
-        cursor = self.conexao.cursor()
-
         metadados_json = json.dumps(fato.metadados) if fato.metadados else "{}"
 
-        cursor.execute("""
+        sql = """
             INSERT INTO fatos (
                 conteudo, categoria, confianca, fonte,
                 timestamp_criacao, timestamp_atualizacao,
                 embedding, metadados, relevancia, vezes_utilizado
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
+        """
+        params = (
             fato.conteudo,
             fato.categoria,
             fato.confianca,
@@ -143,9 +175,9 @@ class ArmazemDados:
             metadados_json,
             fato.relevancia,
             fato.vezes_utilizado,
-        ))
-
-        self.conexao.commit()
+        )
+        
+        cursor = self._executar_gravacao(sql, params, commit=True)
         novo_id = cursor.lastrowid
 
         log.debug(
@@ -226,11 +258,9 @@ class ArmazemDados:
             return False
 
         fato.timestamp_atualizacao = datetime.utcnow()
-        cursor = self.conexao.cursor()
-
         metadados_json = json.dumps(fato.metadados) if fato.metadados else "{}"
 
-        cursor.execute("""
+        sql = """
             UPDATE fatos SET
                 conteudo = ?,
                 categoria = ?,
@@ -242,7 +272,8 @@ class ArmazemDados:
                 relevancia = ?,
                 vezes_utilizado = ?
             WHERE id = ?
-        """, (
+        """
+        params = (
             fato.conteudo,
             fato.categoria,
             fato.confianca,
@@ -253,16 +284,15 @@ class ArmazemDados:
             fato.relevancia,
             fato.vezes_utilizado,
             fato.id,
-        ))
+        )
 
-        self.conexao.commit()
+        cursor = self._executar_gravacao(sql, params, commit=True)
         return cursor.rowcount > 0
 
     async def deletar(self, fato_id: int) -> bool:
         """Deleta um fato"""
-        cursor = self.conexao.cursor()
-        cursor.execute("DELETE FROM fatos WHERE id = ?", (fato_id,))
-        self.conexao.commit()
+        sql = "DELETE FROM fatos WHERE id = ?"
+        cursor = self._executar_gravacao(sql, (fato_id,), commit=True)
         return cursor.rowcount > 0
 
     async def obter_todos(

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 import time
 
+from src.core.memory.tfidf_search import TFIDFSearch
+
 log = logging.getLogger("seeker.knowledge_vault.searcher")
 
 
@@ -36,6 +38,8 @@ class VaultSearcher:
         self._cache = {}
         self._last_index_time = 0
         self._index_ttl = 300  # 5 minutos
+        self._tfidf = TFIDFSearch()
+        self._id_to_path: dict[int, str] = {}
 
     def _parse_note(self, file_path: Path) -> Optional[VaultNote]:
         """Parseia uma nota Markdown com frontmatter YAML."""
@@ -95,20 +99,51 @@ class VaultSearcher:
 
         self._cache = new_cache
         self._last_index_time = now
+
+        # Reconstrói índice TF-IDF: título + tags pesam mais (repetidos no doc)
+        self._tfidf = TFIDFSearch()
+        self._id_to_path = {}
+        for i, (path_str, note) in enumerate(self._cache.items()):
+            doc_text = (
+                f"{note.title} {note.title} "
+                f"{' '.join(note.tags)} {' '.join(note.tags)} "
+                f"{note.body}"
+            )
+            self._tfidf.add_document(i, doc_text)
+            self._id_to_path[i] = path_str
+
         log.info(
             f"[vault_searcher] Índice reconstruído: {len(self._cache)} notas encontradas."
         )
 
     def search(self, query: str, max_results: int = 5) -> List[VaultNote]:
-        """Busca notas por palavra-chave no título, corpo ou tags."""
+        """
+        Busca notas por similaridade TF-IDF (título/tags/corpo).
+        Faz fallback para busca por palavra-chave se TF-IDF não retornar nada
+        (ex.: query com termos raros que não aparecem em nenhum documento).
+        """
         self._build_index()
 
+        if not self._cache:
+            return []
+
+        tfidf_results = self._tfidf.search(query, top_k=max_results, min_similarity=0.05)
+        if tfidf_results:
+            return [
+                self._cache[self._id_to_path[doc_id]]
+                for doc_id, _score in tfidf_results
+                if doc_id in self._id_to_path
+            ]
+
+        return self._keyword_search(query, max_results)
+
+    def _keyword_search(self, query: str, max_results: int = 5) -> List[VaultNote]:
+        """Busca por substring exata — fallback quando TF-IDF não acha nada."""
         query = query.lower()
         results = []
 
         for note in self._cache.values():
             score = 0
-            # Score simples: título > tags > corpo
             if query in note.title.lower():
                 score += 10
 
@@ -123,7 +158,6 @@ class VaultSearcher:
             if score > 0:
                 results.append((score, note))
 
-        # Ordena por score descendente
         results.sort(key=lambda x: x[0], reverse=True)
         return [note for score, note in results[:max_results]]
 

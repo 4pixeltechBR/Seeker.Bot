@@ -65,29 +65,31 @@ class CascadeAdapter:
         # Routing por role (simplificado para Seeker.Bot)
         self.role_routes = {
             CascadeRole.PLAN: [
-                CognitiveRole.SYNTHESIS,  # DeepSeek (primo de OpenAI)
-                CognitiveRole.SYNTHESIS,  # Fallback to secondary
+                CognitiveRole.DEEP,       # Raciocínio profundo para planejamento
+                CognitiveRole.SYNTHESIS,  # Fallback para consolidação
             ],
             CascadeRole.REASONING: [
-                CognitiveRole.SYNTHESIS,  # Deep reasoner
+                CognitiveRole.DEEP,       # Deep reasoning (DeepSeek R1 / V4)
+                CognitiveRole.ADVERSARIAL,# Red team e verificação lógica
             ],
             CascadeRole.CODING: [
-                CognitiveRole.SYNTHESIS,
-                CognitiveRole.FAST,
+                CognitiveRole.DEEP,       # Lógica pesada e código
+                CognitiveRole.FAST,       # Respostas rápidas
             ],
             CascadeRole.VISION: [
-                CognitiveRole.FAST,  # Gemini Flash (vision doesn't need deep reasoning)
+                CognitiveRole.FAST,       # Gemini Flash e modelos de visão rápidos
+                CognitiveRole.JUDGE,      # NVIDIA Gemma 4 31B
             ],
             CascadeRole.CREATIVE: [
-                CognitiveRole.FAST,  # Groq (rápido)
-                CognitiveRole.SYNTHESIS,  # Fallback
+                CognitiveRole.FAST,       # Groq / Modelos leves e rápidos
+                CognitiveRole.SYNTHESIS,  # Consolidação e relatórios
             ],
             CascadeRole.FAST: [
-                CognitiveRole.FAST,  # Groq/Llama
+                CognitiveRole.FAST,       # Llama 4 Scout / Qwen 3
             ],
             CascadeRole.EXTRACTION: [
-                CognitiveRole.FAST,  # Rápido é suficiente
-                CognitiveRole.SYNTHESIS,
+                CognitiveRole.FAST,       # Extração rápida
+                CognitiveRole.SYNTHESIS,  # Fallback
             ],
         }
 

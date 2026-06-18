@@ -1,1 +1,16 @@
-[]
+[
+    {
+        "id": "51fd453e",
+        "name": "Imagem e Video",
+        "category": "Image",
+        "status": "pending",
+        "added_at": "2026-05-28T20:18:58.442152"
+    },
+    {
+        "id": "b75b9904",
+        "name": "Video",
+        "category": "Video",
+        "status": "pending",
+        "added_at": "2026-05-28T20:19:43.309973"
+    }
+]

@@ -102,6 +102,7 @@ class EmailClient:
                 password=self.password,
                 use_tls=False,
                 start_tls=True,
+                timeout=30.0,
             )
             log.info(f"[email] Enviado: '{subject}' → {to}")
             return True
@@ -112,11 +113,14 @@ class EmailClient:
     async def health_check(self) -> bool:
         """Testa conexão SMTP sem enviar."""
         try:
-            smtp = aiosmtplib.SMTP(hostname=self.host, port=self.port, use_tls=False)
-            await smtp.connect()
-            await smtp.starttls()
-            await smtp.login(self.user, self.password)
-            await smtp.quit()
+            async with aiosmtplib.SMTP(
+                hostname=self.host,
+                port=self.port,
+                use_tls=False,
+                timeout=15.0,
+            ) as smtp:
+                await smtp.starttls()
+                await smtp.login(self.user, self.password)
             return True
         except Exception as e:
             log.error(f"[email] Health check falhou: {e}", exc_info=True)

@@ -55,28 +55,27 @@ Seeker uses a **multi-provider cascade** — you can use as few as **1 API key**
 
 | Provider | Model | Role in Seeker | Free Tier | Get Key |
 |---|---|---|---|---|
-| **Google Gemini** | `gemini-3.1-flash-lite` | ⚡ FAST (high frequency) | ✅ 15 RPM, 500/day | [aistudio.google.com](https://aistudio.google.com/apikey) |
-| **Google Gemini** | `gemini-3-flash` | 🧠 DEEP + ⚖️ JUDGE | ✅ 5 RPM, 20/day | same key |
+| **Google Gemini** | `gemini-3.1-flash-lite` | ⚡ FAST (high frequency) / 📝 SYNTHESIS | ✅ 15 RPM, 500 RPD | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| **Google Gemini** | `gemini-3-flash` | 🧠 DEEP + ⚖️ JUDGE | ✅ 5 RPM, 20 RPD | same key |
 | **Google Gemini** | `gemini-embedding-001` | 💾 Embeddings (memory) | ✅ 100 RPM | same key |
-| **Google Gemini** | `gemini-2.5-flash` | 👁️ Cloud VLM (vision) | ✅ 5 RPM | same key |
-| **Groq** | `llama-4-scout-17b` | ⚡ FAST (ultra-fast) | ✅ 30 RPM, 14.4K/day | [console.groq.com](https://console.groq.com/keys) |
-| **NVIDIA NIM** | `deepseek-v3.2` | 🧠 DEEP + 📝 SYNTHESIS | ✅ 40 RPM, unlimited | [build.nvidia.com](https://build.nvidia.com/) |
-| **NVIDIA NIM** | `nemotron-ultra-253b` | 🧠 DEEP (heavy fallback) | ✅ 40 RPM | same key |
-| **NVIDIA NIM** | `qwq-32b` | 🔴 ADVERSARIAL (reasoning) | ✅ 40 RPM | same key |
-| **NVIDIA NIM** | `gemma-4-31b-it` | ⚖️ JUDGE + 🔴 ADVERSARIAL | ✅ 40 RPM | same key |
-| **DeepSeek** | `deepseek-chat` | 🧠 DEEP (paid backup) | ❌ ~$0.28/1M tok | [platform.deepseek.com](https://platform.deepseek.com/) |
-| **DeepSeek** | `deepseek-reasoner` | 🔴 ADVERSARIAL (paid) | ❌ ~$0.28/1M tok | same key |
-| **Mistral** | `mistral-small-latest` | ⚖️ JUDGE (fallback) | ✅ 2 RPM | [console.mistral.ai](https://console.mistral.ai/) |
-| **Ollama** | `qwen3.5:4b` | 👁️ Local VLM (offline vision) | ✅ 100% local | [ollama.com](https://ollama.com/) |
+| **Google Gemini** | `gemini-2.5-flash` | 🔍 Gemini Grounding (Web Search) / Cloud VLM | ✅ 5 RPM, 500 RPD | same key |
+| **Cerebras Cloud** | `llama-3.3-70b` / `gpt-oss-120b` | ⚡ FAST (LPU - ~700 tok/s) / ⚖️ JUDGE | ✅ 30 RPM, 1M TPD | [cloud.cerebras.ai](https://cloud.cerebras.ai/) |
+| **Groq** | `llama-3.3-70b-versatile` | ⚡ FAST / ⚖️ JUDGE | ✅ 30 RPM, 14.4K RPD | [console.groq.com](https://console.groq.com/keys) |
+| **NVIDIA NIM** | `deepseek-ai/deepseek-v4-pro` | 🧠 DEEP (pro reasoning) | ✅ 40 RPM, unlimited | [build.nvidia.com](https://build.nvidia.com/) |
+| **NVIDIA NIM** | `google/gemma-4-31b-it` | ⚖️ JUDGE + 🔴 ADVERSARIAL | ✅ 40 RPM | same key |
+| **OpenRouter** | `google/gemma-4-31b-it:free` | 🧠 DEEP (free fallback) | ✅ 20 RPM | [openrouter.ai](https://openrouter.ai/) |
+| **DeepSeek** | `deepseek-v4-flash` / `pro` | 🧠 DEEP (paid stable backup) | ❌ ~$0.27/1M input | [platform.deepseek.com](https://platform.deepseek.com/) |
+| **Mistral** | `codestral-2508` | ⚖️ JUDGE (fallback) | ✅ 2 RPM | [console.mistral.ai](https://console.mistral.ai/) |
+| **Ollama** | `qwen3.5:4b` / `gemma4:9b` | 👁️ Local VLM (offline vision) | ✅ 100% local | [ollama.com](https://ollama.com/) |
 
 ### Configuration Scenarios
 
 | Scenario | Keys Needed | Result | Monthly Cost |
 |---|---|---|---|
-| 🟢 **Minimum** | 1× Gemini | Functional, slower at peak | $0 |
-| 🟡 **Recommended** | Gemini + Groq + NVIDIA | Fast & resilient. 3 free providers | $0 |
-| 🔵 **Full Power** | All 5+ providers | Max speed. Zero downtime. RL Bandit optimizes | ~$2-5 (DeepSeek) |
-| 🏠 **100% Local** | None (Ollama only) | Offline, private, no cost | $0 + GPU |
+| 🟢 **Minimum** | 1× Gemini | Functional, free grounding search | $0 |
+| 🟡 **Recommended** | Gemini + Cerebras + Groq + NVIDIA | Deep reasoning and ultra-fast LPUs | $0 |
+| 🔵 **Full Power** | All 7+ providers | Absolute resilience and zero downtime | ~$2-5 (DeepSeek) |
+| 🏠 **100% Local** | None (Ollama only) | 100% private, offline | $0 + GPU |
 
 > **Note:** You can run with a SINGLE key (Gemini). Seeker adapts and uses what's available. More providers = more resilience.
 

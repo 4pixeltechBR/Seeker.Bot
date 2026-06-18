@@ -24,14 +24,16 @@ class SchedulerConversacional(AutonomousGoal):
     """
     Autonomous goal que executa tarefas agendadas.
 
-    Faz polling a cada 5 minutos para verificar se há tarefas vencidas
-    e as executa respeitando as políticas de approval.
+    Faz polling a cada 60s para verificar se há tarefas vencidas e as executa
+    respeitando as políticas de approval. O poll curto garante que lembretes
+    one-shot ("daqui a 5 min") disparem perto do horário-alvo.
     """
 
     def __init__(self, pipeline: SeekerPipeline):
         self.pipeline = pipeline
         self.store = None
         self.dispatcher = None
+        self.notifier = None
 
         self._budget = GoalBudget(
             max_per_cycle_usd=0.01,  # Tarefas agendadas são leves
@@ -46,7 +48,7 @@ class SchedulerConversacional(AutonomousGoal):
 
     @property
     def interval_seconds(self) -> int:
-        return 300  # Poll a cada 5 minutos
+        return 60  # Poll a cada 60s (suporta lembretes one-shot de minutos)
 
     @property
     def budget(self) -> GoalBudget:
@@ -74,7 +76,7 @@ class SchedulerConversacional(AutonomousGoal):
                 self.store = SchedulerStore(self.pipeline.memory._db)
                 await self.store.init()
                 self.dispatcher = TaskDispatcher(
-                    self.store, self.pipeline.cascade_adapter
+                    self.store, self.pipeline.cascade_adapter, notifier=self.notifier
                 )
 
             # Limpar sessões wizard expiradas

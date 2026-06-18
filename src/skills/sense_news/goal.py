@@ -251,7 +251,7 @@ class SenseNewsGoal:
         all_results = []
         for q in queries:
             try:
-                res = await self.pipeline.searcher.search(q, max_results=5)
+                res = await self.pipeline.searcher.search(q, max_results=5, bypass_limit=True)
                 if res.results:
                     all_results.extend(res.results)
             except Exception:

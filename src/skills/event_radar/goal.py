@@ -18,8 +18,21 @@ from src.core.goals.protocol import (
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import LLMRequest, invoke_with_fallback
 from config.models import CognitiveRole
+from src.skills.event_radar.date_parser import enrich_event
 
 logger = logging.getLogger("seeker.event_radar")
+
+
+def report_state_names(data_dir: Path) -> list[str]:
+    """Retorna os nomes dos estados que já produziram relatório (proxy de 'mapeado').
+
+    Baseia-se na presença dos CSVs Radar_Eventos_{estado}.csv gerados por _sync_reports.
+    """
+    names = set()
+    for p in data_dir.glob("Radar_Eventos_*.csv"):
+        raw = p.stem[len("Radar_Eventos_"):]  # remove prefixo (.stem já tira .csv)
+        names.add(raw.replace("_", " "))       # _sync_reports substitui espaço por _
+    return sorted(names)
 
 
 class EventRadarGoal:
@@ -67,10 +80,17 @@ class EventRadarGoal:
         return [NotificationChannel.TELEGRAM]
 
     def get_status(self) -> GoalStatus:
+        state = self._load_state_file()
+        if state.get("user_paused"):
+            return GoalStatus.PAUSED
         return self._status
 
     def _ensure_directories(self):
         self.data_dir.mkdir(parents=True, exist_ok=True)
+
+    def mapped_state_names(self) -> list[str]:
+        """Estados que já geraram relatório CSV (foram varridos pelo radar)."""
+        return report_state_names(self.data_dir)
 
     def _load_state_file(self) -> Dict[str, Any]:
         if not self.state_path.exists():
@@ -80,6 +100,7 @@ class EventRadarGoal:
                 "cidade_atual": "Caldas Novas",
                 "cidades_pendentes": [],
                 "finalizado": False,
+                "user_paused": False,
             }
             self._save_state_file(initial_state)
             return initial_state
@@ -95,6 +116,7 @@ class EventRadarGoal:
                 "cidade_atual": "Caldas Novas",
                 "cidades_pendentes": [],
                 "finalizado": False,
+                "user_paused": False,
             }
 
     def _save_state_file(self, state: Dict[str, Any]):
@@ -122,8 +144,13 @@ class EventRadarGoal:
             return []
 
     async def run_cycle(self) -> GoalResult:
-        self._status = GoalStatus.RUNNING
         state = self._load_state_file()
+
+        if state.get("user_paused"):
+            self._status = GoalStatus.PAUSED
+            return GoalResult(success=True, summary="Varredura pausada pelo usuário.")
+
+        self._status = GoalStatus.RUNNING
 
         if state.get("finalizado"):
             self._status = GoalStatus.IDLE
@@ -140,40 +167,70 @@ class EventRadarGoal:
                 )
 
             # Remove a cidade inicial se ela estiver na lista (para evitar duplicação)
-            if state["cidade_atual"] in cities:
+            if state.get("cidade_atual") in cities:
                 cities.remove(state["cidade_atual"])
 
             state["cidades_pendentes"] = cities
+
+            # Se a cidade atual for None, define a primeira da lista como atual (evita NoneType crash)
+            if state.get("cidade_atual") is None and cities:
+                state["cidade_atual"] = state["cidades_pendentes"].pop(0)
+
             self._save_state_file(state)
 
-        # Seleciona próxima cidade
-        if not state["cidades_pendentes"] and state.get("cidade_atual") is None:
+        # Monta a lista de cidades a processar neste lote (máximo 5)
+        batch_cities = []
+        if state.get("cidade_atual"):
+            batch_cities.append(state["cidade_atual"])
+            state["cidade_atual"] = None
+
+        limit = 5
+        while len(batch_cities) < limit and state.get("cidades_pendentes"):
+            next_city = state["cidades_pendentes"].pop(0)
+            batch_cities.append(next_city)
+
+        if not batch_cities:
             state["finalizado"] = True
             self._save_state_file(state)
             self._status = GoalStatus.IDLE
             return GoalResult(
-                success=True, summary=f"Varredura de {state['estado_alvo']} finalizada!"
+                success=True, summary=f"Varredura de {state.get('estado_alvo', 'Goiás')} finalizada!"
             )
 
-        cidade = state["cidade_atual"]
         estado_nome = state.get("estado_alvo", "Goiás")
         uf = state.get("uf", "GO")
 
-        # Chama a função de mineração extraída
-        events, cost_usd = await self.mine_city(cidade, estado_nome, uf)
+        all_new_events = []
+        total_cost = 0.0
+        results_summary = []
 
-        if events:
-            self._save_results(events)
+        # Processamento das cidades do lote
+        for idx, cidade in enumerate(batch_cities):
+            if idx > 0:
+                # Pequeno delay entre chamadas de cidades para respeitar RPM do Gemini Free Tier (15 RPM)
+                await asyncio.sleep(2.0)
+            
+            logger.info(f"[event_radar] Processando cidade {idx+1}/{len(batch_cities)}: {cidade}")
+            events, cost_usd = await self.mine_city(cidade, estado_nome, uf)
+            total_cost += cost_usd
+            
+            if events:
+                all_new_events.extend(events)
+            
+            results_summary.append(f"• <b>{cidade}</b>: {len(events)} evento(s) extraído(s)")
 
+        if all_new_events:
+            self._save_results(all_new_events)
             # Gera Relatórios (PDF e CSV) para Sincronização Local
             try:
                 await self._sync_reports(estado_nome)
             except Exception as e:
                 logger.error(f"Erro ao gerar relatórios do radar: {e}")
 
-        # Avança para a próxima cidade
+        # Define qual será a cidade atual para o próximo ciclo
         if state["cidades_pendentes"]:
             state["cidade_atual"] = state["cidades_pendentes"].pop(0)
+            state["finalizado"] = False
         else:
             state["cidade_atual"] = None
             state["finalizado"] = True
@@ -182,38 +239,53 @@ class EventRadarGoal:
         self._save_state_file(state)
         self._status = GoalStatus.IDLE
 
+        # Mensagem formatada
+        results_str = "\n".join(results_summary)
+        
         if state["finalizado"]:
-            msg_final = f"✅ Varredura de {estado_nome} finalizada! Próximo estado? (Edite data/event_radar_state.json)"
+            msg_final = (
+                f"✅ <b>Varredura de {estado_nome} finalizada!</b>\n\n"
+                f"Lote final processado:\n{results_str}\n\n"
+                f"Próximo estado? (Edite data/event_radar_state.json)"
+            )
             return GoalResult(
                 success=True,
-                summary=msg_final,
+                summary=f"Varredura de {estado_nome} finalizada.",
                 notification=msg_final,
-                cost_usd=cost_usd,
+                cost_usd=total_cost,
             )
 
         progress_msg = (
-            f"📍 <b>EventRadar:</b> {cidade} processada.\n"
-            f"📅 Eventos extraídos: {len(events)}\n"
-            f"🏙️ Restam em {estado_nome}: {remaining}"
+            f"📍 <b>EventRadar — Lote Processado:</b>\n"
+            f"{results_str}\n\n"
+            f"🏙️ Restam em {estado_nome}: {remaining} cidade(s) pendente(s)."
         )
 
         return GoalResult(
             success=True,
-            summary=f"{cidade} processada.",
+            summary=f"Lote de {len(batch_cities)} cidades processadas.",
             notification=progress_msg,
-            cost_usd=cost_usd,
+            cost_usd=total_cost,
         )
 
-    async def mine_city(self, cidade: str, estado_nome: str, uf: str) -> tuple[list[dict], float]:
+    async def mine_city(
+        self,
+        cidade: str,
+        estado_nome: str = "Goiás",
+        uf: str = "GO",
+        save_to_jsonl: bool = False,
+    ) -> tuple[list[dict], float]:
         """
         Executa a varredura e extração de eventos para uma única cidade específica.
+        Cada evento retornado já passa por enrich_event (mes/mes_fim/precisao).
+        Se save_to_jsonl=True, persiste os eventos no JSONL global (idempotência
+        de duplicatas é responsabilidade do consumidor, igual ao run_cycle).
         Retorna a lista de eventos encontrados e o custo USD acumulado na operação.
         """
-        # Estratégia multi-query: 5 buscas paralelas por cidade cobrindo fontes oficiais e populares
         queries = [
             f"calendario oficial de eventos 2026 prefeitura de {cidade} {estado_nome}",
-            f"site:prefeitura.go.gov.br OR site:{cidade.replace(' ', '').lower()}.go.gov.br eventos festas 2026",
-            f"festa religiosa padroeiro agropecuaria exposicao festival rodeio {cidade} GO 2026",
+            f"site:prefeitura.{uf.lower()}.gov.br OR site:{cidade.replace(' ', '').lower()}.{uf.lower()}.gov.br eventos festas 2026",
+            f"festa religiosa padroeiro agropecuaria exposicao festival rodeio {cidade} {uf} 2026",
             f"aniversario da cidade de {cidade} {estado_nome} programacao 2026",
             f'"agenda cultural" OR "festivais" {cidade} {estado_nome} 2026',
         ]
@@ -222,7 +294,7 @@ class EventRadarGoal:
 
         # Executa as 5 buscas em paralelo
         search_tasks = [
-            self.pipeline.searcher.search(q, max_results=5) for q in queries
+            self.pipeline.searcher.search(q, max_results=5, bypass_limit=True) for q in queries
         ]
         search_results_list = await asyncio.gather(
             *search_tasks, return_exceptions=True
@@ -266,15 +338,58 @@ class EventRadarGoal:
             f"Resultados de pesquisa cruzada:\n{contexto[:5000]}"
         )
 
+        cost_usd = 0.0
+        aniversario_evento = None
+        
+        # ── BUSCA DE ANIVERSÁRIO GARANTIDO DA CIDADE VIA GEMINI SEARCH GROUNDING ──
+        if self.pipeline.api_keys.get("gemini"):
+            try:
+                grounding_prompt = f"Qual a data de comemoração de aniversário (dia e mês) do município de {cidade} em {estado_nome} ({uf})? Responda de forma curta em uma única linha no formato: 'Dia e Mês de Aniversário' (ex: 14 de Novembro)."
+                grounding_req = LLMRequest(
+                    messages=[{"role": "user", "content": grounding_prompt}],
+                    system="Você é um assistente de inteligência de dados geográficos. Responda de forma extremamente curta.",
+                    temperature=0.0,
+                    max_tokens=100,
+                    tools=[{"googleSearch": {}}]
+                )
+                
+                from config.models import ModelConfig
+                gemini_config = ModelConfig(
+                    provider="gemini",
+                    model_id="gemini-2.5-flash",
+                    display_name="Gemini 2.5 Flash",
+                    cost_per_1m_input=0.075,
+                    cost_per_1m_output=0.30,
+                    rpm_limit=15
+                )
+                from src.providers.base import create_provider
+                gemini_prov = create_provider(gemini_config, self.pipeline.api_keys)
+                
+                logger.info(f"Buscando aniversário de {cidade} via Gemini Search Grounding...")
+                g_resp = await gemini_prov.complete(grounding_req)
+                cost_usd += getattr(g_resp, "cost_usd", 0.0)
+                
+                resposta_aniversario = g_resp.text.strip()
+                logger.info(f"Gemini Grounding respondeu aniversário de {cidade}: {resposta_aniversario}")
+                
+                if len(resposta_aniversario) > 5 and len(resposta_aniversario) < 100:
+                    aniversario_evento = {
+                        "nome": f"Aniversário de {cidade}",
+                        "data_estimada": f"{resposta_aniversario} (Garantido)",
+                        "cidade": cidade
+                    }
+            except Exception as e:
+                logger.warning(f"Falha ao obter aniversário de {cidade} via Gemini Grounding: {e}")
+
         req = LLMRequest(
             messages=[{"role": "user", "content": prompt}],
             system="Você extrai eventos de cidades brasileiras. Retorne APENAS JSON válido sem markdown.",
             temperature=0.2,
             max_tokens=4096,
+            tools=[{"googleSearch": {}}] if self.pipeline.api_keys.get("gemini") else None
         )
 
         events = []
-        cost_usd = 0.0
 
         try:
             resp = await invoke_with_fallback(
@@ -286,19 +401,34 @@ class EventRadarGoal:
             cost_usd += getattr(resp, "cost_usd", 0.0)
 
             content = resp.text.strip()
-            # Remove markdown code blocks se presentes
             content = re.sub(r"```(?:json)?", "", content).strip()
             match = re.search(r"\[.*\]", content, re.DOTALL)
             events = json.loads(match.group(0)) if match else []
 
-            # Garante que todos os eventos têm o campo cidade
+            # Garante que todos os eventos têm os campos cidade e uf
             for ev in events:
                 if not ev.get("cidade"):
                     ev["cidade"] = cidade
+                # Injeta UF do radar (necessário para resolver estado nos leads)
+                if not ev.get("uf"):
+                    ev["uf"] = uf
+
+            # Injeta ou atualiza o aniversário de forma garantida
+            if aniversario_evento:
+                ja_tem = any("aniversario" in str(ev.get("nome", "")).lower() for ev in events)
+                if not ja_tem:
+                    events.append(aniversario_evento)
+                else:
+                    for ev in events:
+                        if "aniversario" in str(ev.get("nome", "")).lower():
+                            ev["data_estimada"] = aniversario_evento["data_estimada"]
 
         except Exception as e:
             logger.error(f"Erro de extração no EventRadar para {cidade}: {e}")
-            events = []
+            if aniversario_evento:
+                events = [aniversario_evento]
+            else:
+                events = []
 
         # ── KIMI DEEP RESEARCH FALLBACK ──
         # Se a busca padrão retornou 0 eventos e temos Kimi disponível,
@@ -337,9 +467,17 @@ class EventRadarGoal:
                     for ev in events:
                         if not ev.get("cidade"):
                             ev["cidade"] = cidade
+                        if not ev.get("uf"):
+                            ev["uf"] = uf
                     logger.info(f"Kimi encontrou {len(events)} eventos para {cidade}")
             except Exception as kimi_e:
                 logger.warning(f"Kimi fallback falhou para {cidade}: {kimi_e}")
+
+        # Enriquece todos os eventos com mes/mes_fim/precisao (date_parser)
+        events = [enrich_event(ev) for ev in events]
+
+        if save_to_jsonl and events:
+            self._save_results(events)
 
         return events, cost_usd
 

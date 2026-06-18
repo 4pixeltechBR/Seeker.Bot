@@ -42,6 +42,27 @@ CREATE TABLE IF NOT EXISTS session_summaries (
     summary TEXT NOT NULL,
     updated_at REAL NOT NULL
 );
+
+-- ─── FTS5 VIRTUAL TABLE ────────────────────────────────────
+CREATE VIRTUAL TABLE IF NOT EXISTS session_turns_fts USING fts5(
+    turn_id,
+    session_id,
+    content
+);
+
+-- Triggers para manter FTS5 em sincronia
+CREATE TRIGGER IF NOT EXISTS after_session_turns_insert AFTER INSERT ON session_turns BEGIN
+    INSERT INTO session_turns_fts (turn_id, session_id, content)
+    VALUES (new.id, new.session_id, new.content);
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_session_turns_delete AFTER DELETE ON session_turns BEGIN
+    DELETE FROM session_turns_fts WHERE turn_id = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS after_session_turns_update AFTER UPDATE ON session_turns BEGIN
+    UPDATE session_turns_fts SET content = new.content WHERE turn_id = old.id;
+END;
 """
 
 
@@ -113,18 +134,18 @@ class SessionStore:
         session_id: str,
         limit: int = 20,
     ) -> list[dict]:
-        """Últimas N mensagens da sessão, retornadas em ordem cronológica inversa."""
+        """Últimas N mensagens da sessão, retornadas em ordem cronológica."""
         if not self._initialized:
             await self.init()
 
         async with self._db.execute(
             """SELECT * FROM session_turns
             WHERE session_id = ?
-            ORDER BY timestamp DESC LIMIT ?""",
+            ORDER BY timestamp DESC, id DESC LIMIT ?""",
             (session_id, limit),
         ) as cur:
             rows = await cur.fetchall()
-            return [dict(r) for r in rows]
+            return list(reversed([dict(r) for r in rows]))
 
     async def delete_session(self, session_id: str) -> None:
         """Remove todo o histórico de uma sessão."""
@@ -134,3 +155,53 @@ class SessionStore:
             "DELETE FROM session_turns WHERE session_id = ?", (session_id,)
         )
         await self._db.commit()
+
+    async def delete_old_session_turns(self, session_id: str, keep_count: int) -> None:
+        """Deleta turnos antigos de conversa que já foram compactados."""
+        if not self._initialized:
+            await self.init()
+        await self._db.execute(
+            """DELETE FROM session_turns
+            WHERE session_id = ? AND id NOT IN (
+                SELECT id FROM session_turns
+                WHERE session_id = ?
+                ORDER BY timestamp DESC, id DESC
+                LIMIT ?
+            )""",
+            (session_id, session_id, keep_count),
+        )
+        await self._db.commit()
+
+    async def search_session_turns(
+        self,
+        query: str,
+        session_id: str | None = None,
+        limit: int = 10,
+    ) -> list[dict]:
+        """Busca mensagens no histórico usando SQLite FTS5."""
+        if not self._initialized:
+            await self.init()
+
+        if session_id:
+            sql = """
+                SELECT t.*
+                FROM session_turns_fts fts
+                JOIN session_turns t ON t.id = fts.turn_id
+                WHERE fts.session_id = ? AND fts.content MATCH ?
+                ORDER BY t.timestamp DESC LIMIT ?
+            """
+            params = (session_id, query, limit)
+        else:
+            sql = """
+                SELECT t.*
+                FROM session_turns_fts fts
+                JOIN session_turns t ON t.id = fts.turn_id
+                WHERE fts.content MATCH ?
+                ORDER BY t.timestamp DESC LIMIT ?
+            """
+            params = (query, limit)
+
+        async with self._db.execute(sql, params) as cur:
+            rows = await cur.fetchall()
+            return [dict(r) for r in rows]
+

@@ -219,8 +219,8 @@ class CascadeAdapter:
         # Ordem para raciocínio profundo
         elif role in ["DEEP", "REASONING"]:
             return [
+                CascadeTier.TIER1_NIM,  # Promovido a TIER 1 (NIM oferece DeepSeek R1 de graça a 40 RPM)
                 CascadeTier.TIER4_DEEPSEEK,
-                CascadeTier.TIER1_NIM,
                 CascadeTier.TIER3_GEMINI,
                 CascadeTier.TIER2_GROQ,
                 CascadeTier.TIER5_OLLAMA,
@@ -229,7 +229,7 @@ class CascadeAdapter:
 
         # Ordem para visão/OCR
         elif role == "VISION":
-            # Proteção de VRAM: Se o sistema estiver ocupado, Gemini sobe para TIER 1
+            # Proteção de VRAM e UX: Priorizar nuvem gratuita que processa instantaneamente
             if self._is_system_busy():
                 log.info(
                     "[cascade] Sistema ocupado (VRAM guardrail). Promovendo Gemini para Vision."
@@ -237,20 +237,20 @@ class CascadeAdapter:
                 return [
                     CascadeTier.TIER3_GEMINI,
                     CascadeTier.TIER1_NIM,
-                    CascadeTier.TIER5_OLLAMA,  # Ollama cai para última opção
+                    CascadeTier.TIER5_OLLAMA,
                     CascadeTier.TIER6_DEGRADED,
                 ]
             return [
-                CascadeTier.TIER5_OLLAMA,
                 CascadeTier.TIER3_GEMINI,
                 CascadeTier.TIER1_NIM,
+                CascadeTier.TIER5_OLLAMA,
                 CascadeTier.TIER6_DEGRADED,
             ]
 
-        # Padrão: BALANCED
+        # Padrão: BALANCED (E-mails e Grounding)
         return [
-            CascadeTier.TIER3_GEMINI,
-            CascadeTier.TIER1_NIM,
+            CascadeTier.TIER3_GEMINI,  # Gemini 3.1 Flash Lite (Grounding gratuito e 500 RPD)
+            CascadeTier.TIER1_NIM,     # NVIDIA (Nemotron-3 Super com 1M context)
             CascadeTier.TIER4_DEEPSEEK,
             CascadeTier.TIER2_GROQ,
             CascadeTier.TIER5_OLLAMA,
