@@ -27,13 +27,13 @@ You can run it entirely in the cloud with free API tiers, or **100% locally** on
 
 ---
 
-## 🆕 What's New in v3.5-stable (Sprint 12.1)
+## 🆕 What's New in v3.6-stable (Sprint 12.2)
 
-- **NLP Reminders & UUID Shortening:** Reminders now show a cleaner 8-character ID, and you can cancel them directly using natural language in the chat (e.g., "cancel reminder a8f210d4").
-- **Knowledge Vault Expansion (ZIP & MHT):** Seamlessly upload `.zip` archives containing multiple Markdown/text notes (Seeker consolidates them into a single file) or `.mht` (Web Archives) files which are automatically parsed, cleaned of MIME headers, and saved as tidy Markdown files in your Obsidian Vault.
-- **InstaScraper Chat Video Delivery:** Send any Instagram post/reel link in the chat and Seeker will scrape it in the background and reply with the raw video file directly.
-- **Eureka Loop (Skill Creator):** The dynamic skill creator (`/criar_skill`) now scans installed skills before generating new code, preventing redundant or duplicate suggestions.
-- **ShowDeck Geolocation Hardening:** Corrected UF state mapping for B2B leads from other states, ensuring cleaner CRM database records.
+- **Interactive Configuration Panel (`/config`):** A beautiful, button-based settings panel in Telegram that lets you toggle skills dynamically (saved directly to `skills.yaml`), view active LLM models, monitor daily budgets, and execute a graceful restart in one tap.
+- **Active Specialist Skills:** Enabled key specialist abilities by default: screen monitoring (`desktop_watch`), inbox tracking (`email_monitor`), and background action execution (`remote_executor`).
+- **NLP Reminders & UUID Shortening (v3.5):** Clean 8-char IDs for reminders, cancelable in plain natural language (e.g., "cancel reminder a8f210d4").
+- **Knowledge Vault ZIP & MHT Extraction (v3.5):** Import `.zip` collections and clean `.mht` archives directly into your Obsidian Vault as sanitized markdown.
+- **InstaScraper direct Video Delivery (v3.5):** Copy reel links in chat and receive raw media downloads instantly.
 
 ---
 

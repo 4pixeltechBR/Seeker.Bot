@@ -26,8 +26,8 @@ recommended:
 
 # 🔵 SPECIALIST — Advanced features
 specialist:
-  email_monitor: false       # Inbox monitoring (requires IMAP)
-  desktop_watch: false       # AFK screen surveillance (requires VLM)
-  remote_executor: false     # Remote plan execution
+  email_monitor: true        # Inbox monitoring (requires IMAP)
+  desktop_watch: true        # AFK screen surveillance (requires VLM)
+  remote_executor: true      # Remote plan execution
   os_control: false          # Operating system control
   git_automation: false      # Auto-backup to GitHub

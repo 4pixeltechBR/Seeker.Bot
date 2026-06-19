@@ -1,6 +1,23 @@
-# Seeker.Bot v3.5 — "NLP Reminders, Zip/MHT Vaulting & InstaScraper Video Delivery" 🚀🎥
+# Seeker.Bot v3.6 — "Painel /config Interativo & Ativação de Skills Specialist" 🚀⚙️
 
-Esta release consolida as implementações da Sprint 12.1, expandindo as capacidades do assistente em processamento de arquivos compactados e notas, download inteligente de mídias de redes sociais e simplificação de agendamentos no Telegram com suporte a NLP e IDs curtos de lembretes.
+Esta release traz o novo painel de controle interativo `/config` via Telegram, permitindo gerenciar o Seeker em runtime sem precisar mexer em arquivos de configuração locais, além da ativação de 3 skills especialistas de monitoramento e execução remota.
+
+## 🚀 Novidades
+
+### 1. Painel Interativo de Configuração (`/config`)
+- **Gestão de Skills Dinâmica:** Interface baseada em botões (`InlineKeyboardMarkup`) que permite ativar ou desativar qualquer skill em tempo de execução por categorias (Core, Recommended, Specialist) com salvamento automático direto no arquivo `skills.yaml`. As skills do Core permanecem protegidas de modificação acidental.
+- **Saúde dos Providers:** Visualização instantânea dos modelos ativos associados a cada papel cognitivo do Seeker (Fast, Deep, Judge, Adversarial) e status da arbitragem.
+- **Budget Rápido:** Consulta simplificada dos gastos acumulados hoje por provedor.
+- **Reinicialização Assistida (Restart):** Botão com tela de confirmação para forçar o restart ordenado do processo, fazendo com que o Watchdog recarregue o Seeker com as novas configurações ativas.
+
+### 2. Ativação de Skills Specialist
+- **`desktop_watch`:** Monitoramento ativo do status da tela/AFK (exige VLM).
+- **`email_monitor`:** Monitoramento automatizado de novas mensagens da caixa de entrada (exige IMAP).
+- **`remote_executor`:** Habilidade especialista de execução de planos remotos em background.
+
+---
+
+# Seeker.Bot v3.5 — "NLP Reminders, Zip/MHT Vaulting & InstaScraper Video Delivery" 🚀🎥
 
 ## 🚀 Novidades
 

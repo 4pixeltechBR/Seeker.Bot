@@ -60,6 +60,7 @@ async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
 async def setup_commands(bot: Bot):
     commands = [
         BotCommand(command="/start", description="Menu de ajuda e inicialização"),
+        BotCommand(command="/config", description="⚙️ Painel de configuração (Skills, Providers, Restart)"),
         BotCommand(command="/criar_skill", description="🛠️ Cria dinamicamente uma nova skill (Patcher L3)"),
         BotCommand(command="/status", description="Painel de providers, memória e metas"),
         BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
@@ -205,6 +206,9 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     setup_development_handlers(dp, pipeline, _bug_context)
     setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
 
+    from src.channels.telegram.commands.config import setup_config_handlers
+    setup_config_handlers(dp, pipeline)
+
     from src.channels.telegram.commands.drive import setup_drive_handlers
     setup_drive_handlers(dp, pipeline)
     @dp.message(F.text == "/start")
@@ -219,6 +223,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "Manda qualquer mensagem que eu decido a profundidade.\n"
             "⚡ <i>reflex</i> · 🧠 <i>deliberate</i> · 🔬 <i>deep</i>\n\n"
             "<b>⚙️ Operação:</b>\n"
+            "/config — ⚙️ painel de configurações (Skills, Providers)\n"
             "/god — força análise profunda na próxima\n"
             "/search [query] — busca direta na web\n"
             "/print — screenshot rápido do desktop\n"

@@ -27,13 +27,13 @@ Você pode rodar ele inteiramente na nuvem com tiers gratuitos de API, ou **100%
 
 ---
 
-## 🆕 Novidades da v3.5-stable (Sprint 12.1)
+## 🆕 Novidades da v3.6-stable (Sprint 12.2)
 
-- **Lembretes via NLP e UUID Curto:** Lembretes agora exibem um ID amigável de 8 caracteres. Além disso, você pode cancelá-los diretamente enviando mensagens em linguagem natural no chat (ex: "cancelar lembrete a8f210d4").
-- **Expansão do Cofre de Conhecimento (ZIP & MHT):** Envie arquivos `.zip` contendo múltiplas notas em Markdown/texto (o Seeker consolida tudo em um único documento) ou arquivos `.mht` (Web Archives) que são extraídos de forma limpa, higienizados de MIME-headers proprietários e salvos como Markdown no seu Obsidian Vault.
-- **Entrega de Vídeos do InstaScraper:** Envie qualquer link de post/reel do Instagram no chat e o Seeker fará o download em background, enviando de volta apenas o vídeo bruto diretamente no chat do Telegram.
-- **Eureka Loop (Skill Creator):** O criador autônomo de skills (`/criar_skill`) agora escaneia as skills instaladas antes de propor código, evitando propostas redundantes ou repetitivas da IA.
-- **ShowDeck Geolocation Hardening:** Correção na resolução da UF de leads de outros estados, higienizando o banco de dados do CRM.
+- **Painel de Configurações Interativo (`/config`):** Uma interface em botões diretamente no chat do Telegram para alternar skills em tempo de execução (gravação automática em `skills.yaml`), exibir modelos de IA ativos, checar custos do dia e realizar restart controlado do bot.
+- **Skills Especialistas Ativas:** Ativação automática de monitoramento de tela (`desktop_watch`), leitura de e-mails (`email_monitor`) e executor de planos remotos (`remote_executor`).
+- **Lembretes via NLP e UUID Curto (v3.5):** Identificação de lembretes com 8 caracteres e cancelamento direto usando frases de linguagem natural (ex: "cancelar lembrete a8f210d4").
+- **Importação de ZIP & MHT no Cofre (v3.5):** Envio e processamento de arquivos compactados e arquivos `.mht` direto para o cofre do Obsidian como Markdown higienizado.
+- **Vídeos do InstaScraper Diretos (v3.5):** Envio de vídeos do Instagram de forma direta no chat como arquivos MP4 limpos.
 
 ---
 
