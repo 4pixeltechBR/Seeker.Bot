@@ -20,17 +20,17 @@
 - [X] FASE 3 — Arquitetura
 - [X] FASE 4 — Segurança & Dados
 - [X] FASE 5 — Versionamento & Estrutura
-- [➔] FASE 6 — Construção c/ Observabilidade
-- [ ] FASE 7 — Homologação & Lançamento
+- [X] FASE 6 — Construção c/ Observabilidade
+- [➔] FASE 7 — Homologação & Lançamento
 - [ ] FASE 8 — Operação
 
 (Marcação: `[➔]` fase atual · `[X]` concluída · `[ ]` futura)
 
 ## Fase atual / Sub-tarefa ativa
-- **Fase:** FASE 6 — Construção c/ Observabilidade
-- **Sub-tarefa ativa:** 6.2 — Estabilização do ViralX9 e Correção de Rate Limits do yt-dlp
-- **Está pronto quando:** O bot executa a mineração do ViralX9 sem estourar a cota de requisições do YouTube (429) e suporta autenticação por cookies locais.
-- **Próximo passo explícito:** Reiniciar o bot para que a nova versão do código do ViralX9 seja carregada e monitorar os logs de execução.
+- **Fase:** FASE 7 — Homologação & Lançamento
+- **Sub-tarefa ativa:** 7.1 — Auditoria de Segurança, Release v3.5 e Sincronização do Repositório Público
+- **Está pronto quando:** Nenhuma credencial ou código comercial foi vazado para o repositório público, os READMEs e notas de release foram atualizados e o push foi completado com sucesso no GitHub.
+- **Próximo passo explícito:** Obter feedback final do Victor sobre o status estável da release e iniciar o monitoramento operacional na fase 8.
 
 ## Decision Log (append-only — nunca editar entradas antigas)
 | Data | Tipo | Decisão | Racional | Red Team (se T1) |
@@ -41,6 +41,7 @@
 | 2026-06-17 | Tipo 2 | Otimização do minerador do ViralX9 (caching + throttle) | O minerador disparava lookups para todos os 10 vídeos de cada canal na seed em toda execução, gerando mais de 1500 requisições e causando rate limit (429) e bloqueio do IP. Implementamos cache de mediana no estado persistente, pré-filtragem de vídeos vistos, e limitador de no máximo 2 tentativas de recálculo por ciclo. | |
 | 2026-06-17 | Tipo 2 | Suporte a cookies.txt local para yt-dlp | Adicionado carregamento automático do arquivo `config/cookies.txt` (se existir) no `ydl_opts` do yt-dlp, permitindo que a autenticação do usuário seja enviada e previna a tela de confirmação de bot do YouTube. | |
 | 2026-06-17 | Tipo 2 | Timeout e retentativas configurados no yt-dlp | Configurado `socket_timeout: 8` e `retries: 0` para evitar travamento de corotinas do scheduler quando a conexão do YouTube é interrompida ou rate-limitada. | |
+| 2026-06-19 | Tipo 2 | Release v3.5-stable e Auditoria de Segurança | Sincronização e publicação da Sprint 12.1 no GitHub com exclusão absoluta de ferramentas e chaves proprietárias comerciais, validada por script de scanner de segredos. | |
 
 ## Backlog (ideias fora de escopo — não viram código sem decisão)
 - Substituir `duckduckgo_search` por `ddgs` na ferramenta de busca.
