@@ -27,6 +27,16 @@ Você pode rodar ele inteiramente na nuvem com tiers gratuitos de API, ou **100%
 
 ---
 
+## 🆕 Novidades da v3.5-stable (Sprint 12.1)
+
+- **Lembretes via NLP e UUID Curto:** Lembretes agora exibem um ID amigável de 8 caracteres. Além disso, você pode cancelá-los diretamente enviando mensagens em linguagem natural no chat (ex: "cancelar lembrete a8f210d4").
+- **Expansão do Cofre de Conhecimento (ZIP & MHT):** Envie arquivos `.zip` contendo múltiplas notas em Markdown/texto (o Seeker consolida tudo em um único documento) ou arquivos `.mht` (Web Archives) que são extraídos de forma limpa, higienizados de MIME-headers proprietários e salvos como Markdown no seu Obsidian Vault.
+- **Entrega de Vídeos do InstaScraper:** Envie qualquer link de post/reel do Instagram no chat e o Seeker fará o download em background, enviando de volta apenas o vídeo bruto diretamente no chat do Telegram.
+- **Eureka Loop (Skill Creator):** O criador autônomo de skills (`/criar_skill`) agora escaneia as skills instaladas antes de propor código, evitando propostas redundantes ou repetitivas da IA.
+- **ShowDeck Geolocation Hardening:** Correção na resolução da UF de leads de outros estados, higienizando o banco de dados do CRM.
+
+---
+
 ## ⚡ Início Rápido
 
 ```bash

@@ -36,7 +36,7 @@ dependencies = [
     "tiktoken>=0.7",
     "psutil>=5.9",
     "prometheus-client>=0.20",
-    # Skill: event_radar — PDF reports
+    # Observabilidade e PDF reports
     "fpdf2>=2.7",
     # Skill: knowledge_vault — PDF extraction (lazy import)
     "pymupdf>=1.24",

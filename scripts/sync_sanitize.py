@@ -36,6 +36,8 @@ COMMERCIAL_DIRS = [
     "src/skills/seeker_sales_week",
     "src/skills/show_leads_daily",
     "src/skills/event_map_scout",
+    "src/skills/event_radar",
+    "src/skills/viralx9",
     "src/skills/cortex",
     "src/skills/revenue_hunter",
     # NOTA: drive_manager NAO eh comercial — eh o cliente Google Drive (/drive command)
@@ -63,10 +65,14 @@ SENSITIVE_FILE_PATTERNS = [
 COMMERCIAL_FILES = [
     "src/core/hierarchy/crews/hunter_crew.py",
     "src/channels/telegram/commands/sales.py",
+    "src/channels/telegram/commands/radar.py",
+    "src/channels/telegram/commands/viralx9.py",
     "src/channels/telegram/bot_new.py",  # stale, ainda tem /scout e /crm
     "tests/test_event_bridge.py",
     "tests/test_month_enricher.py",
     "tests/test_opportunity_engine.py",
+    "tests/test_event_radar_mapped.py",
+    "tests/test_event_radar.py",
 ]
 
 # Keywords proibidas no working tree publico
@@ -75,12 +81,17 @@ COMMERCIAL_PATTERNS = [
     (r"\bseeker_sales\b", "seeker_sales identifier"),
     (r"\bseeker_sales_week\b", "seeker_sales_week identifier"),
     (r"\bevent_map_scout\b", "event_map_scout identifier"),
+    (r"\bevent_radar\b", "event_radar identifier"),
+    (r"\bviralx9\b", "viralx9 identifier"),
     (r"\bHunterCrew\b", "HunterCrew class"),
     (r"\bhunter_crew\b", "hunter_crew module"),
     (r"\bsetup_sales_handlers\b", "setup_sales_handlers function"),
     (r"\bdiscovery_matrix\b", "discovery_matrix module"),
     (r'BotCommand\(\s*command="/scout"', "/scout BotCommand"),
-    (r'BotCommand\(command="/crm"', "/crm BotCommand"),
+    (r'BotCommand\(\s*command="/scout_config"', "/scout_config BotCommand"),
+    (r'BotCommand\(\s*command="/crm"', "/crm BotCommand"),
+    (r'BotCommand\(\s*command="/radar"', "/radar BotCommand"),
+    (r'BotCommand\(\s*command="/viralx9"', "/viralx9 BotCommand"),
     (r"\bscout_hunter_2_0\b", "scout_hunter_2_0 reference"),
 ]
 
@@ -172,10 +183,34 @@ BOT_PY_PATCHES = [
         ),
         "\n",
     ),
+    # /scout_config BotCommand
+    (
+        re.compile(
+            r'\s*BotCommand\(\s*command="/scout_config".*?\),?\s*\n',
+            re.DOTALL,
+        ),
+        "\n",
+    ),
     # /crm BotCommand (single-line)
     (
         re.compile(
             r'\s*BotCommand\(\s*command="/crm".*?\),?\s*\n',
+            re.DOTALL,
+        ),
+        "\n",
+    ),
+    # /radar BotCommand
+    (
+        re.compile(
+            r'\s*BotCommand\(\s*command="/radar".*?\),?\s*\n',
+            re.DOTALL,
+        ),
+        "\n",
+    ),
+    # /viralx9 BotCommand
+    (
+        re.compile(
+            r'\s*BotCommand\(\s*command="/viralx9".*?\),?\s*\n',
             re.DOTALL,
         ),
         "\n",
@@ -217,6 +252,30 @@ BOT_PY_PATCHES = [
     (
         re.compile(r'"<b>🚀 Produção:</b>\\n"'),
         r'"<b>🚀 Utilitários:</b>\\n"',
+    ),
+    # try/except setup_radar_handlers
+    (
+        re.compile(
+            r"\s*try:\s*\n"
+            r"\s*from src\.channels\.telegram\.commands\.radar import setup_radar_handlers\s*\n"
+            r"\s*setup_radar_handlers\(dp, pipeline\)\s*\n"
+            r"\s*except ImportError:\s*\n"
+            r"\s*pass\s*\n",
+            re.MULTILINE,
+        ),
+        "\n",
+    ),
+    # try/except setup_viralx9_handlers
+    (
+        re.compile(
+            r"\s*try:\s*\n"
+            r"\s*from src\.channels\.telegram\.commands\.viralx9 import setup_viralx9_handlers\s*\n"
+            r"\s*setup_viralx9_handlers\(dp, pipeline\)\s*\n"
+            r"\s*except ImportError:\s*\n"
+            r"\s*pass\s*\n",
+            re.MULTILINE,
+        ),
+        "\n",
     ),
 ]
 

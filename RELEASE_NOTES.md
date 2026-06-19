@@ -1,3 +1,33 @@
+# Seeker.Bot v3.5 — "NLP Reminders, Zip/MHT Vaulting & InstaScraper Video Delivery" 🚀🎥
+
+Esta release consolida as implementações da Sprint 12.1, expandindo as capacidades do assistente em processamento de arquivos compactados e notas, download inteligente de mídias de redes sociais e simplificação de agendamentos no Telegram com suporte a NLP e IDs curtos de lembretes.
+
+## 🚀 Novidades
+
+### 1. Cancelamento de Lembretes via NLP e UUID Curto
+- **IDs Simplificados:** Ao agendar um lembrete, o sistema agora exibe um ID amigável de 8 caracteres (baseado no UUID) em vez do UUID longo tradicional, melhorando a legibilidade.
+- **Cancelamento Inteligente (NLP):** O Seeker agora entende intenções de cancelamento de lembretes em linguagem natural (ex: "cancela o lembrete c78f102b" ou "remova a tarefa d92a10fe"). O interceptador processa a solicitação e executa a remoção dinamicamente no banco de dados.
+
+### 2. Leitura de ZIP no Knowledge Vault
+- **Consolidação em Nota Única:** O cofre do Obsidian agora aceita arquivos compactados `.zip`. Ao enviar um ZIP contendo múltiplas notas de texto ou Markdown, o Seeker extrai e compila o conteúdo inteiro em um único documento Markdown consolidado, preservando links e a estrutura dos arquivos originais.
+
+### 3. Extração Estruturada de Arquivos MHT (.mht)
+- **Sanitização de Documentos:** Implementado o extrator para arquivos `.mht` (Web Archives). O Seeker remove metadados brutos e cabeçalhos MIME proprietários, convertendo a página web arquivada em um Markdown limpo, legível e pronto para ser integrado ao Obsidian.
+
+### 4. InstaScraper via Chat (Video Delivery Bruto)
+- **Foco na Mídia:** Ao detectar links do Instagram no chat do Telegram, o bot agora baixa a mídia de forma assíncrona (com delays anti-ban) e envia de volta **apenas o vídeo bruto**, sem descrições longas ou metadados desnecessários, otimizando o consumo de dados do usuário e a fluidez do chat.
+
+### 5. Prevenção de Loops no Skill Creator (Eureka Loop)
+- **Bloqueio de Duplicações:** O gerador de skills (`/criar_skill`) agora faz uma varredura das skills instaladas antes de propor código. Isso impede propostas redundantes, repetitivas ou contraditórias do agente, garantindo um loop de melhoria contínua limpo.
+
+## 🔧 Correções e Melhorias
+
+- **ShowDeck Geolocation Hardening:** Ajustes no prompt e remoção do estado padrão na tabela de CRM. Cidades de outros estados agora resolvem a UF correspondente corretamente, eliminando ruído geográfico.
+- **Video Miner Cookies Fallback:** Implementação de fallback no minerador de vídeos para usar `docs/all_cookies.txt` caso os cookies específicos do navegador falhem.
+- **Menu e Lista de Comandos Atualizados:** Sincronização e validação completa dos comandos do bot do Telegram, com remoção automática de funcionalidades e utilitários comerciais na build pública.
+
+---
+
 # Seeker.Bot v3.4 — "Google Search Grounding & Quota Safety" 🔍🛡️
 
 Esta release traz a integração nativa do buscador do Google (Google Custom Search API) com otimizações severas de custo e segurança, além de novos mecanismos de contenção de custos e proteção contra loops infinitos de agentes autônomos.

@@ -27,11 +27,13 @@ You can run it entirely in the cloud with free API tiers, or **100% locally** on
 
 ---
 
-## 🆕 What's New in v2.0-stable
+## 🆕 What's New in v3.5-stable (Sprint 12.1)
 
-- **S.A.R.A. Auto-Healing Resiliency:** When the self-improvement loop patches a file, the bot now automatically commands the Watchdog to soft-restart and reload the new code, ensuring zero-downtime hot fixes.
-- **Vision Watch Refactor:** The `/watch` and `/watchoff` commands were completely decoupled from the goal engine into standalone async tasks, making desktop monitoring bulletproof and extremely responsive.
-- **Enhanced Data Handling:** The Daily Briefing module was upgraded from 1,500 to 4,096 tokens to easily handle 15+ emails without HTML truncation, plus multiple core engine stability fixes (like goal dict iteration fallbacks).
+- **NLP Reminders & UUID Shortening:** Reminders now show a cleaner 8-character ID, and you can cancel them directly using natural language in the chat (e.g., "cancel reminder a8f210d4").
+- **Knowledge Vault Expansion (ZIP & MHT):** Seamlessly upload `.zip` archives containing multiple Markdown/text notes (Seeker consolidates them into a single file) or `.mht` (Web Archives) files which are automatically parsed, cleaned of MIME headers, and saved as tidy Markdown files in your Obsidian Vault.
+- **InstaScraper Chat Video Delivery:** Send any Instagram post/reel link in the chat and Seeker will scrape it in the background and reply with the raw video file directly.
+- **Eureka Loop (Skill Creator):** The dynamic skill creator (`/criar_skill`) now scans installed skills before generating new code, preventing redundant or duplicate suggestions.
+- **ShowDeck Geolocation Hardening:** Corrected UF state mapping for B2B leads from other states, ensuring cleaner CRM database records.
 
 ---
 

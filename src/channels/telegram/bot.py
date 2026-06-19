@@ -85,7 +85,6 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
         BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
-        BotCommand(command="/scout_config", description="⚙️ Configura parâmetros do Scout"),
         BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
         BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
         BotCommand(command="/switch", description="🔄 Alterna entre modelos LLM (opinião, performance)"),
@@ -93,7 +92,6 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/restart", description="🔄 Reinicia o bot (admin)"),
         BotCommand(command="/agendar", description="📅 Agenda nova tarefa (wizard conversacional)"),
         BotCommand(command="/listar", description="📋 Lista tarefas agendadas do chat"),
-        BotCommand(command="/radar", description="🗺️ Configura e controla o Radar de Eventos"),
         BotCommand(command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"),
         BotCommand(command="/pausar", description="⏸ Pausa tarefa (/pausar <ID>)"),
         BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
@@ -209,15 +207,6 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     from src.channels.telegram.commands.drive import setup_drive_handlers
     setup_drive_handlers(dp, pipeline)
-
-    from src.channels.telegram.commands.radar import setup_radar_handlers
-    setup_radar_handlers(dp, pipeline)
-
-    from src.channels.telegram.commands.viralx9 import setup_viralx9_handlers
-    setup_viralx9_handlers(dp, pipeline)
-
-
-
     @dp.message(F.text == "/start")
     async def cmd_start(message: Message):
 

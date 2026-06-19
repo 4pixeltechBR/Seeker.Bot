@@ -380,7 +380,7 @@ class GeminiGroundingBackend(SearchBackend):
 
     Circuit breaker embutido: apos CIRCUIT_BREAKER_THRESHOLD falhas 429 consecutivas,
     o circuito abre por CIRCUIT_BREAKER_COOLDOWN segundos — evitando hammering em
-    endpoint sabidamente saturado (ex: event_radar com 25 queries por ciclo vs 5 RPM).
+    endpoint sabidamente saturado (ex: automação de buscas com 25 queries por ciclo vs 5 RPM).
     """
 
     # Semáforo global compartilhado para limitar a concorrência assíncrona de múltiplas skills paralelas
