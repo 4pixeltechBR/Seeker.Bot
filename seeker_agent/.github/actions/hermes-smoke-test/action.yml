@@ -1,0 +1,50 @@
+name: SeekerAgent smoke test
+description: >
+  Run the image's built-in entrypoint against `--help` and `dashboard --help`
+  to catch basic runtime regressions before publishing.  Requires the image
+  to already be loaded into the local Docker daemon under `image`.
+
+  Works identically on amd64 and arm64 runners.
+
+inputs:
+  image:
+    description: Fully-qualified image tag (e.g. nousresearch/seeker_agent-agent:test)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Ensure /tmp/seeker_agent-test is seeker_agent-writable
+      shell: bash
+      run: |
+        # The image runs as the seeker_agent user (UID 10000).  GitHub Actions
+        # creates /tmp/seeker_agent-test root-owned by default, which seeker_agent
+        # can't write to — chown it to match the in-container UID before
+        # bind-mounting.  Real users doing `docker run -v ~/.seeker_agent:...`
+        # with their own UID hit the same issue and have their own
+        # remediations (HERMES_UID env var, or chown locally).
+        mkdir -p /tmp/seeker_agent-test
+        sudo chown -R 10000:10000 /tmp/seeker_agent-test
+
+    - name: seeker_agent --help
+      shell: bash
+      run: |
+        # Use the image's real ENTRYPOINT (/init + main-wrapper.sh) so
+        # this exercises the actual production startup path. PR #30136
+        # review caught that an --entrypoint override here had been
+        # silently neutered by the s6-overlay migration — stage2-hook
+        # ignores its CMD args, so the smoke test was a no-op.
+        docker run --rm \
+          -v /tmp/seeker_agent-test:/opt/data \
+          "${{ inputs.image }}" --help
+
+    - name: seeker_agent dashboard --help
+      shell: bash
+      run: |
+        # Regression guard for #9153: dashboard was present in source but
+        # missing from the published image.  If this fails, something in
+        # the Dockerfile is excluding the dashboard subcommand from the
+        # installed package.
+        docker run --rm \
+          -v /tmp/seeker_agent-test:/opt/data \
+          "${{ inputs.image }}" dashboard --help

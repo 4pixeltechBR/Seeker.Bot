@@ -1,0 +1,14 @@
+name: langfuse
+version: "1.0.0"
+description: "Optional Langfuse observability for SeekerAgent — traces conversations, LLM calls, and tool usage. Opt-in via `seeker_agent plugins enable observability/langfuse` (or check the box in `seeker_agent plugins`)."
+author: NousResearch
+requires_env:
+  - HERMES_LANGFUSE_PUBLIC_KEY
+  - HERMES_LANGFUSE_SECRET_KEY
+hooks:
+  - pre_api_request
+  - post_api_request
+  - pre_llm_call
+  - post_llm_call
+  - pre_tool_call
+  - post_tool_call

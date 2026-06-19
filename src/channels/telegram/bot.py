@@ -85,10 +85,8 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
         BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
         BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
-        BotCommand(command="/scout", description="Dispara campanha B2B Scout (leads qualificados)"),
         BotCommand(command="/scout_config", description="⚙️ Configura parâmetros do Scout"),
         BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
-        BotCommand(command="/crm", description="Lista histórico de leads qualificados"),
         BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
         BotCommand(command="/switch", description="🔄 Alterna entre modelos LLM (opinião, performance)"),
         BotCommand(command="/feedback", description="💬 Envia feedback/problema sobre o bot"),
@@ -197,12 +195,6 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     # Import and call factories
     from src.channels.telegram.commands.system import setup_system_handlers
     from src.channels.telegram.commands.tasks import setup_tasks_handlers
-    try:
-        from src.channels.telegram.commands.sales import setup_sales_handlers
-        has_sales = True
-    except ImportError:
-        has_sales = False
-
     from src.channels.telegram.commands.vision import setup_vision_handlers
     from src.channels.telegram.commands.vault import setup_vault_handlers
     from src.channels.telegram.commands.development import setup_development_handlers
@@ -210,8 +202,6 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
     setup_system_handlers(dp, pipeline)
     setup_tasks_handlers(dp, pipeline)
-    if has_sales:
-        setup_sales_handlers(dp, pipeline)
     setup_vision_handlers(dp, pipeline)
     setup_vault_handlers(dp, pipeline, vault, _obsidian_wait_users)
     setup_development_handlers(dp, pipeline, _bug_context)
@@ -259,10 +249,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "/decay — limpeza manual de memória\n\n"
             "<b>🤖 Aprendizado (RL):</b>\n"
             "/bandit — progresso do LinUCB (shadow mode)\n\n"
-            "<b>🚀 Produção:</b>\n"
-            "/scout — campanha B2B (leads qualificados)\n"
-            "/crm — histórico de leads\n"
-            "/git_backup — backup manual no GitHub\n"
+            "<b>🚀 Utilitários:</b>\n"            "/git_backup — backup manual no GitHub\n"
             "/configure_news — personaliza notícias\n"
             "/drive — 📁 acesso ao Google Drive\n"
             "/instascraper — 📸 clona vídeos/metadados do Instagram"

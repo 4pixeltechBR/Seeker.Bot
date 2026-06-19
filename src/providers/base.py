@@ -552,13 +552,36 @@ class GeminiProvider(BaseProvider):
                 raise e
                 
         data = resp.json()
-        candidate = data["candidates"][0]
-        content = candidate.get("content", {})
-        parts = content.get("parts", [])
-        text = parts[0]["text"] if parts else ""
+        text = ""
+
+        # 1. Tentar extrair do formato clássico (candidates)
+        if "candidates" in data and data["candidates"]:
+            candidate = data["candidates"][0]
+            content = candidate.get("content", {})
+            parts = content.get("parts", [])
+            text = parts[0]["text"] if parts else ""
+
+        # 2. Tentar extrair do novo formato de Steps (output_text na raiz)
+        if not text and "output_text" in data:
+            text = data["output_text"]
+
+        # 3. Tentar extrair percorrendo steps de forma polimórfica
+        if not text and "steps" in data:
+            texts = []
+            for step in data["steps"]:
+                if step.get("type") == "ModelOutputStep":
+                    content_list = step.get("content", [])
+                    if isinstance(content_list, list):
+                        for c in content_list:
+                            if isinstance(c, dict) and "text" in c:
+                                texts.append(c["text"])
+                    elif isinstance(content_list, str):
+                        texts.append(content_list)
+            text = "\n".join(texts)
+
         if not text:
             raise ValueError(
-                f"Gemini retornou resposta sem texto: {list(candidate.keys())}"
+                f"Gemini retornou resposta sem texto: {list(data.keys())}"
             )
         usage = data.get("usageMetadata", {})
         return LLMResponse(

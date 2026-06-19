@@ -203,6 +203,46 @@ class InstaScraper:
             log.error(f"[instascraper] Erro crítico na raspagem: {e}", exc_info=True)
             return f"Erro crítico na extração do perfil {target_profile}: {e}"
 
+    def download_single_post(self, post_url_or_shortcode: str) -> Path | None:
+        """
+        Baixa um post individual (vídeo) a partir de uma URL ou shortcode do Instagram.
+        Retorna o caminho absoluto do arquivo .mp4 baixado (ou None).
+        """
+        import re
+        m = re.search(r"/(?:p|reel|tv)/([a-zA-Z0-9_-]+)", post_url_or_shortcode)
+        if m:
+            shortcode = m.group(1)
+        else:
+            # Pega o shortcode limpo caso o usuário envie direto
+            shortcode = post_url_or_shortcode.strip().split("/")[0]
+            
+        log.info(f"[instascraper] Buscando post unitário para shortcode: {shortcode}")
+        
+        try:
+            post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
+            
+            if not post.is_video:
+                log.warning(f"[instascraper] Post {shortcode} não é um vídeo.")
+                return None
+                
+            target_dir = self.base_path / "single_posts"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+            original_cwd = os.getcwd()
+            try:
+                os.chdir(self.base_path)
+                self.loader.download_post(post, target="single_posts")
+            finally:
+                os.chdir(original_cwd)
+                
+            for f in target_dir.glob(f"*{shortcode}*.mp4"):
+                return f.resolve()
+                
+        except Exception as e:
+            log.error(f"[instascraper] Falha ao baixar post {shortcode}: {e}", exc_info=True)
+            
+        return None
+
     def _create_obsidian_note(self, post: instaloader.Post, target_dir: Path):
         """
         Gera uma nota Markdown estruturada na Inbox do Obsidian referenciando a mídia local.

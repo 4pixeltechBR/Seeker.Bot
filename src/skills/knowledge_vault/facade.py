@@ -15,6 +15,8 @@ from .extractors import (
     extract_from_audio,
     fetch_github_readme,
     fetch_github_metadata,
+    extract_from_zip,
+    extract_from_mht,
 )
 
 log = logging.getLogger("seeker.knowledge_vault.facade")
@@ -288,6 +290,62 @@ class KnowledgeVault:
         except Exception as e:
             log.error(f"[facade] Erro ao processar PDF: {e}")
             return f"❌ Erro ao processar PDF: {str(e)[:100]}"
+
+    async def process_zip(self, zip_bytes: bytes, user_hint: str = "") -> str:
+        """Processa arquivos de um ZIP consolidando-os em uma nota única do Obsidian."""
+        try:
+            raw_text = await extract_from_zip(zip_bytes, self.vlm_client)
+            if not raw_text:
+                return "❌ Falha ao extrair conteúdo do ZIP."
+
+            query = self._derive_query(raw_text)
+            web_context = await self._research(query)
+
+            note_data = await self.analyzer.analyze_and_tag(
+                raw_text, "zip", user_hint=user_hint,
+                extra_meta={"web_context": web_context}
+            )
+
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="zip",
+            )
+
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (ZIP): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar ZIP: {e}")
+            return f"❌ Erro ao processar ZIP: {str(e)[:100]}"
+
+    async def process_mht(self, mht_bytes: bytes, user_hint: str = "") -> str:
+        """Processa arquivo MHT convertendo para markdown e salvando no Obsidian."""
+        try:
+            raw_text = await extract_from_mht(mht_bytes)
+            if not raw_text:
+                return "❌ Falha ao extrair conteúdo do MHT."
+
+            query = self._derive_query(raw_text)
+            web_context = await self._research(query)
+
+            note_data = await self.analyzer.analyze_and_tag(
+                raw_text, "mht", user_hint=user_hint,
+                extra_meta={"web_context": web_context}
+            )
+
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="mht",
+            )
+
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (MHT): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar MHT: {e}")
+            return f"❌ Erro ao processar MHT: {str(e)[:100]}"
 
     async def search_and_answer(self, query: str, max_results: int = 5) -> str:
         """

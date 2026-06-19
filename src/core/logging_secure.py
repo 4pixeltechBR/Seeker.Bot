@@ -29,6 +29,7 @@ class SecretMasker:
         (r'aws_secret_access_key\s*[=:]\s*["\']?([^\s"\']+)', "aws_secret"),
         # Google API Keys
         (r"AIza[0-9A-Za-z\-_]{35}", "google_api_key"),
+        (r"\bAQ\.[A-Za-z0-9_\-]{30,}\b", "google_api_key"),
         # JWT Tokens
         (r"eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}", "jwt_token"),
         # Email addresses (partial masking)

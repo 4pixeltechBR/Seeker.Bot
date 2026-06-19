@@ -196,45 +196,78 @@ class MessageController:
 
     # ─── 1.5. DOCUMENT HANDLING ──────────────────────────────────────────────────────
     async def handle_document(self, message: Message):
-        """Handler para documentos (PDF, etc). Encaminha para cofre ou pipeline."""
+        """Handler para documentos (PDF, ZIP, MHT). Encaminha para cofre ou pipeline."""
         if not message.document:
             return
 
         mime_type = message.document.mime_type or ""
+        filename = message.document.file_name or ""
         caption = message.caption or ""
         is_obsidian = self._is_obsidian_request(caption, message)
 
-        # Apenas PDF suportado por enquanto
-        if mime_type != "application/pdf":
+        is_zip = mime_type in ("application/zip", "application/x-zip-compressed") or filename.lower().endswith(".zip")
+        is_mht = mime_type in ("message/rfc822", "application/x-mimearchive", "multipart/related") or filename.lower().endswith(".mht")
+        is_pdf = mime_type == "application/pdf" or filename.lower().endswith(".pdf")
+
+        if not (is_pdf or is_zip or is_mht):
             await message.reply(
-                f"❌ Tipo de documento não suportado: {mime_type}\n"
-                f"Por enquanto, apenas PDF é suportado."
+                f"❌ Tipo de documento não suportado: {mime_type} ({filename})\n"
+                f"Por enquanto, apenas PDF, ZIP e MHT são suportados."
             )
             return
 
         try:
-            pdf_bytes = await self._download_file_with_retry(message.bot, message.document.file_id)
+            file_bytes = await self._download_file_with_retry(message.bot, message.document.file_id)
         except Exception as e:
             await message.reply(f"❌ Erro de conexão ao baixar documento: {e}")
             return
 
+        # 1. Fluxo do Obsidian (Cofre)
         if is_obsidian:
-            status_msg = await message.answer("⏳ Lendo PDF e salvando no Obsidian...")
-            resp = await self.vault.process_pdf(
-                pdf_bytes,
-                user_hint=caption.replace("/obsidian", "").replace("/cofre", ""),
-            )
+            user_hint = caption.replace("/obsidian", "").replace("/cofre", "").strip()
+            if is_pdf:
+                status_msg = await message.answer("⏳ Lendo PDF e salvando no Obsidian...")
+                resp = await self.vault.process_pdf(file_bytes, user_hint=user_hint)
+            elif is_zip:
+                status_msg = await message.answer("⏳ Lendo ZIP e salvando no Obsidian...")
+                resp = await self.vault.process_zip(file_bytes, user_hint=user_hint)
+            else: # is_mht
+                status_msg = await message.answer("⏳ Lendo MHT e salvando no Obsidian...")
+                resp = await self.vault.process_mht(file_bytes, user_hint=user_hint)
             await status_msg.edit_text(resp, parse_mode=ParseMode.MARKDOWN)
+            
+        # 2. Fluxo de Chat Normal (Extrai e processa com a inteligência cognitiva)
         else:
-            status_msg = await message.answer("⏳ Processando PDF...")
-            try:
-                from src.skills.knowledge_vault.extractors import extract_from_pdf
-                raw_text = await extract_from_pdf(pdf_bytes, self.vault.vlm_client)
-                user_input = f"{caption}\n\n[PDF Extraído]:\n{raw_text}".strip()
-                await status_msg.delete()
-                await self._process_and_reply(message, user_input)
-            except Exception as e:
-                await status_msg.edit_text(f"❌ Erro ao processar PDF: {e}")
+            if is_pdf:
+                status_msg = await message.answer("⏳ Processando PDF...")
+                try:
+                    from src.skills.knowledge_vault.extractors import extract_from_pdf
+                    raw_text = await extract_from_pdf(file_bytes, self.vault.vlm_client)
+                    user_input = f"{caption}\n\n[PDF Extraído]:\n{raw_text}".strip()
+                    await status_msg.delete()
+                    await self._process_and_reply(message, user_input)
+                except Exception as e:
+                    await status_msg.edit_text(f"❌ Erro ao processar PDF: {e}")
+            elif is_zip:
+                status_msg = await message.answer("⏳ Processando ZIP...")
+                try:
+                    from src.skills.knowledge_vault.extractors import extract_from_zip
+                    raw_text = await extract_from_zip(file_bytes, self.vault.vlm_client)
+                    user_input = f"{caption}\n\n[ZIP Extraído]:\n{raw_text}".strip()
+                    await status_msg.delete()
+                    await self._process_and_reply(message, user_input)
+                except Exception as e:
+                    await status_msg.edit_text(f"❌ Erro ao processar ZIP: {e}")
+            else: # is_mht
+                status_msg = await message.answer("⏳ Processando MHT...")
+                try:
+                    from src.skills.knowledge_vault.extractors import extract_from_mht
+                    raw_text = await extract_from_mht(file_bytes)
+                    user_input = f"{caption}\n\n[MHT Extraído]:\n{raw_text}".strip()
+                    await status_msg.delete()
+                    await self._process_and_reply(message, user_input)
+                except Exception as e:
+                    await status_msg.edit_text(f"❌ Erro ao processar MHT: {e}")
 
     # ─── 2. AUDIO HANDLING ────────────────────────────────────────────────────────
     async def handle_audio(self, message: Message):
@@ -365,6 +398,12 @@ class MessageController:
             return
 
         if await self._handle_scheduler_wizard(message, user_input):
+            return
+
+        if await self._handle_nl_cancel_reminder(message, user_input):
+            return
+
+        if await self._handle_instagram_download(message, user_input):
             return
 
         if await self._handle_nl_reminder(message, user_input):
@@ -521,6 +560,148 @@ class MessageController:
             log.debug(f"[wizard] Erro ao verificar wizard: {e}")
         return False
 
+    async def _handle_instagram_download(self, message: Message, user_input: str) -> bool:
+        """
+        Intercepta URLs do Instagram (posts/reels/tv) e baixa o vídeo, enviando-o de volta.
+        Retorna True se tratou.
+        """
+        import re
+        url_match = re.search(r"https?://(?:www\.)?instagram\.com/(?:p|reel|tv)/[a-zA-Z0-9_-]+", user_input)
+        if not url_match:
+            return False
+            
+        status_msg = await message.answer("⏳ <b>Baixando vídeo do Instagram...</b>", parse_mode=ParseMode.HTML)
+        url = url_match.group(0)
+        
+        try:
+            from src.skills.instascraper.insta_scraper import InstaScraper
+            scraper = InstaScraper()
+            
+            # Executa o download em thread para não travar a event loop
+            video_path = await asyncio.to_thread(scraper.download_single_post, url)
+            
+            if not video_path or not video_path.exists():
+                await status_msg.edit_text("❌ Falha ao extrair vídeo do Instagram. Certifique-se de que a conta não é privada ou que os cookies estão atualizados.")
+                return True
+                
+            file_size = video_path.stat().st_size
+            if file_size > 45 * 1024 * 1024:
+                await status_msg.edit_text("⚠️ O vídeo excede o limite do Telegram (50MB). Enviando como arquivo comprimido...")
+                try:
+                    from aiogram.types import FSInputFile
+                    await message.reply_document(FSInputFile(video_path))
+                    await status_msg.delete()
+                except Exception:
+                    await status_msg.edit_text(f"❌ Vídeo excede limite do Telegram. Salvo localmente em: `{video_path.as_posix()}`")
+                return True
+                
+            from aiogram.types import FSInputFile
+            await message.reply_video(FSInputFile(video_path))
+            await status_msg.delete()
+            return True
+            
+        except Exception as e:
+            log.error(f"[instagram_download] Falha no download do Instagram: {e}", exc_info=True)
+            await status_msg.edit_text(f"❌ Erro ao baixar vídeo: {e}")
+            return True
+
+    async def _handle_nl_cancel_reminder(self, message: Message, user_input: str) -> bool:
+        """
+        Intercepta cancelamentos de lembretes em linguagem natural (ex: "cancele o lembrete", "remover lembrete", "cancele os dois lembretes").
+        Retorna True se tratou.
+        """
+        text = user_input.lower().strip()
+        
+        # Expressões de cancelamento/exclusão
+        cancel_triggers = ["cancel", "remover", "apagar", "deletar", "excluir", "limpar"]
+        is_cancel = any(t in text for t in cancel_triggers)
+        is_reminder = any(r in text for r in ["lembrete", "agenda", "compromisso", "aviso"])
+        
+        # Padrões específicos como "cancele os dois lembretes" ou "cancele tudo"
+        is_cancel_all = "os dois lembretes" in text or "todos os lembretes" in text or "cancele os lembretes" in text or "cancele os dois" in text
+        
+        if not (is_cancel and (is_reminder or is_cancel_all)):
+            return False
+            
+        try:
+            import re
+            from src.skills.scheduler_conversacional.store import SchedulerStore
+            store = SchedulerStore(self.pipeline.memory._db)
+            await store.init()
+            
+            tasks = await store.list_tasks(message.chat.id)
+            # Filtra apenas tarefas ativas e do tipo lembrete (notify_only)
+            active_reminders = [t for t in tasks if t.is_enabled and t.notify_only]
+            
+            if not active_reminders:
+                await message.reply("Não encontrei nenhum lembrete ativo agendado para este chat.")
+                return True
+                
+            # Caso 1: Cancelar todos/ambos
+            if is_cancel_all:
+                removed_titles = []
+                for t in active_reminders:
+                    await store.delete_task(t.id)
+                    removed_titles.append(t.title)
+                titles_str = ", ".join([f"<b>{t}</b>" for t in removed_titles])
+                await message.reply(f"🗑️ Removi os seguintes lembretes: {titles_str}", parse_mode=ParseMode.HTML)
+                return True
+                
+            # Caso 2: Tentar encontrar por ID (ex: "cancele o lembrete a1b2c3d4")
+            # Extrai qualquer palavra alfanumérica de 8 caracteres que possa ser o ID
+            words = re.findall(r"\b[a-f0-9]{8}\b", text)
+            if words:
+                target_id = words[0]
+                matched_tasks = [t for t in active_reminders if t.id.startswith(target_id)]
+                if matched_tasks:
+                    task = matched_tasks[0]
+                    await store.delete_task(task.id)
+                    await message.reply(f"🗑️ Lembrete <b>{task.title}</b> (ID: <code>{task.id[:8]}</code>) foi removido.", parse_mode=ParseMode.HTML)
+                    return True
+                    
+            # Caso 3: Cancelamento fuzzy por título/assunto (ex: "cancele o lembrete de tomar água")
+            # Remove verbos de cancelamento e a palavra lembrete/agenda
+            clean_text = text
+            for w in cancel_triggers + ["lembrete", "lembretes", "agenda", "de", "o", "a", "os", "as"]:
+                clean_text = re.sub(rf"\b{w}\b", "", clean_text)
+            clean_text = clean_text.strip()
+            
+            if clean_text:
+                # Procura por correspondência parcial no título ou instrução
+                matched_tasks = []
+                for t in active_reminders:
+                    t_title = t.title.lower()
+                    t_body = (t.instruction_text or "").lower()
+                    if clean_text in t_title or clean_text in t_body:
+                        matched_tasks.append(t)
+                
+                if matched_tasks:
+                    if len(matched_tasks) == 1:
+                        task = matched_tasks[0]
+                        await store.delete_task(task.id)
+                        await message.reply(f"🗑️ Lembrete <b>{task.title}</b> foi removido.", parse_mode=ParseMode.HTML)
+                    else:
+                        # Ambíguo: exibe lista com IDs para o usuário escolher
+                        lines = ["Encontrei mais de um lembrete semelhante. Qual deles você deseja cancelar?"]
+                        for t in matched_tasks:
+                            lines.append(f"- <code>{t.id[:8]}</code>: {t.title}")
+                        lines.append("\nDigite `/remover [ID]` para cancelar.")
+                        await message.reply("\n".join(lines), parse_mode=ParseMode.HTML)
+                    return True
+            
+            # Se não resolveu fuzzy nem ID, mas o usuário disse para remover lembrete:
+            # Lista os lembretes ativos para ele escolher
+            lines = ["Quais destes lembretes você deseja cancelar?"]
+            for t in active_reminders:
+                lines.append(f"- <code>{t.id[:8]}</code>: {t.title}")
+            lines.append("\nDigite `/remover [ID]` para cancelar.")
+            await message.reply("\n".join(lines), parse_mode=ParseMode.HTML)
+            return True
+            
+        except Exception as e:
+            log.error(f"[nl_cancel_reminder] Falha ao cancelar lembrete: {e}", exc_info=True)
+            return False
+
     async def _handle_nl_reminder(self, message: Message, user_input: str) -> bool:
         """
         Intercepta lembretes em linguagem natural ("me lembre daqui a 5 min ...")
@@ -587,7 +768,8 @@ class MessageController:
             await message.answer(
                 f"🔔 <b>Lembrete agendado</b>\n\n"
                 f"📝 {spec.body}\n"
-                f"⏰ {spec.run_at_local:%d/%m %H:%M} ({quando})",
+                f"⏰ {spec.run_at_local:%d/%m %H:%M} ({quando})\n"
+                f"🆔 <code>{task.id[:8]}</code>",
                 parse_mode=ParseMode.HTML,
             )
             return True

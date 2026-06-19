@@ -46,6 +46,9 @@ src/skills/cortex/
 src/skills/revenue_hunter/
 apps/showdeck/
 scripts/migrate_crm_v2.py
+scripts/enrich_lead_months.py
+scripts/backfill_uf.py
+scripts/hunt_decisores.py
 *.bak
 temp_*.py
 check_*.py
@@ -62,15 +65,8 @@ drive_decompiled.py
 # Build artifacts (gerado por pip install -e .)
 *.egg-info/
 
-# Cookies e dados sensiveis adicionais do Seeker
-docs/all_cookies.txt
-planilha_eventos_br153.csv
+# Cache/output do graphify (regeneravel)
+graphify-out/
 
-# Habilidades Comerciais (Exclusao do Repositorio Publico)
-src/skills/viralx9/
-src/skills/seeker_sales/
-src/skills/seeker_sales_week/
-src/skills/show_leads_daily/
-src/skills/event_map_scout/
-
-
+# Planning graphs and snapshots
+.planning/

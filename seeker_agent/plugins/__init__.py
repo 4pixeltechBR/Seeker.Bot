@@ -1,0 +1,1 @@
+# SeekerAgent plugins package

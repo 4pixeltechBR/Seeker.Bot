@@ -1,0 +1,471 @@
+# viralx9_channels.yaml - Seed de canais concorrentes para mineracao do ViralX9.
+# URLs canonicas /channel/UCID (nao quebram se o @handle mudar).
+# 'nome' e rotulo humano; o miner usa url+regiao. 'ativo: false' pausa o canal
+# (gerenciavel via /vx9_pausar | /vx9_ativar | /vx9_remover no Telegram).
+# 'expansao_sugerida' e preenchido pelo goal e aprovado via Telegram.
+
+microbiologia_ia:
+  seed:
+  - nome: Journey to the Microcosmos
+    url: https://www.youtube.com/channel/UCBbnbBWJtwsf0jLGUwX5Q3g
+    regiao: us
+  - nome: MicrobeTV
+    url: https://www.youtube.com/channel/UCyFgCoP4ovsHbt92vM4zN2A
+    regiao: us
+  - nome: Kurzgesagt
+    url: https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q
+    regiao: us
+  - nome: SciShow
+    url: https://www.youtube.com/channel/UCZYTClx2T1of7BRZ86-8fow
+    regiao: us
+  - nome: Veritasium
+    url: https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA
+    regiao: us
+  - nome: Two Minute Papers
+    url: https://www.youtube.com/channel/UCbfYPyITQ-7l4upoX8nvctg
+    regiao: us
+  - nome: Be Smart
+    url: https://www.youtube.com/channel/UCH4BNI0-FOK2dMXoFtViWHw
+    regiao: us
+  - nome: The Thought Emporium
+    url: https://www.youtube.com/channel/UCV5vCi3jPJdURZwAOO_FNfQ
+    regiao: us
+  - nome: NileRed
+    url: https://www.youtube.com/channel/UCFhXFikryT4aFcLkLw2LBLA
+    regiao: us
+  - nome: Institute of Human Anatomy
+    url: https://www.youtube.com/channel/UCgBg0aacyJnw4qUnb1FlfEQ
+    regiao: us
+  - nome: Osmosis
+    url: https://www.youtube.com/channel/UCNI0qOojpkhsUtaQ4_2NUhQ
+    regiao: us
+  - nome: Nucleus Medical Media
+    url: https://www.youtube.com/channel/UC85VW73bQLEjs_taFKP7TwQ
+    regiao: us
+  - nome: MedCram
+    url: https://www.youtube.com/channel/UCG-iSMVtWbbwDDXgXXypARQ
+    regiao: us
+  - nome: Professor Dave Explains
+    url: https://www.youtube.com/channel/UC0cd_-e49hZpWLH3UIwoWRA
+    regiao: us
+  - nome: Amoeba Sisters
+    url: https://www.youtube.com/channel/UCb2GCoLSBXjmI_Qj1vk-44g
+    regiao: us
+  - nome: Ninja Nerd
+    url: https://www.youtube.com/channel/UC6QYFutt9cluQ3uSM963_KQ
+    regiao: us
+  - nome: Lex Fridman
+    url: https://www.youtube.com/channel/UCSHZKyawb77ixDdsGog4iWA
+    regiao: us
+  - nome: Yannic Kilcher
+    url: https://www.youtube.com/channel/UCZHmQk67mSJgfCCTn7xBfew
+    regiao: us
+  - nome: AI Explained
+    url: https://www.youtube.com/channel/UCNJ1Ymd5yFuUPtn21xtRbbw
+    regiao: us
+  - nome: DeepLearningAI
+    url: https://www.youtube.com/channel/UCcIXc5mJsHVYTZR1maL5l9w
+    regiao: us
+  - nome: PBS Eons
+    url: https://www.youtube.com/channel/UCzR-rom72PHN9Zg7RML9EbA
+    regiao: us
+  - nome: Stated Clearly
+    url: https://www.youtube.com/channel/UC_cznB5YZZmvAmeq7Y3EriQ
+    regiao: us
+  - nome: Anton Petrov
+    url: https://www.youtube.com/channel/UCciQ8wFcVoIIMi-lfu8-cjQ
+    regiao: us
+  - nome: ColdFusion
+    url: https://www.youtube.com/channel/UC4QZ_LsYcvcq7qOsOhpAX4A
+    regiao: us
+  - nome: Andrej Karpathy
+    url: https://www.youtube.com/channel/UCXUPKJO5MZQN11PqgIvyuvQ
+    regiao: us
+  - nome: Atila Iamarino
+    url: https://www.youtube.com/channel/UCSTlOTcyUmzvhQi6F8lFi5w
+    regiao: br
+  - nome: Nerdologia
+    url: https://www.youtube.com/channel/UClu474HMt895mVxZdlIHXEA
+    regiao: br
+  - nome: Canal do Pirula
+    url: https://www.youtube.com/channel/UCWCiq5TAp383DoTucRJIm2Q
+    regiao: br
+  - nome: Ciencia Todo Dia
+    url: https://www.youtube.com/channel/UCn9Erjy00mpnWeLnRqhsA1g
+    regiao: br
+  - nome: Manual do Mundo
+    url: https://www.youtube.com/channel/UCKHhA5hN2UohhFDfNXB_cvQ
+    regiao: br
+  expansao_sugerida: []
+forensic_tech:
+  seed:
+  - nome: Forensic Files (FilmRise)
+    url: https://www.youtube.com/channel/UCU4BHh9Dwfd7-I_xTZ5037Q
+    regiao: us
+  - nome: Forensic Investigators
+    url: https://www.youtube.com/channel/UCXmVj5NqGTsu3k4HNUv3WYQ
+    regiao: us
+  - nome: MrBallen
+    url: https://www.youtube.com/channel/UCtPrkXdtCM5DACLufB9jbsA
+    regiao: us
+  - nome: JCS Criminal Psychology
+    url: https://www.youtube.com/channel/UCYwVxWpjeKFWwu8TML-Te9A
+    regiao: us
+  - nome: That Chapter
+    url: https://www.youtube.com/channel/UCL44k-cLrlsdr7PYuMU4yIw
+    regiao: us
+  - nome: Dr. Todd Grande
+    url: https://www.youtube.com/channel/UCC_0vyFTKk1Nlodo4QsiQkw
+    regiao: us
+  - nome: Bailey Sarian
+    url: https://www.youtube.com/channel/UCtNdVINwfYFTQEEZgMiQ8FA
+    regiao: us
+  - nome: Kendall Rae
+    url: https://www.youtube.com/channel/UCKBaL17hXLGJvi2KZKpja5w
+    regiao: us
+  - nome: Eleanor Neale (OUTLORE)
+    url: https://www.youtube.com/channel/UCFMbX7frWZfuWdjAML0babA
+    regiao: us
+  - nome: Coffeehouse Crime
+    url: https://www.youtube.com/channel/UCcUf33cEPky2GiWBgOP-jQA
+    regiao: us
+  - nome: Explore With Us
+    url: https://www.youtube.com/channel/UCJWKjrrUh2KL1d3zXQW79cQ
+    regiao: us
+  - nome: Rotten Mango
+    url: https://www.youtube.com/channel/UC0JJtK3m8pwy6rVgnBz47Rw
+    regiao: us
+  - nome: Mile Higher
+    url: https://www.youtube.com/channel/UCiaxrqSxVoGxGKg7Ayd4Q9A
+    regiao: us
+  - nome: Law&Crime Network
+    url: https://www.youtube.com/channel/UCz8K1occVvDTYDfFo7N5EZw
+    regiao: us
+  - nome: 48 Hours
+    url: https://www.youtube.com/channel/UC7htuVs06oduI3xSfTdcxPA
+    regiao: us
+  - nome: Real Crime
+    url: https://www.youtube.com/channel/UC1s9576cQFdQq3QTtTxocmA
+    regiao: us
+  - nome: Danelle Hallan
+    url: https://www.youtube.com/channel/UCqDpKcxYeMaP5gHgJ_jKYEA
+    regiao: us
+  - nome: The Casual Criminalist
+    url: https://www.youtube.com/channel/UCp1tsmksyf6TgKFMdt8-05Q
+    regiao: us
+  - nome: EWU Bodycam
+    url: https://www.youtube.com/channel/UCRmnt09hfWo6hD574tLVVDQ
+    regiao: us
+  - nome: Inside Edition
+    url: https://www.youtube.com/channel/UC9k-yiEpRHMNVOnOi_aQK8w
+    regiao: us
+  - nome: Dateline NBC
+    url: https://www.youtube.com/channel/UCu3sKtOW9TGaErPsAYVPplA
+    regiao: us
+  - nome: True Crime News
+    url: https://www.youtube.com/channel/UC69uYUqvx-vw4luuX7aHNLQ
+    regiao: us
+  - nome: LegalEagle
+    url: https://www.youtube.com/channel/UCpa-Zb0ZcQjTCPP1Dx_1M8Q
+    regiao: us
+  - nome: The Interview Room
+    url: https://www.youtube.com/channel/UCaYSPdXtA5wIBkHk-OKsOMg
+    regiao: us
+  - nome: Stephanie Harlowe
+    url: https://www.youtube.com/channel/UClVF8RcTN3UqAognWFGlJcg
+    regiao: us
+  - nome: O Insolito (Marcos Campos)
+    url: https://www.youtube.com/channel/UC7-cLW-2p0fXAjCT_LxDSOg
+    regiao: br
+  - nome: Jaqueline Guerreiro
+    url: https://www.youtube.com/channel/UCU20zn5IueQz8WAfud-oeFw
+    regiao: br
+  - nome: Ju Cassini
+    url: https://www.youtube.com/channel/UC4jHJsOhFa2w_ySI9fJ5p5w
+    regiao: br
+  - nome: Beto Ribeiro
+    url: https://www.youtube.com/channel/UCmn9lDeEV76qh1YU_rmeLjw
+    regiao: br
+  - nome: Ossos Perdidos
+    url: https://www.youtube.com/channel/UCMarwbCbVZcog2FsjQJH-sw
+    regiao: br
+  expansao_sugerida: []
+sitio_404:
+  seed:
+  - nome: Nexpo
+    url: https://www.youtube.com/channel/UCpFFItkfZz1qz5PpHpqzYBw
+    regiao: us
+  - nome: Wendigoon
+    url: https://www.youtube.com/channel/UC3cpN6gcJQqcCM6mxRUo_dA
+    regiao: us
+  - nome: Barely Sociable
+    url: https://www.youtube.com/channel/UC9PIn6-XuRKZ5HmYeu46AIw
+    regiao: us
+  - nome: Nick Crowley
+    url: https://www.youtube.com/channel/UCMX31RavkfUHJvw03RbUZnA
+    regiao: us
+  - nome: Fredrik Knudsen
+    url: https://www.youtube.com/channel/UCbWcXB0PoqOsAvAdfzWMf0w
+    regiao: us
+  - nome: Internet Historian
+    url: https://www.youtube.com/channel/UCR1D15p_vdP3HkrH8wgjQRw
+    regiao: us
+  - nome: Ordinary Things
+    url: https://www.youtube.com/channel/UCxLYtICsUCWdr1YPrj5DtwA
+    regiao: us
+  - nome: Atrocity Guide
+    url: https://www.youtube.com/channel/UCn8OYopT9e8tng-CGEWzfmw
+    regiao: us
+  - nome: Night Mind
+    url: https://www.youtube.com/channel/UC58IKuPHnZkdCZ6T5mSRGCg
+    regiao: us
+  - nome: Pseudiom
+    url: https://www.youtube.com/channel/UCBGPPOAPN97skbOnih9v76w
+    regiao: us
+  - nome: LGR
+    url: https://www.youtube.com/channel/UCLx053rWZxCiYWsBETgdKrQ
+    regiao: us
+  - nome: Techmoan
+    url: https://www.youtube.com/channel/UC5I2hjZYiW9gZPVkvzM8_Cw
+    regiao: us
+  - nome: The 8-Bit Guy
+    url: https://www.youtube.com/channel/UC8uT9cgJorJPWu7ITLGo9Ww
+    regiao: us
+  - nome: Cathode Ray Dude
+    url: https://www.youtube.com/channel/UCXnNibvR_YIdyPs8PZIBoEw
+    regiao: us
+  - nome: Modern Vintage Gamer
+    url: https://www.youtube.com/channel/UCjFaPUcJU1vwk193mnW_w1w
+    regiao: us
+  - nome: Nostalgia Nerd
+    url: https://www.youtube.com/channel/UC7qPftDWPw9XuExpSgfkmJQ
+    regiao: us
+  - nome: Computerphile
+    url: https://www.youtube.com/channel/UC9-y-6csu5WGm29I7JiwpnA
+    regiao: us
+  - nome: Numberphile
+    url: https://www.youtube.com/channel/UCoxcjq-8xIDTYp3uz647V5A
+    regiao: us
+  - nome: Tom Scott
+    url: https://www.youtube.com/channel/UCBa659QWEk1AI4Tg--mrJ2A
+    regiao: us
+  - nome: Half as Interesting
+    url: https://www.youtube.com/channel/UCuCkxoKLYO_EQ2GeFtbM_bw
+    regiao: us
+  - nome: Whang!
+    url: https://www.youtube.com/channel/UC3jdnIP2u5hCJpVZ-TuDrCg
+    regiao: us
+  - nome: izzzyzzz
+    url: https://www.youtube.com/channel/UCWyRlMktpKbfefqBQk8U6Nw
+    regiao: us
+  - nome: SunnyV2
+    url: https://www.youtube.com/channel/UCuF49lP5gkkw5L8HK3H6GJg
+    regiao: us
+  - nome: EmpLemon
+    url: https://www.youtube.com/channel/UC7Ucs42FZy3uYzjrqzOIHsw
+    regiao: us
+  - nome: Kenny For Real
+    url: https://www.youtube.com/channel/UC8xZt-P1j-G7ckm0LM2p6eQ
+    regiao: us
+  - nome: Assombrado
+    url: https://www.youtube.com/channel/UCIirjo8OWJBMLfV_peBD6RQ
+    regiao: br
+  - nome: Mundo Creepy
+    url: https://www.youtube.com/channel/UCeFU92qBf_vDdS9_mGQCbhg
+    regiao: br
+  - nome: TecMundo
+    url: https://www.youtube.com/channel/UCdmGjywrxeOPfC7vDllmSgQ
+    regiao: br
+  - nome: Coisa de Nerd
+    url: https://www.youtube.com/channel/UChmOR1T5ZNnbRUba3lHRTOg
+    regiao: br
+  - nome: Manual do Mundo
+    url: https://www.youtube.com/channel/UCKHhA5hN2UohhFDfNXB_cvQ
+    regiao: br
+  expansao_sugerida: []
+crimes_digitais:
+  seed:
+  - nome: The PC Security Channel
+    url: https://www.youtube.com/channel/UCKGe7fZ_S788Jaspxg-_5Sg
+    regiao: us
+  - nome: MalwareTech
+    url: https://www.youtube.com/channel/UCLDnEn-TxejaDB8qm2AUhHQ
+    regiao: us
+  - nome: John Hammond
+    url: https://www.youtube.com/channel/UCVeW9qkBjo3zosnqUbG7CFw
+    regiao: us
+  - nome: NetworkChuck
+    url: https://www.youtube.com/channel/UC9x0AN7BWHpCDHSm9NiJFJQ
+    regiao: us
+  - nome: David Bombal
+    url: https://www.youtube.com/channel/UCP7WmQ_U4GB3K51Od9QvM0w
+    regiao: us
+  - nome: The Cyber Mentor
+    url: https://www.youtube.com/channel/UC0ArlFuFYMpEewyRBzdLHiw
+    regiao: us
+  - nome: HackerSploit
+    url: https://www.youtube.com/channel/UC0ZTPkdxlAKf-V33tqXwi3Q
+    regiao: us
+  - nome: LiveOverflow
+    url: https://www.youtube.com/channel/UClcE-kVhqyiHCcjYwcpfj9w
+    regiao: us
+  - nome: IppSec
+    url: https://www.youtube.com/channel/UCa6eh7gCkpPo5XXUDfygQQA
+    regiao: us
+  - nome: STOK
+    url: https://www.youtube.com/channel/UCQN2DsjnYH60SFBIA6IkNwg
+    regiao: us
+  - nome: Null Byte
+    url: https://www.youtube.com/channel/UCgTNupxATBfWmfehv21ym-g
+    regiao: us
+  - nome: Seytonic
+    url: https://www.youtube.com/channel/UCW6xlqxSY3gGur4PkGPEUeA
+    regiao: us
+  - nome: Jim Browning
+    url: https://www.youtube.com/channel/UCBNG0osIBAprVcZZ3ic84vw
+    regiao: us
+  - nome: Kitboga
+    url: https://www.youtube.com/channel/UCm22FAXZMw1BaWeFszZxUKw
+    regiao: us
+  - nome: Scammer Payback
+    url: https://www.youtube.com/channel/UCC9EjyMN_hx5NdctLBx5X7w
+    regiao: us
+  - nome: Pleasant Green
+    url: https://www.youtube.com/channel/UCAPrhJwVweWZA8GEPoClSdw
+    regiao: us
+  - nome: Mental Outlaw
+    url: https://www.youtube.com/channel/UC7YOGHUfC1Tb6E4pudI9STA
+    regiao: us
+  - nome: NahamSec
+    url: https://www.youtube.com/channel/UCCZDt7MuC3Hzs6IH4xODLBw
+    regiao: us
+  - nome: InsiderPhD
+    url: https://www.youtube.com/channel/UCPiN9NPjIer8Do9gUFxKv7A
+    regiao: us
+  - nome: Professor Messer
+    url: https://www.youtube.com/channel/UCkefXKtInZ9PLsoGRtml2FQ
+    regiao: us
+  - nome: Simply Cyber
+    url: https://www.youtube.com/channel/UCG-48Ki-b6W_siaUkukJOSw
+    regiao: us
+  - nome: Hak5
+    url: https://www.youtube.com/channel/UC3s0BtrBJpwNDaflRSoiieQ
+    regiao: us
+  - nome: Black Hat
+    url: https://www.youtube.com/channel/UCJ6q9Ie29ajGqKApbLqfBOg
+    regiao: us
+  - nome: DEFCONConference
+    url: https://www.youtube.com/channel/UC6Om9kAkl32dWlDSNlDS9Iw
+    regiao: us
+  - nome: Cyberspatial
+    url: https://www.youtube.com/channel/UC9EX_PSbngZP8pkPWSUpPzw
+    regiao: us
+  - nome: Mente Binaria
+    url: https://www.youtube.com/channel/UCuQ8zW9VmVyml7KytSqJDzg
+    regiao: br
+  - nome: Daniel Donda
+    url: https://www.youtube.com/channel/UCgFVSgpu0Lg-LqV00R3rTpw
+    regiao: br
+  - nome: Gabriel Pato
+    url: https://www.youtube.com/channel/UC70YG2WHVxlOJRng4v-CIFQ
+    regiao: br
+  - nome: Diolinux
+    url: https://www.youtube.com/channel/UCEf5U1dB5a2e2S-XUlnhxSA
+    regiao: br
+  - nome: Boson Treinamentos
+    url: https://www.youtube.com/channel/UCzOGJclZQvPVgYZIwERsf5g
+    regiao: br
+  expansao_sugerida: []
+rastro_zero:
+  seed:
+  - nome: The Hated One
+    url: https://www.youtube.com/channel/UCjr2bPAyPV7t35MvcgT3W8Q
+    regiao: us
+  - nome: Techlore
+    url: https://www.youtube.com/channel/UCs6KfncB4OV6Vug4o_bzijg
+    regiao: us
+  - nome: Naomi Brockwell TV
+    url: https://www.youtube.com/channel/UCSuHzQ3GrHSzoBbwrIq3LLA
+    regiao: us
+  - nome: Rob Braxman Tech
+    url: https://www.youtube.com/channel/UCYVU6rModlGxvJbszCclGGw
+    regiao: us
+  - nome: Mental Outlaw
+    url: https://www.youtube.com/channel/UC7YOGHUfC1Tb6E4pudI9STA
+    regiao: us
+  - nome: OSINT Dojo
+    url: https://www.youtube.com/channel/UChbp7r-Lezl1CBNQWBDYGeQ
+    regiao: us
+  - nome: The OSINT Curious Project
+    url: https://www.youtube.com/channel/UCjzceWf-OT3ImIKztzGkipA
+    regiao: us
+  - nome: All Things Secured
+    url: https://www.youtube.com/channel/UCvFGf8HZGZWFzpcDCqb3Lhw
+    regiao: us
+  - nome: Coffeezilla
+    url: https://www.youtube.com/channel/UCFQMnBA3CS502aghlcr0_aw
+    regiao: us
+  - nome: aantonop
+    url: https://www.youtube.com/channel/UCJWCJCWOxBYSi5DhCieLOLQ
+    regiao: us
+  - nome: Finematics
+    url: https://www.youtube.com/channel/UCh1ob28ceGdqohUnR7vBACA
+    regiao: us
+  - nome: Whiteboard Crypto
+    url: https://www.youtube.com/channel/UCsYYksPHiGqXHPoHI-fm5sg
+    regiao: us
+  - nome: Bellingcat
+    url: https://www.youtube.com/channel/UCFl-GzKYeCW3iWjnQDuxzAA
+    regiao: us
+  - nome: Internet Archive
+    url: https://www.youtube.com/channel/UCFa_X02QhJnP0FNpFAKyRRg
+    regiao: us
+  - nome: Privacy Guides
+    url: https://www.youtube.com/channel/UC8q5BGkSzK6Kafk_6gKV8HA
+    regiao: us
+  - nome: Surveillance Report
+    url: https://www.youtube.com/channel/UC0W_BIuwk8D0Bv4THbVZZOQ
+    regiao: us
+  - nome: John Hammond
+    url: https://www.youtube.com/channel/UCVeW9qkBjo3zosnqUbG7CFw
+    regiao: us
+  - nome: NahamSec
+    url: https://www.youtube.com/channel/UCCZDt7MuC3Hzs6IH4xODLBw
+    regiao: us
+  - nome: Hak5
+    url: https://www.youtube.com/channel/UC3s0BtrBJpwNDaflRSoiieQ
+    regiao: us
+  - nome: David Bombal
+    url: https://www.youtube.com/channel/UCP7WmQ_U4GB3K51Od9QvM0w
+    regiao: us
+  - nome: Seytonic
+    url: https://www.youtube.com/channel/UCW6xlqxSY3gGur4PkGPEUeA
+    regiao: us
+  - nome: My OSINT Training
+    url: https://www.youtube.com/channel/UCCOSQrv3nulzHJ24ACvLgSA
+    regiao: us
+  - nome: BIRD (Benjamin Strick)
+    url: https://www.youtube.com/channel/UCnGmXrECj9uWq96mneKzW-A
+    regiao: us
+  - nome: LiveOverflow
+    url: https://www.youtube.com/channel/UClcE-kVhqyiHCcjYwcpfj9w
+    regiao: us
+  - nome: Cyberspatial
+    url: https://www.youtube.com/channel/UC9EX_PSbngZP8pkPWSUpPzw
+    regiao: us
+  - nome: Diolinux
+    url: https://www.youtube.com/channel/UCEf5U1dB5a2e2S-XUlnhxSA
+    regiao: br
+  - nome: Mente Binaria
+    url: https://www.youtube.com/channel/UCuQ8zW9VmVyml7KytSqJDzg
+    regiao: br
+  - nome: Tecnoblog
+    url: https://www.youtube.com/channel/UCqpNnEzmmlzBfdy3X0eMOMg
+    regiao: br
+  - nome: Manual do Mundo
+    url: https://www.youtube.com/channel/UCKHhA5hN2UohhFDfNXB_cvQ
+    regiao: br
+  - nome: Fabio Akita
+    url: https://www.youtube.com/channel/UCib793mnUOhWymCh2VJKplQ
+    regiao: br
+  expansao_sugerida: []

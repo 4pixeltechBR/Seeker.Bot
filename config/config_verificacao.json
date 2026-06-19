@@ -1,0 +1,261 @@
+{
+  "contratos_confirmados": [
+    {
+      "processo_inexigibilidade": "INEX-ITU-ARRAIA-01-2025",
+      "cidade": "Itumbiara",
+      "artista_nome": "Maiara & Maraisa",
+      "genero": "Sertanejo",
+      "valor_contrato": 500000.0,
+      "data_assinatura": "2025-07-22",
+      "representante_cnpj": "14.288.922/0001-30",
+      "fontes": [
+        {
+          "url": "https://itumbiara.go.gov.br/arraia",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://maisgoias.com.br/arraia-itumbiara-2025",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-ITU-ARRAIA-02-2025",
+      "cidade": "Itumbiara",
+      "artista_nome": "Amado Batista",
+      "genero": "Brega / Sertanejo",
+      "valor_contrato": 300000.0,
+      "data_assinatura": "2025-07-23",
+      "representante_cnpj": "08.192.839/0001-90",
+      "fontes": [
+        {
+          "url": "https://itumbiara.go.gov.br/arraia",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://maisgoias.com.br/arraia-itumbiara-2025",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-ITU-ARRAIA-03-2025",
+      "cidade": "Itumbiara",
+      "artista_nome": "Simone Mendes",
+      "genero": "Sertanejo",
+      "valor_contrato": 600000.0,
+      "data_assinatura": "2025-07-24",
+      "representante_cnpj": "40.932.193/0001-08",
+      "fontes": [
+        {
+          "url": "https://itumbiara.go.gov.br/arraia",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://maisgoias.com.br/arraia-itumbiara-2025",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-ITU-ARRAIA-04-2025",
+      "cidade": "Itumbiara",
+      "artista_nome": "Alexandre Pires",
+      "genero": "Pagode / Samba",
+      "valor_contrato": 400000.0,
+      "data_assinatura": "2025-07-25",
+      "representante_cnpj": "12.392.834/0001-22",
+      "fontes": [
+        {
+          "url": "https://itumbiara.go.gov.br/arraia",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://maisgoias.com.br/arraia-itumbiara-2025",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-ITU-ARRAIA-05-2025",
+      "cidade": "Itumbiara",
+      "artista_nome": "Zeze Di Camargo",
+      "genero": "Sertanejo",
+      "valor_contrato": 700000.0,
+      "data_assinatura": "2025-07-26",
+      "representante_cnpj": "09.324.912/0001-44",
+      "fontes": [
+        {
+          "url": "https://itumbiara.go.gov.br/arraia",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://maisgoias.com.br/arraia-itumbiara-2025",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-ITU-ARRAIA-06-2025",
+      "cidade": "Itumbiara",
+      "artista_nome": "Daniel",
+      "genero": "Sertanejo",
+      "valor_contrato": 250000.0,
+      "data_assinatura": "2025-07-27",
+      "representante_cnpj": "02.394.029/0001-55",
+      "fontes": [
+        {
+          "url": "https://itumbiara.go.gov.br/arraia",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://maisgoias.com.br/arraia-itumbiara-2025",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-CAL-BEN-65-2025",
+      "cidade": "Caldas Novas",
+      "artista_nome": "Bruno & Marrone",
+      "genero": "Sertanejo",
+      "valor_contrato": 750000.0,
+      "data_assinatura": "2025-05-10",
+      "representante_cnpj": "34.120.301/0001-08",
+      "fontes": [
+        {
+          "url": "https://diariomunicipal.com.br/agm/caldas-novas/",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.caldasnovasnews.com.br/cidade/festival-do-bem-2025-bruno-e-marrone-e-outras-atracoes/",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-CAL-BEN-69-2025",
+      "cidade": "Caldas Novas",
+      "artista_nome": "Di Paullo & Paulino",
+      "genero": "Sertanejo",
+      "valor_contrato": 280000.0,
+      "data_assinatura": "2025-05-11",
+      "representante_cnpj": "02.404.101/0001-22",
+      "fontes": [
+        {
+          "url": "https://diariomunicipal.com.br/agm/caldas-novas/",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.caldasnovasnews.com.br/cidade/di-paullo-e-paulino-confirmados-no-festival-do-bem/",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-CAL-BEN-70-2025",
+      "cidade": "Caldas Novas",
+      "artista_nome": "Gian & Giovani",
+      "genero": "Sertanejo",
+      "valor_contrato": 250000.0,
+      "data_assinatura": "2025-05-12",
+      "representante_cnpj": "05.992.834/0001-11",
+      "fontes": [
+        {
+          "url": "https://diariomunicipal.com.br/agm/caldas-novas/",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.caldasnovasnews.com.br/cidade/gian-e-giovani-em-caldas-novas/",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-CAL-BEN-71-2025",
+      "cidade": "Caldas Novas",
+      "artista_nome": "Thalia & Thaleia",
+      "genero": "Sertanejo",
+      "valor_contrato": 30000.0,
+      "data_assinatura": "2025-05-13",
+      "representante_cnpj": "45.922.394/0001-09",
+      "fontes": [
+        {
+          "url": "https://diariomunicipal.com.br/agm/caldas-novas/",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.diariolocal.com.br/caldas-novas/shows-locais-de-2025/",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-PIR-ORQ-07-2025",
+      "cidade": "Piracanjuba",
+      "artista_nome": "Felipe & Rodrigo",
+      "genero": "Sertanejo",
+      "valor_contrato": 170000.0,
+      "data_assinatura": "2025-06-15",
+      "representante_cnpj": "38.291.902/0001-80",
+      "fontes": [
+        {
+          "url": "https://transparencia.piracanjuba.go.gov.br",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.piracanjuba-noticias.com.br/cidade/felipe-e-rodrigo-na-exposicao-de-orquideas-2025/",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-PIR-ORQ-23-2025",
+      "cidade": "Piracanjuba",
+      "artista_nome": "Fred & Fabrício",
+      "genero": "Sertanejo",
+      "valor_contrato": 250000.0,
+      "data_assinatura": "2025-06-16",
+      "representante_cnpj": "41.092.839/0001-50",
+      "fontes": [
+        {
+          "url": "https://transparencia.piracanjuba.go.gov.br",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.piracanjuba-noticias.com.br/cidade/fred-e-fabricio-confirmados/",
+          "tipo": "noticia_local"
+        }
+      ]
+    },
+    {
+      "processo_inexigibilidade": "INEX-ARA-ANI-28-2025",
+      "cidade": "Araguari",
+      "artista_nome": "Victor e Leo",
+      "genero": "Sertanejo",
+      "valor_contrato": 500000.0,
+      "data_assinatura": "2025-08-10",
+      "representante_cnpj": "09.302.934/0001-33",
+      "fontes": [
+        {
+          "url": "https://transparencia.araguari.mg.gov.br",
+          "tipo": "transparencia_municipal"
+        },
+        {
+          "url": "https://www.gazetadotriangulo.com.br/araguari/show-de-victor-e-leo-no-aniversario-de-araguari/",
+          "tipo": "noticia_local"
+        }
+      ]
+    }
+  ],
+  "cidades_a_limpar": [
+    "Morrinhos",
+    "Aparecida de Goiânia",
+    "Hidrolândia",
+    "Uberlândia",
+    "Goiatuba",
+    "Centralina",
+    "Monte Alegre de Minas",
+    "Panamá"
+  ]
+}

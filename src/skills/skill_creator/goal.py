@@ -86,13 +86,28 @@ class AutoSkillCreatorGoal(AutonomousGoal):
                     cost_usd=0.0,
                 )
 
+            # Coleta as skills existentes
+            import os
+            from pathlib import Path
+            skills_dir = Path(__file__).resolve().parent.parent
+            existing_skills = []
+            if skills_dir.exists():
+                existing_skills = [
+                    d for d in os.listdir(skills_dir)
+                    if (skills_dir / d).is_dir() and d != "__pycache__"
+                ]
+            existing_skills_str = ", ".join(existing_skills)
+
             # Analisa as mensagens buscando repeticao
             messages_text = "\n".join([f"- {m}" for m in all_user_messages[-50:]])
-
+ 
             prompt = (
                 "Você é o módulo de percepção do Seeker.Bot. O usuário enviou estas mensagens nos últimos dias.\n"
                 "Sua tarefa é encontrar algum PADRÃO ou INTENÇÃO REPETIDA que o usuário tenha pedido explícita ou implicitamente mais de 3 vezes.\n"
                 "Exemplos de padrões: 'perguntar sobre jogos do flamengo', 'pedir para resumir pdf', 'perguntar cotação do dolar'.\n\n"
+                f"IMPORTANTE: As seguintes automações/skills JÁ ESTÃO INSTALADAS no Seeker.Bot e NÃO devem ser propostas como novas skills:\n"
+                f"[{existing_skills_str}]\n"
+                "Se a intenção ou necessidade do usuário já estiver atendida ou relacionada a alguma dessas skills, responda 'pattern_found': false.\n\n"
                 "Regra: Retorne JSON válido ESTRITAMENTE neste formato:\n"
                 "{\n"
                 '  "pattern_found": true ou false,\n'

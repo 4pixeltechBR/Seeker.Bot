@@ -470,10 +470,22 @@ class GeminiGroundingBackend(SearchBackend):
                     data = resp.json()
 
                     results = []
-                    # Extrai do groundingMetadata retornado
-                    candidate = data.get("candidates", [{}])[0]
-                    metadata = candidate.get("groundingMetadata", {})
-                    chunks = metadata.get("groundingChunks", [])
+                    # 1. Tentar extrair metadata de grounding de forma flexível (candidates vs raiz vs steps)
+                    metadata = {}
+                    if "candidates" in data and data["candidates"]:
+                        candidate = data["candidates"][0]
+                        metadata = candidate.get("groundingMetadata", {})
+                    else:
+                        metadata = data.get("groundingMetadata", data.get("grounding_metadata", {}))
+
+                    if not metadata and "steps" in data:
+                        for step in data["steps"]:
+                            if step.get("type") == "ModelOutputStep":
+                                metadata = step.get("groundingMetadata", step.get("grounding_metadata", {}))
+                                if metadata:
+                                    break
+
+                    chunks = metadata.get("groundingChunks", []) if metadata else []
 
                     for idx, chunk in enumerate(chunks):
                         web = chunk.get("web", {})
@@ -492,20 +504,41 @@ class GeminiGroundingBackend(SearchBackend):
                             if len(results) >= max_results:
                                 break
 
-                    # Fallback: Se não veio chunks no metadata, tenta ler do próprio texto da resposta
+                    # Fallback: Se não veio chunks no metadata, tenta extrair links do texto da resposta
                     if not results:
-                        text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
-                        links = re.findall(r'(https?://[^\s)\]]+)', text)
-                        for idx, link in enumerate(list(set(links))[:max_results]):
-                            results.append(
-                                SearchResult(
-                                    title=f"Link de referência {idx + 1}",
-                                    url=link,
-                                    snippet=text[:300] + "...",
-                                    source="gemini_grounding",
-                                    position=idx + 1
+                        text = ""
+                        if "candidates" in data and data["candidates"]:
+                            candidate = data["candidates"][0]
+                            text = candidate.get("content", {}).get("parts", [{}])[0].get("text", "")
+                        
+                        if not text and "output_text" in data:
+                            text = data["output_text"]
+
+                        if not text and "steps" in data:
+                            texts = []
+                            for step in data["steps"]:
+                                if step.get("type") == "ModelOutputStep":
+                                    content_list = step.get("content", [])
+                                    if isinstance(content_list, list):
+                                        for c in content_list:
+                                            if isinstance(c, dict) and "text" in c:
+                                                texts.append(c["text"])
+                                    elif isinstance(content_list, str):
+                                        texts.append(content_list)
+                            text = "\n".join(texts)
+
+                        if text:
+                            links = re.findall(r'(https?://[^\s)\]]+)', text)
+                            for idx, link in enumerate(list(set(links))[:max_results]):
+                                results.append(
+                                    SearchResult(
+                                        title=f"Link de referência {idx + 1}",
+                                        url=link,
+                                        snippet=text[:300] + "...",
+                                        source="gemini_grounding",
+                                        position=idx + 1
+                                    )
                                 )
-                            )
 
                     return SearchResponse(query=query, results=results, backend="gemini_grounding")
             except Exception as e:

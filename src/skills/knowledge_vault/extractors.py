@@ -278,10 +278,10 @@ async def extract_from_pdf(pdf_bytes: bytes, vlm_client) -> str:
             results.append(f"--- PÁGINA {page_num + 1} ---\n{page_text}")
 
     pdf.close()
-
+ 
     if not results:
         return "[PDF vazio ou falha na extração]"
-
+ 
     body = "\n\n".join(results)
     if total_pages > MAX_PAGES:
         body += (
@@ -289,3 +289,137 @@ async def extract_from_pdf(pdf_bytes: bytes, vlm_client) -> str:
             f"páginas processadas]"
         )
     return body
+
+
+async def extract_from_zip(zip_bytes: bytes, vlm_client=None) -> str:
+    """Extrai conteúdo de arquivos dentro de um ZIP e consolida em texto único."""
+    import zipfile
+    import io
+    
+    try:
+        z = zipfile.ZipFile(io.BytesIO(zip_bytes))
+    except Exception as e:
+        raise ValueError(f"Arquivo ZIP inválido ou corrompido: {e}")
+        
+    results = []
+    processed_count = 0
+    max_files = 20
+    
+    for name in z.namelist():
+        if name.endswith("/") or "__MACOSX" in name or name.startswith("."):
+            continue
+        if processed_count >= max_files:
+            results.append(f"\n\n[⚠️ ZIP truncado: limite de {max_files} arquivos atingido]")
+            break
+            
+        try:
+            info = z.getinfo(name)
+            if info.file_size > 10 * 1024 * 1024: # Pula arquivos maiores que 10MB
+                continue
+                
+            content_bytes = z.read(name)
+            content_text = ""
+            
+            if name.lower().endswith((".txt", ".md", ".py", ".js", ".json", ".csv", ".xml", ".yaml", ".yml", ".ini", ".conf")):
+                try:
+                    content_text = content_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    try:
+                        content_text = content_bytes.decode("latin-1")
+                    except Exception:
+                        pass
+            elif name.lower().endswith(".pdf"):
+                try:
+                    content_text = await extract_from_pdf(content_bytes, vlm_client)
+                except Exception as e:
+                    content_text = f"[Falha ao ler PDF {name}: {e}]"
+            elif name.lower().endswith((".html", ".htm")):
+                try:
+                    html_raw = content_bytes.decode("utf-8", errors="ignore")
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(html_raw, "html.parser")
+                    for s in soup(["script", "style"]):
+                        s.decompose()
+                    content_text = soup.get_text("\n").strip()
+                except Exception:
+                    pass
+            elif name.lower().endswith(".mht"):
+                try:
+                    content_text = await extract_from_mht(content_bytes)
+                except Exception:
+                    pass
+            
+            if content_text.strip():
+                results.append(f"### 📂 Arquivo: {name}\n\n{content_text.strip()}")
+                processed_count += 1
+        except Exception as e:
+            log.warning(f"[extractors] Falha ao processar arquivo {name} do ZIP: {e}")
+            
+    z.close()
+    if not results:
+        return "[ZIP não contém nenhum arquivo de texto suportado ou legível]"
+        
+    return "\n\n---\n\n".join(results)
+
+
+async def extract_from_mht(mht_bytes: bytes) -> str:
+    """Extrai o texto principal de um arquivo MHTML (.mht) convertendo o HTML para markdown limpo."""
+    import email
+    import re
+    from bs4 import BeautifulSoup
+    
+    try:
+        msg = email.message_from_bytes(mht_bytes)
+    except Exception as e:
+        raise ValueError(f"MHTML inválido: {e}")
+        
+    html_content = ""
+    text_content = ""
+    
+    for part in msg.walk():
+        content_type = part.get_content_type()
+        if content_type == "text/html" and not html_content:
+            payload = part.get_payload(decode=True)
+            charset = part.get_content_charset() or "utf-8"
+            try:
+                html_content = payload.decode(charset, errors="ignore")
+            except Exception:
+                html_content = payload.decode("latin-1", errors="ignore")
+        elif content_type == "text/plain" and not text_content:
+            payload = part.get_payload(decode=True)
+            charset = part.get_content_charset() or "utf-8"
+            try:
+                text_content = payload.decode(charset, errors="ignore")
+            except Exception:
+                text_content = payload.decode("latin-1", errors="ignore")
+                
+    if html_content:
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+            for s in soup(["script", "style", "iframe", "noscript"]):
+                s.decompose()
+            
+            # Conversão básica de tags HTML estruturais para Markdown
+            for h in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+                level = int(h.name[1])
+                h.replace_with(f"\n\n{'#' * level} {h.get_text().strip()}\n\n")
+            for p in soup.find_all("p"):
+                p.replace_with(f"\n\n{p.get_text().strip()}\n\n")
+            for br in soup.find_all("br"):
+                br.replace_with("\n")
+            for a in soup.find_all("a"):
+                href = a.get("href")
+                text = a.get_text().strip()
+                if href and text:
+                    a.replace_with(f" [{text}]({href}) ")
+                    
+            text_body = soup.get_text()
+            text_body = re.sub(r"\n\s*\n\s*\n+", "\n\n", text_body)
+            return text_body.strip()
+        except Exception as e:
+            log.warning(f"[extractors] Falha ao converter HTML do MHT: {e}")
+            
+    if text_content:
+        return text_content.strip()
+        
+    return "[MHT vazio ou sem partes textuais compatíveis]"

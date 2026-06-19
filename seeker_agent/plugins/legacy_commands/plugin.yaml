@@ -1,0 +1,5 @@
+name: legacy_commands
+version: 1.0.0
+description: "Reativa os comandos legados do antigo Seeker.Bot (SenseNews, AFK, Radar, etc.)"
+author: "Seeker Agent"
+kind: standalone

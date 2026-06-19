@@ -1,0 +1,1539 @@
+/*
+ * SeekerAgent Kanban — dashboard plugin styles.
+ *
+ * All colors reference theme CSS vars so the board reskins with the
+ * active dashboard theme. No hardcoded palette.
+ */
+
+.seeker_agent-kanban {
+  width: 100%;
+}
+
+/* ---- Code/pre reset (theme-immune default) --------------------------- *
+ *
+ * Themes (shipped AND user-installable) routinely paint every <code> and
+ * <pre> on the page with an opaque accent-color fill. That's fine for a
+ * Markdown doc page; it's wrong for the kanban plugin, which uses <code>
+ * for event payloads, run metadata, log panes, and similar raw-data
+ * surfaces that must read as plain text on the board's own background.
+ *
+ * Rather than play whack-a-mole with theme rules (the pre-#21086 approach
+ * was a single ``.seeker_agent-kanban code { background: transparent }`` rule
+ * that lost specificity fights in the drawer context), reset EVERY
+ * <code>/<pre> inside the kanban plugin container to transparent with
+ * ``!important``, then opt back in ONLY on the class that carries
+ * intentional styling (``.seeker_agent-kanban-md code``, the inline code pill
+ * inside rendered task-body Markdown).
+ *
+ * Net effect: any new theme, shipped or third-party, can introduce
+ * whatever global code-fill rule it wants — kanban surfaces stay clean
+ * unless the theme deliberately targets our internal class names.
+ * Regression coverage: #21086 (task-drawer event payloads unreadable
+ * across every shipped theme).
+ */
+.seeker_agent-kanban code,
+.seeker_agent-kanban pre,
+.seeker_agent-kanban-drawer code,
+.seeker_agent-kanban-drawer pre {
+  background: transparent !important;
+  color: inherit;
+}
+/* The Markdown renderer intentionally paints a subtle code pill behind
+ * inline ``<code>`` inside task-body prose — but NOT inside a fenced
+ * block (those are a ``<pre class="seeker_agent-kanban-md-code">`` with a
+ * bare ``<code>`` inside, and the pill would double up with the pre
+ * background). ``:not()`` scopes this opt-back-in to inline code only.
+ *
+ * Uses ``color-mix(currentColor ...)`` rather than ``--color-foreground``
+ * so the pill renders consistently even when a theme forgets to set
+ * ``--color-foreground`` (pre-existing safeguard from #18576).
+ */
+.seeker_agent-kanban .seeker_agent-kanban-md code:not(.seeker_agent-kanban-md-code *) {
+  background: color-mix(in srgb, currentColor 8%, transparent) !important;
+}
+/* Tighten contrast on the drawer-specific payload class — it lives on
+ * its own line in the events list, so matching the muted-foreground
+ * color keeps it visually distinct from the event title without
+ * screaming for attention. */
+.seeker_agent-kanban-event-payload,
+.seeker_agent-kanban-drawer .seeker_agent-kanban-event-payload {
+  color: var(--color-muted-foreground) !important;
+}
+
+/* ---- Columns layout -------------------------------------------------- */
+
+.seeker_agent-kanban-columns {
+  display: flex;
+  gap: 0.75rem;
+  align-items: start;
+  overflow-x: auto;
+}
+
+.seeker_agent-kanban-column {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--color-card) 85%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 0.5rem;
+  min-height: 200px;
+  max-height: calc(100vh - 220px);
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.seeker_agent-kanban-column--drop {
+  border-color: var(--color-ring);
+  background: color-mix(in srgb, var(--color-ring) 8%, var(--color-card));
+}
+
+.seeker_agent-kanban-column-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.25rem 0.35rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--color-foreground);
+}
+
+.seeker_agent-kanban-column-label {
+  flex: 1;
+  letter-spacing: 0.01em;
+}
+
+.seeker_agent-kanban-column-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.seeker_agent-kanban-column-add {
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-foreground);
+  border-radius: var(--radius-sm, 0.25rem);
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.seeker_agent-kanban-column-add:hover {
+  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+}
+
+.seeker_agent-kanban-column-sub {
+  padding: 0 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-muted-foreground);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
+  margin-bottom: 0.5rem;
+}
+
+.seeker_agent-kanban-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  overflow-y: auto;
+  padding-right: 0.1rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.seeker_agent-kanban-empty {
+  padding: 1.5rem 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  border: 1px dashed color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+}
+
+/* ---- Status dots ----------------------------------------------------- */
+
+.seeker_agent-kanban-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--color-muted-foreground);
+}
+.seeker_agent-kanban-dot-triage   { background: #b47dd6; }  /* lilac — fresh/unspecified */
+.seeker_agent-kanban-dot-todo     { background: var(--color-muted-foreground); }
+.seeker_agent-kanban-dot-ready    { background: #d4b348; }  /* amber */
+.seeker_agent-kanban-dot-running  { background: #3fb97d; }  /* green */
+.seeker_agent-kanban-dot-blocked  { background: var(--color-destructive, #d14a4a); }
+.seeker_agent-kanban-dot-done     { background: #4a8cd1; }  /* blue */
+.seeker_agent-kanban-dot-archived { background: var(--color-border); }
+
+/* ---- Progress pill (N/M child tasks done) --------------------------- */
+
+.seeker_agent-kanban-progress {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.62rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 80%, transparent);
+  color: var(--color-muted-foreground);
+  letter-spacing: 0.02em;
+}
+.seeker_agent-kanban-progress--full {
+  background: color-mix(in srgb, #3fb97d 22%, transparent);
+  border-color: color-mix(in srgb, #3fb97d 45%, transparent);
+  color: var(--color-foreground);
+}
+
+/* ---- Lanes (per-profile sub-grouping inside Running) ---------------- */
+
+.seeker_agent-kanban-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.25rem 0 0.35rem;
+  border-top: 1px dashed color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+.seeker_agent-kanban-lane:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.seeker_agent-kanban-lane-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.65rem;
+  /* Assignee/profile names are case-sensitive. Do not visually uppercase
+   * lane headers, otherwise a valid `analyst` profile appears as `ANALYST`
+   * in the WebUI and users may copy the wrong casing back into edits. */
+  letter-spacing: 0.02em;
+  color: var(--color-muted-foreground);
+  padding: 0 0.1rem;
+}
+.seeker_agent-kanban-lane-name {
+  font-weight: 600;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.seeker_agent-kanban-lane-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Card ------------------------------------------------------------ */
+
+.seeker_agent-kanban-card {
+  cursor: grab;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+.seeker_agent-kanban-card:hover {
+  box-shadow: 0 1px 0 0 var(--color-ring) inset, 0 0 0 1px var(--color-ring) inset;
+}
+.seeker_agent-kanban-card:active {
+  cursor: grabbing;
+  transform: scale(0.995);
+}
+
+.seeker_agent-kanban-card-content {
+  padding: 0.5rem 0.6rem !important;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.seeker_agent-kanban-card-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.seeker_agent-kanban-card-id {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.65rem;
+  color: var(--color-muted-foreground);
+  letter-spacing: 0.03em;
+}
+
+.seeker_agent-kanban-card-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--color-foreground);
+  word-break: break-word;
+}
+
+.seeker_agent-kanban-card-meta {
+  font-size: 0.7rem;
+  color: var(--color-muted-foreground);
+  gap: 0.55rem;
+}
+
+.seeker_agent-kanban-priority {
+  font-size: 0.6rem !important;
+  padding: 0.05rem 0.3rem !important;
+  background: color-mix(in srgb, var(--color-ring) 18%, transparent);
+  color: var(--color-foreground);
+  border: 1px solid color-mix(in srgb, var(--color-ring) 40%, transparent);
+}
+
+.seeker_agent-kanban-tag {
+  font-size: 0.6rem !important;
+  padding: 0.05rem 0.3rem !important;
+}
+
+.seeker_agent-kanban-needs-assignee {
+  font-size: 0.6rem !important;
+  padding: 0.05rem 0.3rem !important;
+  background: color-mix(in srgb, var(--color-warning, #d4b348) 16%, transparent);
+  border-color: color-mix(in srgb, var(--color-warning, #d4b348) 45%, var(--color-border));
+  color: var(--color-foreground);
+}
+
+.seeker_agent-kanban-assignee {
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-foreground) 80%, var(--color-muted-foreground));
+}
+.seeker_agent-kanban-unassigned {
+  font-style: italic;
+}
+.seeker_agent-kanban-ago {
+  margin-left: auto;
+}
+
+/* ---- Inline create --------------------------------------------------- */
+
+.seeker_agent-kanban-inline-create {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background: color-mix(in srgb, var(--color-card) 70%, transparent);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm, 0.25rem);
+}
+
+.seeker_agent-kanban-inline-create > .flex.gap-2:last-child > button:first-of-type {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- Drawer (task detail side panel) --------------------------------- */
+
+.seeker_agent-kanban-drawer-shade {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 60;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.seeker_agent-kanban-drawer {
+  width: min(var(--seeker_agent-kanban-drawer-width, 640px), 92vw);
+  height: 100vh;
+  background: var(--color-card);
+  border-left: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 18px rgba(0, 0, 0, 0.35);
+  animation: seeker_agent-kanban-drawer-in 180ms ease-out;
+}
+
+@keyframes seeker_agent-kanban-drawer-in {
+  from { transform: translateX(100%); opacity: 0.3; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+.seeker_agent-kanban-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+.seeker_agent-kanban-drawer-close {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--color-muted-foreground);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+.seeker_agent-kanban-drawer-close:hover { color: var(--color-foreground); }
+
+.seeker_agent-kanban-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.seeker_agent-kanban-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.seeker_agent-kanban-drawer-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 0.25rem);
+}
+
+.seeker_agent-kanban-meta-row {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+}
+.seeker_agent-kanban-meta-label {
+  width: 92px;
+  color: var(--color-muted-foreground);
+}
+.seeker_agent-kanban-meta-value {
+  color: var(--color-foreground);
+  word-break: break-word;
+}
+
+.seeker_agent-kanban-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+/* Specifier result banner — sits directly under the status action row. */
+.seeker_agent-kanban-msg-ok,
+.seeker_agent-kanban-msg-err {
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.375rem;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+.seeker_agent-kanban-msg-ok {
+  background: rgba(46, 160, 67, 0.12);
+  color: #2ea043;
+  border: 1px solid rgba(46, 160, 67, 0.35);
+}
+.seeker_agent-kanban-msg-err {
+  background: rgba(248, 81, 73, 0.12);
+  color: #f85149;
+  border: 1px solid rgba(248, 81, 73, 0.35);
+}
+
+/* ---- Home channel subscription toggles (per-platform, per-task) ----- */
+
+.seeker_agent-kanban-home-subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.seeker_agent-kanban-home-sub {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+.seeker_agent-kanban-home-sub--on {
+  /* Subscribed toggle — use a strong ring-colored accent so the on/off
+   * distinction reads at a glance, not just from the ✓ prefix. Border +
+   * filled background + bolder weight keep the state obvious across
+   * themes (tested on default teal and NERV orange). */
+  border-color: var(--color-ring);
+  background: color-mix(in srgb, var(--color-ring) 32%, transparent);
+  color: var(--color-foreground);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ring) 40%, transparent);
+}
+
+.seeker_agent-kanban-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.seeker_agent-kanban-section-head {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  color: var(--color-muted-foreground);
+}
+
+.seeker_agent-kanban-pre {
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: color-mix(in srgb, var(--color-foreground) 4%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 0.25rem);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--color-foreground);
+}
+
+.seeker_agent-kanban-comment {
+  border-left: 2px solid color-mix(in srgb, var(--color-ring) 35%, transparent);
+  padding-left: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.seeker_agent-kanban-comment-head {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+}
+.seeker_agent-kanban-comment-author {
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+.seeker_agent-kanban-comment-ago {
+  color: var(--color-muted-foreground);
+}
+
+.seeker_agent-kanban-event {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-muted-foreground);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.seeker_agent-kanban-event-kind {
+  color: var(--color-foreground);
+  min-width: 6rem;
+}
+.seeker_agent-kanban-event-payload {
+  color: var(--color-muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+}
+
+.seeker_agent-kanban-drawer-comment-row {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-card) 90%, transparent);
+}
+
+.seeker_agent-kanban-count {
+  display: inline-flex;
+  gap: 0.2rem;
+  align-items: center;
+}
+
+/* ---- Selection chrome ----------------------------------------------- */
+
+.seeker_agent-kanban-card--selected :where(.seeker_agent-kanban-card-content) {
+  box-shadow: 0 0 0 2px var(--color-ring) inset,
+              0 0 0 1px var(--color-ring) inset;
+  background: color-mix(in srgb, var(--color-ring) 6%, var(--color-card));
+}
+
+/* Batch drag source styling — cards that are part of the current multi-drag.
+   The browser ghost image floats; we dim the original DOM nodes so the user
+   sees the whole set is in-flight. */
+.seeker_agent-kanban-card--dragging-source :where(.seeker_agent-kanban-card-content) {
+  opacity: 0.45;
+  filter: grayscale(0.6);
+  transition: opacity 120ms ease, filter 120ms ease;
+}
+
+.seeker_agent-kanban-card-check {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-ring);
+}
+
+/* ---- Bulk action bar ------------------------------------------------ */
+
+.seeker_agent-kanban-bulk {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: color-mix(in srgb, var(--color-ring) 10%, var(--color-card));
+  border: 1px solid color-mix(in srgb, var(--color-ring) 40%, var(--color-border));
+  border-radius: var(--radius-sm, 0.25rem);
+  flex-wrap: wrap;
+}
+.seeker_agent-kanban-bulk-count {
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding-right: 0.25rem;
+}
+
+.seeker_agent-kanban-bulk > button,
+.seeker_agent-kanban-bulk-reassign > button {
+  height: 1.7rem !important;
+  padding: 0 0.5rem !important;
+  font-size: 0.7rem !important;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+}
+.seeker_agent-kanban-bulk > button:hover:not(:disabled),
+.seeker_agent-kanban-bulk-reassign > button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-foreground) 8%, transparent);
+}
+.seeker_agent-kanban-bulk-reassign {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+
+/* ---- Dependency editor chips --------------------------------------- */
+
+.seeker_agent-kanban-deps-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.seeker_agent-kanban-deps-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--color-muted-foreground);
+  min-width: 4rem;
+}
+.seeker_agent-kanban-deps-chips {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+.seeker_agent-kanban-deps-empty {
+  font-size: 0.7rem;
+  color: var(--color-muted-foreground);
+  font-style: italic;
+}
+.seeker_agent-kanban-dep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.1rem 0.35rem;
+  background: color-mix(in srgb, var(--color-foreground) 6%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 0.25rem);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.68rem;
+  color: var(--color-foreground);
+}
+.seeker_agent-kanban-dep-chip-x {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0 0.15rem;
+}
+.seeker_agent-kanban-dep-chip-x:hover { color: var(--color-destructive, #d14a4a); }
+
+/* ---- Inline edit affordances --------------------------------------- */
+
+.seeker_agent-kanban-editable {
+  cursor: pointer;
+  border-bottom: 1px dotted color-mix(in srgb, var(--color-border) 80%, transparent);
+}
+.seeker_agent-kanban-editable:hover {
+  color: var(--color-foreground);
+  border-bottom-color: var(--color-ring);
+}
+
+.seeker_agent-kanban-drawer-title-text {
+  cursor: pointer;
+}
+.seeker_agent-kanban-drawer-title-text:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--color-ring);
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.seeker_agent-kanban-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.seeker_agent-kanban-section-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.seeker_agent-kanban-edit-link {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: var(--color-muted-foreground);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  padding: 0;
+}
+.seeker_agent-kanban-edit-link:hover { color: var(--color-ring); }
+
+.seeker_agent-kanban-textarea {
+  width: 100%;
+  min-height: 8rem;
+  background: var(--color-card);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 0.25rem);
+  padding: 0.5rem 0.6rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.seeker_agent-kanban-textarea:focus {
+  outline: none;
+  border-color: var(--color-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-ring) 30%, transparent);
+}
+
+/* ---- Markdown rendering -------------------------------------------- */
+
+.seeker_agent-kanban-md {
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--color-foreground);
+}
+.seeker_agent-kanban-md p  { margin: 0.25rem 0; }
+.seeker_agent-kanban-md h1,
+.seeker_agent-kanban-md h2,
+.seeker_agent-kanban-md h3,
+.seeker_agent-kanban-md h4 {
+  margin: 0.6rem 0 0.2rem;
+  line-height: 1.25;
+}
+.seeker_agent-kanban-md h1 { font-size: 1.05rem; }
+.seeker_agent-kanban-md h2 { font-size: 0.95rem; }
+.seeker_agent-kanban-md h3 { font-size: 0.88rem; }
+.seeker_agent-kanban-md h4 { font-size: 0.82rem; }
+.seeker_agent-kanban-md ul {
+  margin: 0.25rem 0 0.25rem 1.1rem;
+  padding: 0;
+}
+.seeker_agent-kanban-md li { margin: 0.1rem 0; }
+.seeker_agent-kanban-md a {
+  color: var(--color-ring);
+  text-decoration: underline;
+}
+.seeker_agent-kanban-md code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  padding: 0.05rem 0.3rem;
+  /* Background is set in the code/pre reset block at the top of this
+   * file with !important, so theme-level global code rules can't knock
+   * out this intentional pill. See #21086. */
+  border-radius: 3px;
+  color: inherit;
+}
+/* Fenced code block. Set a visible background even when --color-foreground
+ * is empty (color-mix falls through to transparent in that case), and force
+ * color: inherit so the text tracks the drawer foreground rather than the
+ * UA default on <code> elements — otherwise themes that don't set
+ * --color-foreground leave code text rendering near-black on dark themes
+ * (see issue #18576). */
+.seeker_agent-kanban pre.seeker_agent-kanban-md-code {
+  margin: 0.35rem 0;
+  padding: 0.5rem 0.6rem;
+  /* Higher specificity (``.seeker_agent-kanban pre.seeker_agent-kanban-md-code`` vs
+   * the reset's ``.seeker_agent-kanban pre``) so this intentional pill wins
+   * over our own ``<pre>`` reset. ``!important`` also needed so theme
+   * rules that drop their own ``code``/``pre`` fill don't knock it out
+   * either. #21086. */
+  background: color-mix(in srgb, currentColor 6%, transparent) !important;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm, 0.25rem);
+  overflow-x: auto;
+}
+.seeker_agent-kanban-md-code code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.8rem;
+  white-space: pre;
+  color: inherit;
+}
+.seeker_agent-kanban-md strong { font-weight: 600; }
+
+/* ---- Touch-drag proxy ---------------------------------------------- */
+
+.seeker_agent-kanban-touch-proxy {
+  pointer-events: none;
+  opacity: 0.85;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  transform: scale(1.02);
+  transition: none;
+}
+
+/* ---- Multi-drag ghost ----------------------------------------------- */
+
+.seeker_agent-kanban-drag-ghost {
+  position: fixed;
+  left: -9999px;
+  padding: 0.45rem 0.8rem;
+  background: var(--color-card);
+  border: 2px solid var(--color-ring);
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+/* ---- Staleness tiers ------------------------------------------------ */
+
+.seeker_agent-kanban-card--stale-amber :where(.seeker_agent-kanban-card-content) {
+  box-shadow: 0 0 0 1px #d4b34888 inset;
+}
+.seeker_agent-kanban-card--stale-amber:hover :where(.seeker_agent-kanban-card-content) {
+  box-shadow: 0 0 0 2px #d4b348 inset;
+}
+.seeker_agent-kanban-card--stale-red :where(.seeker_agent-kanban-card-content) {
+  box-shadow: 0 0 0 1px var(--color-destructive, #d14a4a) inset,
+              0 0 8px color-mix(in srgb, var(--color-destructive, #d14a4a) 30%, transparent);
+}
+.seeker_agent-kanban-card--stale-red:hover :where(.seeker_agent-kanban-card-content) {
+  box-shadow: 0 0 0 2px var(--color-destructive, #d14a4a) inset,
+              0 0 10px color-mix(in srgb, var(--color-destructive, #d14a4a) 45%, transparent);
+}
+
+/* ---- Worker log pane ------------------------------------------------ */
+
+.seeker_agent-kanban-log {
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+
+/* ---- Run history (per-attempt log in the drawer) ------------------- */
+
+.seeker_agent-kanban-run {
+  border-left: 2px solid var(--color-border);
+  padding: 0.35rem 0.5rem;
+  margin-bottom: 0.4rem;
+  background: color-mix(in srgb, var(--color-foreground) 3%, transparent);
+  border-radius: var(--radius-sm, 0.25rem);
+}
+.seeker_agent-kanban-run--active  { border-left-color: #3fb97d; }
+.seeker_agent-kanban-run--completed { border-left-color: #4a8cd1; }
+.seeker_agent-kanban-run--ended { border-left-color: #6b7280; }  /* generic fallback when outcome is unset */
+.seeker_agent-kanban-run--blocked { border-left-color: var(--color-destructive, #d14a4a); }
+.seeker_agent-kanban-run--crashed,
+.seeker_agent-kanban-run--timed_out,
+.seeker_agent-kanban-run--gave_up,
+.seeker_agent-kanban-run--spawn_failed {
+  border-left-color: var(--color-destructive, #d14a4a);
+  background: color-mix(in srgb, var(--color-destructive, #d14a4a) 6%, transparent);
+}
+.seeker_agent-kanban-run--reclaimed { border-left-color: #d4b348; }
+
+.seeker_agent-kanban-run-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.7rem;
+}
+.seeker_agent-kanban-run-outcome {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--color-foreground);
+}
+.seeker_agent-kanban-run-profile {
+  color: var(--color-muted-foreground);
+}
+.seeker_agent-kanban-run-elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+}
+.seeker_agent-kanban-run-ago {
+  margin-left: auto;
+  color: var(--color-muted-foreground);
+}
+.seeker_agent-kanban-run-summary {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  padding: 0.2rem 0 0;
+  color: var(--color-foreground);
+}
+.seeker_agent-kanban-run-error {
+  font-size: 0.7rem;
+  color: var(--color-destructive, #d14a4a);
+  padding: 0.15rem 0 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+/* Run metadata is a secondary detail panel. Render it as a clearly-labeled
+ * sub-block with a thin left rule, capped height, and muted treatment so
+ * a verbose JSON blob (e.g. changed_files + URLs from a writer task) does
+ * not visually swamp the parent run row or get mistaken for a crash dump.
+ * Uses a native <details>/<summary> pair so collapse is browser-handled
+ * (zero JS); large blobs default collapsed via the open=false attribute.
+ * See issue #19548. */
+.seeker_agent-kanban-run-meta-block {
+  margin-top: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border-left: 2px solid var(--color-border);
+  background: transparent;
+}
+.seeker_agent-kanban-run-meta-block > summary.seeker_agent-kanban-run-meta-label {
+  cursor: pointer;
+  list-style: none;
+}
+.seeker_agent-kanban-run-meta-block > summary.seeker_agent-kanban-run-meta-label::-webkit-details-marker {
+  display: none;
+}
+.seeker_agent-kanban-run-meta-block > summary.seeker_agent-kanban-run-meta-label::before {
+  content: "▶ ";
+  display: inline-block;
+  font-size: 0.6rem;
+  margin-right: 0.25rem;
+  transition: transform 120ms ease;
+}
+.seeker_agent-kanban-run-meta-block[open] > summary.seeker_agent-kanban-run-meta-label::before {
+  transform: rotate(90deg);
+}
+.seeker_agent-kanban-run-meta-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--color-muted-foreground);
+  padding-bottom: 0.15rem;
+}
+.seeker_agent-kanban-run-meta {
+  display: block;
+  max-height: 8.5rem;
+  overflow: auto;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  padding: 0;
+  color: var(--color-muted-foreground);
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  background: transparent;
+}
+
+/* -------------------------------------------------------------------------
+   Multi-project: board switcher + create-board dialog
+   ------------------------------------------------------------------------- */
+.seeker_agent-kanban-boardswitcher {
+  border: 1px solid var(--color-border, rgba(120, 120, 140, 0.25));
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.85rem;
+  background: var(--color-card-subtle, rgba(255, 255, 255, 0.02));
+}
+.seeker_agent-kanban-boardswitcher-inner {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.seeker_agent-kanban-boardswitcher-compact {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0.25rem;
+  gap: 0.5rem;
+  align-items: center;
+}
+.seeker_agent-kanban-docs-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-muted-foreground, rgba(180, 180, 200, 0.8));
+  background: var(--color-card-subtle, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--color-border, rgba(120, 120, 140, 0.25));
+  text-decoration: none;
+  cursor: help;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+}
+.seeker_agent-kanban-docs-link:hover,
+.seeker_agent-kanban-docs-link:focus-visible {
+  color: var(--color-foreground, #e7e7ee);
+  background: var(--color-card, rgba(255, 255, 255, 0.08));
+  border-color: var(--color-border, rgba(160, 160, 190, 0.45));
+  outline: none;
+}
+.seeker_agent-kanban-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 16, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.seeker_agent-kanban-dialog {
+  background: var(--color-card, #121421);
+  color: var(--color-foreground);
+  border: 1px solid var(--color-border, rgba(120, 120, 140, 0.25));
+  border-radius: 0.5rem;
+  padding: 1.1rem 1.2rem 1rem;
+  width: 28rem;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 3rem);
+  overflow: auto;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+}
+.seeker_agent-kanban-dialog-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+.seeker_agent-kanban-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Hallucination warnings: per-card badge, events callout, attention      */
+/* strip, recovery popover. Orange/red palette but muted so the board     */
+/* doesn't scream on every render.                                        */
+/* ---------------------------------------------------------------------- */
+.seeker_agent-kanban-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: #ff9e3b;
+  margin-left: 0.25rem;
+  cursor: help;
+}
+
+/* Attention strip — collapsed state is a thin bar. */
+.seeker_agent-kanban-attention {
+  border: 1px solid rgba(255, 158, 59, 0.35);
+  background: rgba(255, 158, 59, 0.06);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.seeker_agent-kanban-attention-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8125rem;
+}
+.seeker_agent-kanban-attention-icon { color: #ff9e3b; font-size: 1rem; }
+.seeker_agent-kanban-attention-text { flex: 1; }
+.seeker_agent-kanban-attention-toggle,
+.seeker_agent-kanban-attention-dismiss,
+.seeker_agent-kanban-attention-row-btn {
+  background: transparent;
+  border: 1px solid rgba(120, 120, 140, 0.3);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}
+.seeker_agent-kanban-attention-toggle:hover,
+.seeker_agent-kanban-attention-dismiss:hover,
+.seeker_agent-kanban-attention-row-btn:hover {
+  background: rgba(255, 158, 59, 0.12);
+}
+.seeker_agent-kanban-attention-list {
+  border-top: 1px solid rgba(255, 158, 59, 0.2);
+  padding: 0.25rem 0;
+}
+.seeker_agent-kanban-attention-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8125rem;
+}
+.seeker_agent-kanban-attention-row:hover {
+  background: rgba(255, 158, 59, 0.08);
+}
+.seeker_agent-kanban-attention-row-id {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, #888);
+  min-width: 7rem;
+}
+.seeker_agent-kanban-attention-row-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.seeker_agent-kanban-attention-row-meta {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, #888);
+}
+
+/* Events tab — callout style for hallucination events. */
+.seeker_agent-kanban-event--hallucination {
+  border-left: 3px solid #ff6b6b;
+  background: rgba(255, 107, 107, 0.08);
+  padding: 0.5rem 0.65rem;
+  border-radius: 0.35rem;
+  margin: 0.25rem 0;
+}
+.seeker_agent-kanban-event-header,
+.seeker_agent-kanban-event-header-plain {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.seeker_agent-kanban-event-warning-icon { color: #ff6b6b; font-size: 1rem; }
+.seeker_agent-kanban-event-warning-label {
+  color: #ff6b6b;
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.seeker_agent-kanban-event-phantom-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.3rem;
+  padding-left: 1.35rem;
+}
+.seeker_agent-kanban-event-phantom-label {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, #999);
+}
+.seeker_agent-kanban-event-phantom-chip {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  background: rgba(255, 107, 107, 0.15);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  border-radius: 0.3rem;
+}
+
+/* Recovery section header — amber accent when the task has warnings. */
+.seeker_agent-kanban-section-head-warning { color: #ff9e3b; }
+.seeker_agent-kanban-section-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.seeker_agent-kanban-section-toggle {
+  background: transparent;
+  border: 1px solid rgba(120, 120, 140, 0.3);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.75rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Recovery popover body. */
+.seeker_agent-kanban-recovery {
+  border: 1px solid rgba(120, 120, 140, 0.25);
+  background: rgba(255, 158, 59, 0.04);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.seeker_agent-kanban-recovery-title {
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.seeker_agent-kanban-recovery-hint {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, #888);
+  line-height: 1.35;
+}
+.seeker_agent-kanban-recovery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.seeker_agent-kanban-recovery-label {
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, #888);
+}
+.seeker_agent-kanban-recovery-input,
+.seeker_agent-kanban-recovery-select {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.8125rem;
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(120, 120, 140, 0.3);
+  border-radius: 0.3rem;
+  color: inherit;
+  outline: none;
+}
+.seeker_agent-kanban-recovery-action-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.seeker_agent-kanban-recovery-action-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  min-width: 8rem;
+}
+.seeker_agent-kanban-recovery-action-desc {
+  flex: 1;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground, #888);
+}
+.seeker_agent-kanban-recovery-btn {
+  padding: 0.25rem 0.7rem;
+  font-size: 0.75rem;
+  background: rgba(255, 158, 59, 0.15);
+  border: 1px solid rgba(255, 158, 59, 0.4);
+  border-radius: 0.3rem;
+  color: inherit;
+  cursor: pointer;
+}
+.seeker_agent-kanban-recovery-btn:hover:not(:disabled) {
+  background: rgba(255, 158, 59, 0.25);
+}
+.seeker_agent-kanban-recovery-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.seeker_agent-kanban-recovery-reassign-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.seeker_agent-kanban-recovery-checkbox {
+  font-size: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.seeker_agent-kanban-recovery-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.seeker_agent-kanban-recovery-cmd {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(120, 120, 140, 0.3);
+  border-radius: 0.3rem;
+  flex: 1;
+  min-width: 10rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.seeker_agent-kanban-recovery-msg {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.3rem;
+}
+.seeker_agent-kanban-recovery-msg--ok {
+  background: rgba(120, 200, 120, 0.12);
+  color: #6bc46b;
+  border: 1px solid rgba(120, 200, 120, 0.3);
+}
+.seeker_agent-kanban-recovery-msg--err {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff8b8b;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Diagnostics — generic, severity-coloured distress signals on tasks.    */
+/* Three rungs: warning (amber), error (orange), critical (red).          */
+/* ---------------------------------------------------------------------- */
+
+/* Severity token variables so every diagnostic-coloured surface uses the */
+/* same palette. */
+.seeker_agent-kanban-diag,
+.seeker_agent-kanban-attention,
+.seeker_agent-kanban-warning-badge,
+.seeker_agent-kanban-attention-row {
+  --seeker_agent-diag-warning: #ff9e3b;
+  --seeker_agent-diag-error:   #ff6b3d;
+  --seeker_agent-diag-critical: #ff4d4d;
+}
+
+/* Warning-badge severity variants (overrides the base colour). */
+.seeker_agent-kanban-warning-badge--warning { color: var(--seeker_agent-diag-warning); }
+.seeker_agent-kanban-warning-badge--error   { color: var(--seeker_agent-diag-error); font-weight: 700; }
+.seeker_agent-kanban-warning-badge--critical { color: var(--seeker_agent-diag-critical); font-weight: 700; }
+
+/* Attention-strip severity variants. */
+.seeker_agent-kanban-attention--warning {
+  border-color: rgba(255, 158, 59, 0.35);
+  background: rgba(255, 158, 59, 0.06);
+}
+.seeker_agent-kanban-attention--error {
+  border-color: rgba(255, 107, 61, 0.45);
+  background: rgba(255, 107, 61, 0.08);
+}
+.seeker_agent-kanban-attention--critical {
+  border-color: rgba(255, 77, 77, 0.55);
+  background: rgba(255, 77, 77, 0.10);
+}
+.seeker_agent-kanban-attention--error .seeker_agent-kanban-attention-icon { color: var(--seeker_agent-diag-error); }
+.seeker_agent-kanban-attention--critical .seeker_agent-kanban-attention-icon { color: var(--seeker_agent-diag-critical); }
+
+/* Per-row severity marker in the expanded attention list. */
+.seeker_agent-kanban-attention-row-sev {
+  display: inline-block;
+  min-width: 1.5rem;
+  font-weight: 600;
+}
+.seeker_agent-kanban-attention-row--warning .seeker_agent-kanban-attention-row-sev { color: var(--seeker_agent-diag-warning); }
+.seeker_agent-kanban-attention-row--error    .seeker_agent-kanban-attention-row-sev { color: var(--seeker_agent-diag-error); font-weight: 700; }
+.seeker_agent-kanban-attention-row--critical .seeker_agent-kanban-attention-row-sev { color: var(--seeker_agent-diag-critical); font-weight: 700; }
+
+/* Individual diagnostic card inside the drawer's Diagnostics section. */
+.seeker_agent-kanban-diag-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.seeker_agent-kanban-diag {
+  border-left: 3px solid var(--seeker_agent-diag-warning);
+  background: rgba(255, 158, 59, 0.05);
+  border-radius: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.seeker_agent-kanban-diag--error {
+  border-left-color: var(--seeker_agent-diag-error);
+  background: rgba(255, 107, 61, 0.06);
+}
+.seeker_agent-kanban-diag--critical {
+  border-left-color: var(--seeker_agent-diag-critical);
+  background: rgba(255, 77, 77, 0.07);
+}
+.seeker_agent-kanban-diag-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.seeker_agent-kanban-diag-sev {
+  font-weight: 700;
+  min-width: 1.5rem;
+}
+.seeker_agent-kanban-diag--warning .seeker_agent-kanban-diag-sev { color: var(--seeker_agent-diag-warning); }
+.seeker_agent-kanban-diag--error    .seeker_agent-kanban-diag-sev { color: var(--seeker_agent-diag-error); }
+.seeker_agent-kanban-diag--critical .seeker_agent-kanban-diag-sev { color: var(--seeker_agent-diag-critical); }
+.seeker_agent-kanban-diag-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+.seeker_agent-kanban-diag-detail {
+  font-size: 0.8125rem;
+  color: var(--color-foreground, #ccc);
+  line-height: 1.4;
+}
+.seeker_agent-kanban-diag-data {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+}
+.seeker_agent-kanban-diag-data-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.seeker_agent-kanban-diag-data-key {
+  color: var(--color-muted-foreground, #888);
+  font-weight: 500;
+}
+.seeker_agent-kanban-diag-data-val {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+.seeker_agent-kanban-diag-reassign-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+}
+.seeker_agent-kanban-diag-reassign-label {
+  color: var(--color-muted-foreground, #888);
+}
+.seeker_agent-kanban-diag-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.1rem;
+}
+.seeker_agent-kanban-diag-action-btn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.75rem;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(120, 120, 140, 0.3);
+  border-radius: 0.3rem;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: none;
+}
+.seeker_agent-kanban-diag-action-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.3);
+}
+.seeker_agent-kanban-diag-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.seeker_agent-kanban-diag-action-btn--suggested {
+  background: rgba(255, 158, 59, 0.15);
+  border-color: rgba(255, 158, 59, 0.4);
+  font-weight: 600;
+}
+.seeker_agent-kanban-diag-action-btn--suggested:hover:not(:disabled) {
+  background: rgba(255, 158, 59, 0.25);
+}
+.seeker_agent-kanban-diag-action-btn--unknown {
+  opacity: 0.6;
+  cursor: default;
+}
+.seeker_agent-kanban-diag-msg {
+  font-size: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.3rem;
+}
+.seeker_agent-kanban-diag-msg--ok {
+  background: rgba(120, 200, 120, 0.12);
+  color: #6bc46b;
+  border: 1px solid rgba(120, 200, 120, 0.3);
+}
+.seeker_agent-kanban-diag-msg--err {
+  background: rgba(255, 107, 61, 0.12);
+  color: #ff8b6b;
+  border: 1px solid rgba(255, 107, 61, 0.3);
+}
+/* ---- Partial failure highlight --------------------------------------- */
+.seeker_agent-kanban-card--failed :where(.seeker_agent-kanban-card-content) {
+  box-shadow: 0 0 0 2px var(--color-destructive, #d14a4a) inset,
+              0 0 8px color-mix(in srgb, var(--color-destructive, #d14a4a) 30%, transparent);
+}
+
+/* ---- Larger checkbox hit target -------------------------------------- */
+.seeker_agent-kanban-card-check-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: -0.3rem;
+  cursor: pointer;
+}
+.seeker_agent-kanban-card-check {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-ring);
+}
+
+/* ---- Column select-all checkbox -------------------------------------- */
+.seeker_agent-kanban-col-check {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0 0.15rem 0 0;
+  cursor: pointer;
+  accent-color: var(--color-ring);
+}
+
+/* ---- Bulk action bar extras ------------------------------------------ */
+.seeker_agent-kanban-bulk-priority {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+}
+.seeker_agent-kanban-bulk-reclaim-first {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+/* ---- Trash drop zone ------------------------------------------------- */
+
+.seeker_agent-kanban-trash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.75rem 0.5rem;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--color-card) 85%, transparent);
+  color: var(--color-muted-foreground);
+  font-size: 0.75rem;
+  min-height: 80px;
+  opacity: 0.5;
+  transition: opacity 120ms ease, border-color 120ms ease, background-color 120ms ease;
+  user-select: none;
+  pointer-events: none;
+}
+
+.seeker_agent-kanban-trash--active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.seeker_agent-kanban-trash--drop {
+  border-color: var(--color-destructive, #d14a4a);
+  background: color-mix(in srgb, var(--color-destructive, #d14a4a) 8%, var(--color-card));
+  color: var(--color-destructive, #d14a4a);
+}
+
+.seeker_agent-kanban-trash-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.seeker_agent-kanban-trash-label {
+  font-weight: 500;
+}

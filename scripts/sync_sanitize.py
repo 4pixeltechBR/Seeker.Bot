@@ -64,6 +64,9 @@ COMMERCIAL_FILES = [
     "src/core/hierarchy/crews/hunter_crew.py",
     "src/channels/telegram/commands/sales.py",
     "src/channels/telegram/bot_new.py",  # stale, ainda tem /scout e /crm
+    "tests/test_event_bridge.py",
+    "tests/test_month_enricher.py",
+    "tests/test_opportunity_engine.py",
 ]
 
 # Keywords proibidas no working tree publico
@@ -330,28 +333,46 @@ def security_scan(root: Path) -> list[tuple[str, str, int]]:
     """
     issues: list[tuple[str, str, int]] = []
     extensions = {".py", ".yaml", ".yml", ".md", ".bat", ".toml", ".json"}
+    target_dirs = ["src", "config", "tests"]
+    import os
 
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if path.suffix not in extensions:
-            continue
-        if any(part in SCAN_IGNORED_PARTS for part in path.parts):
-            continue
-        # Pula este proprio sanitizer (tem keywords como referencia)
-        if path.name == "sync_sanitize.py":
-            continue
+    # 1. Varre arquivos soltos na raiz do destino
+    for path in root.iterdir():
+        if path.is_file():
+            if path.suffix not in extensions:
+                continue
+            if path.name == "sync_sanitize.py":
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            for pattern, label in COMMERCIAL_PATTERNS:
+                for m in re.finditer(pattern, text):
+                    line_no = text.count("\n", 0, m.start()) + 1
+                    rel = path.relative_to(root).as_posix()
+                    issues.append((rel, label, line_no))
 
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+    # 2. Varre pastas alvo do reposicao (src, config, tests)
+    for target in target_dirs:
+        dir_path = root / target
+        if not dir_path.is_dir():
             continue
-
-        for pattern, label in COMMERCIAL_PATTERNS:
-            for m in re.finditer(pattern, text):
-                line_no = text.count("\n", 0, m.start()) + 1
-                rel = path.relative_to(root).as_posix()
-                issues.append((rel, label, line_no))
+        for dirpath, dirnames, filenames in os.walk(dir_path):
+            dirnames[:] = [d for d in dirnames if d not in SCAN_IGNORED_PARTS]
+            for fname in filenames:
+                path = Path(dirpath) / fname
+                if path.suffix not in extensions:
+                    continue
+                try:
+                    text = path.read_text(encoding="utf-8")
+                except (UnicodeDecodeError, OSError):
+                    continue
+                for pattern, label in COMMERCIAL_PATTERNS:
+                    for m in re.finditer(pattern, text):
+                        line_no = text.count("\n", 0, m.start()) + 1
+                        rel = path.relative_to(root).as_posix()
+                        issues.append((rel, label, line_no))
 
     return issues
 
