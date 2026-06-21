@@ -27,6 +27,11 @@ Você pode rodar ele inteiramente na nuvem com tiers gratuitos de API, ou **100%
 
 ---
 
+## 🆕 Novidades da v3.7-stable (Sprint 13.1)
+
+- **InstaScraper como SaveAsBot:** Refatoração completa do comando de download do Instagram. Agora funciona de forma totalmente simplificada enviando o link do post direto no chat, baixando de forma assíncrona, e enviando de volta o vídeo bruto em formato nativo (.mp4) ou como documento (para arquivos > 50MB) para evitar compressão, apagando o arquivo temporário local em seguida.
+- **Filtro de Relevância com Chain-of-Thought (CoT):** Upgrade estrutural no classificador e minerador de conteúdo do Seeker. O agente agora extrai metadados ricos (descrição parcial, tags, categorias do vídeo) e executa uma validação semântica com raciocínio Chain-of-Thought antes de decidir se o conteúdo é de fato relevante para o nicho configurado. Isso reduz falsos positivos e clickbaits off-topic drasticamente.
+
 ## 🆕 Novidades da v3.6-stable (Sprint 12.2)
 
 - **Painel de Configurações Interativo (`/config`):** Uma interface em botões diretamente no chat do Telegram para alternar skills em tempo de execução (gravação automática em `skills.yaml`), exibir modelos de IA ativos, checar custos do dia e realizar restart controlado do bot.

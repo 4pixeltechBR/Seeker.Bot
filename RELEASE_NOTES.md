@@ -1,6 +1,22 @@
-# Seeker.Bot v3.6 — "Painel /config Interativo & Ativação de Skills Specialist" 🚀⚙️
+# Seeker.Bot v3.7 — "Instagram SaveAsBot & Chain-of-Thought Relevance Filtering" 🚀🎥
 
-Esta release traz o novo painel de controle interativo `/config` via Telegram, permitindo gerenciar o Seeker em runtime sem precisar mexer em arquivos de configuração locais, além da ativação de 3 skills especialistas de monitoramento e execução remota.
+Esta release traz a reformulação completa do mecanismo de download de Reels do Instagram no Telegram (SaveAsBot) e um avanço na precisão da curadoria de conteúdo com o filtro de relevância baseado em Chain-of-Thought (CoT).
+
+## 🚀 Novidades
+
+### 1. InstaScraper como SaveAsBot (Download Direto)
+- **Fricção Zero:** O comando `/instascraper` foi reformulado no Telegram. Em vez de abrir menus interativos ou requerer comandos complexos, agora basta enviar a URL de um post diretamente no chat para que o download seja disparado imediatamente.
+- **Entrega Inteligente:** Envia a mídia baixada nativamente no formato de vídeo do Telegram (`send_video` para arquivos ≤ 50MB) ou como arquivo binário (`send_document` para arquivos maiores que 50MB, preservando a qualidade original e evitando o teto de compressão do Telegram).
+- **Limpeza de Espaço:** Limpeza automática do arquivo temporário no disco local imediatamente após a conclusão do envio no Telegram.
+
+### 2. Filtro de Relevância com Chain-of-Thought (CoT) para Vídeos
+- **Metadados Ricos:** A etapa de minerador de canais agora coleta informações contextuais completas do vídeo candidatas a outliers (descrição até 700 caracteres, tags e categorias) usando o yt-dlp.
+- **Raciocínio Estruturado (CoT):** O prompt do modelo de linguagem em nível `FAST` exige que ele faça um raciocínio interno avaliando se o conteúdo e o título clickbait de fato se alinham com os tópicos permitidos no nicho (`NICHE_TOPICS`). A IA devolve uma explicação passo a passo (`raciocinio_relevancia`) e a decisão estruturada em JSON, eliminando vídeos off-topic indesejados.
+- **Testes Unitários:** Adicionado suporte a testes automatizados validando a classificação semântica com dados reais de clickbaits e conteúdos limítrofes.
+
+---
+
+# Seeker.Bot v3.6 — "Painel /config Interativo & Ativação de Skills Specialist" 🚀⚙️
 
 ## 🚀 Novidades
 

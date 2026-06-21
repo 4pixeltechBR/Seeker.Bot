@@ -106,7 +106,7 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
         BotCommand(command="/drive", description="📁 Google Drive: listar, criar, enviar e baixar arquivos"),
         BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
-        BotCommand(command="/instascraper", description="📸 InstaScraper: Clona Instagram para o Obsidian"),
+        BotCommand(command="/instascraper", description="📥 InstaScraper: Baixa vídeo do Instagram para o chat"),
         BotCommand(command="/rl_tune", description="🧠 Tuning de parâmetros do LinUCB"),
         BotCommand(command="/rl_activate", description="🟢 Ativa o aprendizado por reforço (produção)"),
         BotCommand(command="/rl_deactivate", description="🔴 Desativa o aprendizado por reforço (shadow)"),
@@ -246,7 +246,7 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
             "<b>🚀 Utilitários:</b>\n"            "/git_backup — backup manual no GitHub\n"
             "/configure_news — personaliza notícias\n"
             "/drive — 📁 acesso ao Google Drive\n"
-            "/instascraper — 📸 clona vídeos/metadados do Instagram"
+            "/instascraper — 📥 baixa vídeo do Instagram para o chat (link de Reel/post)"
         )
 
         await message.answer(help_text, parse_mode=ParseMode.HTML)

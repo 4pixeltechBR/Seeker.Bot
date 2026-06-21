@@ -70,3 +70,9 @@ graphify-out/
 
 # Planning graphs and snapshots
 .planning/
+
+# Local Agent & Test Caches
+.agents/
+.pytest_cache/
+.pytest-cache/
+tests/debug_env.py

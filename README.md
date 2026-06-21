@@ -27,6 +27,11 @@ You can run it entirely in the cloud with free API tiers, or **100% locally** on
 
 ---
 
+## 🆕 What's New in v3.7-stable (Sprint 13.1)
+
+- **InstaScraper rewritten as SaveAsBot:** Completely refactored the Instagram downloader to act as a clean URL downloader. Simply send the post URL directly to the chat, and the bot will asynchronously fetch and deliver the raw video as a Telegram Video (≤50MB) or Document (>50MB) with auto-cleanup of local files.
+- **Chain-of-Thought (CoT) Relevance Filtering:** Structural upgrade to the Video Miner content classification pipeline. The agent now extracts rich video metadata (partial description, tags, categories) and evaluates semantic alignment with target niches via Chain-of-Thought reasoning before labeling content as relevant. This dramatically reduces off-topic clickbaits and false positives.
+
 ## 🆕 What's New in v3.6-stable (Sprint 12.2)
 
 - **Interactive Configuration Panel (`/config`):** A beautiful, button-based settings panel in Telegram that lets you toggle skills dynamically (saved directly to `skills.yaml`), view active LLM models, monitor daily budgets, and execute a graceful restart in one tap.

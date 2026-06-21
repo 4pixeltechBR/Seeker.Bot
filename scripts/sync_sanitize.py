@@ -73,6 +73,9 @@ COMMERCIAL_FILES = [
     "tests/test_opportunity_engine.py",
     "tests/test_event_radar_mapped.py",
     "tests/test_event_radar.py",
+    "tests/test_viralx9_relevance.py",
+    "PROJECT.md",
+    "PROJECT_STATE.md",
 ]
 
 # Keywords proibidas no working tree publico

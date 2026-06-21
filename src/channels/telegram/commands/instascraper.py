@@ -1,255 +1,183 @@
-import html
+"""
+instascraper — Comando Telegram para download de vídeos do Instagram.
+
+Funciona como o SaveAsBot: o usuário digita /instascraper, o bot pede o link,
+baixa o vídeo e envia o arquivo diretamente no chat para download.
+
+Suporta Reels, posts (/p/) e vídeos IGTV (/tv/).
+"""
 import logging
 import asyncio
-from aiogram import Router, F
-from aiogram.types import (
-    Message,
-    CallbackQuery,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-)
-from aiogram.enums import ParseMode
+from pathlib import Path
 
-from src.core.pipeline import SeekerPipeline
-from src.skills.instascraper.insta_scraper import InstaScraper
-from src.skills.instascraper.goal import TARGETS_FILE
+from aiogram import Router, F
+from aiogram.types import Message, FSInputFile
+from aiogram.enums import ParseMode
 
 log = logging.getLogger("seeker.telegram.instascraper")
 
 instascraper_router = Router()
-instascraper_states = {}
+
+# Mapa user_id -> estado de conversa
+# {"step": "waiting_url"}
+instascraper_states: dict[int, dict] = {}
+
+# Padrões de URL que o Instagram usa para vídeos individuais
+INSTAGRAM_VIDEO_PATTERNS = ("/reel/", "/p/", "/tv/", "instagram.com")
 
 
-def get_instascraper_keyboard():
-    keyboard = [
-        [InlineKeyboardButton(text="📋 Listar Alvos", callback_data="insta_list")],
-        [
-            InlineKeyboardButton(text="➕ Adicionar Perfil", callback_data="insta_add"),
-            InlineKeyboardButton(text="❌ Remover Perfil", callback_data="insta_remove_menu"),
-        ],
-        [InlineKeyboardButton(text="🚀 Executar Pendentes", callback_data="insta_force")],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+def _looks_like_instagram_url(text: str) -> bool:
+    """Heurística rápida para validar que o usuário mandou uma URL do Instagram."""
+    text = text.strip().lower()
+    return "instagram.com" in text and any(p in text for p in ("/reel/", "/p/", "/tv/"))
 
 
-def load_raw_targets() -> list[dict]:
-    import json
-    import os
-    if not os.path.exists(TARGETS_FILE):
-        return []
-    try:
-        with open(TARGETS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return []
-
-
-def save_raw_targets(targets: list[dict]):
-    import json
-    try:
-        with open(TARGETS_FILE, "w", encoding="utf-8") as f:
-            json.dump(targets, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        log.error(f"Erro ao salvar targets: {e}")
-
+# ── Comando principal ──────────────────────────────────────────────────────────
 
 @instascraper_router.message(F.text.startswith("/instascraper"))
 async def cmd_instascraper(message: Message):
-    args = message.text.split()
-    if len(args) > 1:
-        # Execução direta: /instascraper <perfil> [limite]
-        target_profile = args[1].strip().replace("@", "")
-        limit = 5
-        if len(args) > 2:
-            try:
-                limit = int(args[2])
-            except ValueError:
-                pass
-
-        status_msg = await message.answer(
-            f"⏳ <b>Iniciando InstaScraper para @{target_profile}...</b>\n"
-            f"• Limite de posts: {limit}\n"
-            f"• Delay Anti-Ban ativo (10-15s entre mídias).\n\n"
-            f"<i>Esta operação roda de forma segura no background. Aguarde o relatório...</i>",
-            parse_mode=ParseMode.HTML
-        )
-
-        async def run_scraping():
-            try:
-                scraper = InstaScraper()
-                loop = asyncio.get_running_loop()
-                # Roda a raspagem síncrona em executor para não travar o polling do bot
-                result = await loop.run_in_executor(
-                    None, scraper.raspar_perfil, target_profile, limit
-                )
-
-                if "Sucesso" in result:
-                    await status_msg.edit_text(
-                        f"✅ <b>InstaScraper concluído com sucesso!</b>\n\n"
-                        f"• Perfil: @{target_profile}\n"
-                        f"• Mídias locais salvas na pasta de Downloads.\n"
-                        f"• Notas Markdown geradas na Inbox do Obsidian.\n\n"
-                        f"<i>Detalhe: {result}</i>",
-                        parse_mode=ParseMode.HTML
-                    )
-                else:
-                    await status_msg.edit_text(
-                        f"❌ <b>Falha na execução do InstaScraper</b>\n\n"
-                        f"• Perfil: @{target_profile}\n"
-                        f"• Detalhe: {result}",
-                        parse_mode=ParseMode.HTML
-                    )
-            except Exception as ex:
-                log.error(f"Erro na raspagem direta: {ex}", exc_info=True)
-                await status_msg.edit_text(f"❌ Erro crítico no InstaScraper: {ex}")
-
-        # Dispara em background
-        asyncio.create_task(run_scraping())
-
-    else:
-        # Exibe o Painel
-        await message.answer(
-            "📸 <b>InstaScraper: Soberania Local & Obsidian</b>\n\n"
-            "Escolha uma opção no painel abaixo:",
-            reply_markup=get_instascraper_keyboard(),
-            parse_mode=ParseMode.HTML,
-        )
-
-
-@instascraper_router.message(
-    lambda message: (
-        message.from_user.id in instascraper_states
-        and instascraper_states[message.from_user.id].get("step") == "waiting_username"
-    )
-)
-async def intercept_insta_add(message: Message):
-    user_input = message.text.strip().replace("@", "")
+    """
+    Entrada do comando. Se o usuário mandou a URL junto (/instascraper <url>),
+    dispara o download direto. Se não, pede o link.
+    """
+    args = message.text.split(maxsplit=1)
     user_id = message.from_user.id
 
-    targets = load_raw_targets()
-    # Evita duplicações
-    if any(t["name"].lower() == user_input.lower() for t in targets):
+    if len(args) > 1 and _looks_like_instagram_url(args[1]):
+        # Modo express: /instascraper https://instagram.com/reel/xxx
+        await _handle_download(message, args[1].strip())
+    else:
+        # Modo interativo: pede o link
+        instascraper_states[user_id] = {"step": "waiting_url"}
         await message.answer(
-            f"⚠️ O perfil <b>@{user_input}</b> já está na lista de monitoramento.",
+            "📥 <b>InstaScraper</b>\n\n"
+            "Manda o link do vídeo do Instagram que você quer baixar.\n\n"
+            "<i>Aceito Reels, posts e IGTV — ex:\n"
+            "https://www.instagram.com/reel/ABC123/</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=get_instascraper_keyboard()
         )
-        del instascraper_states[user_id]
+
+
+# ── Interceptador de resposta (step = waiting_url) ─────────────────────────────
+
+@instascraper_router.message(
+    lambda msg: (
+        msg.from_user
+        and msg.from_user.id in instascraper_states
+        and instascraper_states[msg.from_user.id].get("step") == "waiting_url"
+    )
+)
+async def intercept_insta_url(message: Message):
+    """Recebe a URL enviada pelo usuário e inicia o download."""
+    user_id = message.from_user.id
+    url = (message.text or "").strip()
+
+    if not _looks_like_instagram_url(url):
+        await message.answer(
+            "⚠️ Isso não parece uma URL do Instagram.\n\n"
+            "Manda o link completo, ex:\n"
+            "<code>https://www.instagram.com/reel/ABC123/</code>",
+            parse_mode=ParseMode.HTML,
+        )
         return
 
-    targets.append({
-        "name": user_input,
-        "status": "pending",
-        "limit": 5
-    })
-    save_raw_targets(targets)
-    del instascraper_states[user_id]
+    # Limpa o estado antes de processar (evita duplicatas)
+    instascraper_states.pop(user_id, None)
+    await _handle_download(message, url)
 
-    await message.answer(
-        f"✅ Perfil <b>@{user_input}</b> adicionado à lista com status <code>pending</code> (limite: 5 posts).",
+
+# ── Lógica de download e envio ─────────────────────────────────────────────────
+
+async def _handle_download(message: Message, url: str):
+    """
+    Baixa o vídeo via InstaScraper.download_single_post e envia pelo Telegram.
+    Roda o download em thread separada para não bloquear o event loop.
+    """
+    status = await message.answer(
+        f"⏳ <b>Baixando vídeo...</b>\n"
+        f"<code>{url}</code>\n\n"
+        "<i>Aguarde, isso pode levar alguns segundos.</i>",
         parse_mode=ParseMode.HTML,
-        reply_markup=get_instascraper_keyboard()
     )
 
+    async def _do_download() -> Path | None:
+        from src.skills.instascraper.insta_scraper import InstaScraper
+        scraper = InstaScraper()
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, scraper.download_single_post, url)
 
-@instascraper_router.callback_query(F.data.startswith("insta_"))
-async def instascraper_callbacks(callback: CallbackQuery, pipeline: SeekerPipeline):
-    action = callback.data.split("insta_")[1]
-    user_id = callback.from_user.id
+    try:
+        video_path: Path | None = await _do_download()
+    except Exception as exc:
+        log.error(f"[instascraper] Erro no download de {url}: {exc}", exc_info=True)
+        await status.edit_text(
+            f"❌ <b>Falha ao baixar o vídeo</b>\n\n"
+            f"Detalhe: <code>{exc}</code>\n\n"
+            "<i>Verifique se o link é válido e se o post não é de conta privada.</i>",
+            parse_mode=ParseMode.HTML,
+        )
+        return
 
-    if action == "list":
-        targets = load_raw_targets()
-        if not targets:
-            await callback.message.edit_text(
-                "Nenhum perfil cadastrado na lista.",
-                reply_markup=get_instascraper_keyboard()
+    if not video_path or not video_path.exists():
+        await status.edit_text(
+            "❌ <b>Não foi possível baixar o vídeo.</b>\n\n"
+            "Possíveis causas:\n"
+            "• Post não é um vídeo (foto ou carrossel sem vídeo)\n"
+            "• Conta privada ou post deletado\n"
+            "• Sessão do Instagram expirou (cookies desatualizados)",
+            parse_mode=ParseMode.HTML,
+        )
+        return
+
+    # Atualiza status antes de enviar (upload pode demorar)
+    await status.edit_text(
+        "📤 <b>Vídeo baixado! Enviando para o chat...</b>",
+        parse_mode=ParseMode.HTML,
+    )
+
+    try:
+        file_size_mb = video_path.stat().st_size / (1024 * 1024)
+        caption = (
+            f"🎬 <b>Vídeo do Instagram</b>\n"
+            f"📦 {file_size_mb:.1f} MB\n"
+            f"🔗 <a href='{url}'>Link original</a>"
+        )
+
+        if file_size_mb <= 50:
+            # Até 50 MB → send_video (player nativo no Telegram)
+            await message.answer_video(
+                FSInputFile(video_path),
+                caption=caption,
+                parse_mode=ParseMode.HTML,
+                supports_streaming=True,
             )
-            return
-
-        lines = ["📸 <b>Instagram Alvos Monitorados:</b>\n"]
-        for t in targets:
-            status_emoji = "⏳" if t.get("status") == "pending" else "✅"
-            lines.append(
-                f"{status_emoji} <b>@{html.escape(t.get('name', ''))}</b> "
-                f"<i>(status: {t.get('status')}, limite: {t.get('limit', 5)})</i>"
+        else:
+            # Acima de 50 MB → send_document (evita timeout do Telegram)
+            await message.answer_document(
+                FSInputFile(video_path),
+                caption=caption,
+                parse_mode=ParseMode.HTML,
             )
 
-        await callback.message.edit_text(
-            "\n".join(lines),
-            parse_mode=ParseMode.HTML,
-            reply_markup=get_instascraper_keyboard(),
-        )
+        # Remove status de "enviando"
+        await status.delete()
 
-    elif action == "add":
-        instascraper_states[user_id] = {"step": "waiting_username"}
-        await callback.message.answer(
-            "Digite o username do perfil do Instagram que deseja adicionar:"
-        )
-        await callback.answer()
+        log.info(f"[instascraper] Vídeo enviado com sucesso: {video_path.name} ({file_size_mb:.1f} MB)")
 
-    elif action == "remove_menu":
-        targets = load_raw_targets()
-        if not targets:
-            await callback.answer("Nenhum perfil para remover.")
-            return
-
-        keyboard = []
-        for t in targets:
-            keyboard.append([
-                InlineKeyboardButton(
-                    text=f"❌ @{t.get('name')}",
-                    callback_data=f"insta_del_{t.get('name')}"
-                )
-            ])
-        keyboard.append([InlineKeyboardButton(text="⬅️ Voltar", callback_data="insta_back")])
-
-        await callback.message.edit_text(
-            "Selecione o perfil que deseja remover:",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard)
-        )
-        await callback.answer()
-
-    elif action.startswith("del_"):
-        target_name = action.split("del_")[1]
-        targets = load_raw_targets()
-        new_targets = [t for t in targets if t.get("name") != target_name]
-        save_raw_targets(new_targets)
-
-        await callback.answer(f"@{target_name} removido.")
-        await callback.message.edit_text(
-            "📸 <b>InstaScraper: Soberania Local & Obsidian</b>\n\n"
-            "Escolha uma opção no painel abaixo:",
-            reply_markup=get_instascraper_keyboard(),
+    except Exception as exc:
+        log.error(f"[instascraper] Falha ao enviar vídeo para o Telegram: {exc}", exc_info=True)
+        await status.edit_text(
+            f"⚠️ <b>Vídeo baixado mas falhou ao enviar</b>\n\n"
+            f"O arquivo está salvo localmente em:\n"
+            f"<code>{video_path}</code>\n\n"
+            f"Erro: <code>{exc}</code>",
             parse_mode=ParseMode.HTML,
         )
-
-    elif action == "back":
-        await callback.message.edit_text(
-            "📸 <b>InstaScraper: Soberania Local & Obsidian</b>\n\n"
-            "Escolha uma opção no painel abaixo:",
-            reply_markup=get_instascraper_keyboard(),
-            parse_mode=ParseMode.HTML,
-        )
-
-    elif action == "force":
-        await callback.answer("Iniciando varredura...")
-        status_msg = await callback.message.answer(
-            "⏳ <b>Processando perfis pendentes do InstaScraper...</b>",
-            parse_mode=ParseMode.HTML
-        )
-
-        async def run_sync():
-            try:
-                from src.skills.instascraper.goal import InstaScraperGoal
-                goal = InstaScraperGoal(pipeline)
-                res = await goal.run_cycle()
-                
-                msg = f"📝 <b>Resultado do Ciclo:</b>\n{res.summary}"
-                if res.notification:
-                    msg += f"\n\n{res.notification}"
-                await status_msg.edit_text(msg, parse_mode=ParseMode.HTML)
-            except Exception as e:
-                log.error(f"Erro na raspagem forçada: {e}", exc_info=True)
-                await status_msg.edit_text(f"❌ Erro na varredura: {e}")
-
-        asyncio.create_task(run_sync())
+    finally:
+        # Limpeza: remove o arquivo local após envio bem-sucedido para poupar disco
+        try:
+            if video_path and video_path.exists():
+                video_path.unlink()
+                log.debug(f"[instascraper] Arquivo temporário removido: {video_path}")
+        except Exception:
+            pass  # Não crítico
