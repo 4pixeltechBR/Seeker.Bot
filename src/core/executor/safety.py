@@ -11,9 +11,18 @@ class SafetyGate:
 
     # Bash commands whitelist por tier (command prefixes)
     BASH_WHITELIST = {
-        "L2_SILENT": ["ls", "cat", "grep", "find", "head", "tail", "wc", "pwd", "git"],
-        "L1_LOGGED": ["mkdir", "touch", "cp", "mv"],
-        "L0_MANUAL": ["rm", "rmdir", "chmod", "chown", "dd"],
+        "L2_SILENT": [
+            "ls", "cat", "grep", "find", "head", "tail", "wc",
+            "git status", "git log", "pwd", "echo",
+        ],
+        "L1_LOGGED": [
+            "mkdir", "touch", "cp", "mv", "echo >",
+            "git add", "git diff", "git fetch",
+        ],
+        "L0_MANUAL": [
+            "rm", "rmdir", "chmod", "chown", "dd",
+            "git rm", "git reset", "git rebase",
+        ],
     }
 
     # Sub-commands bloqueados mesmo se comando principal é permitido
@@ -147,12 +156,10 @@ class SafetyGate:
 SafetyGateEvaluator = SafetyGate
 
 
-class ExecutorPolicy:
-    """Policy executor para definir regras de execução"""
+from src.core.executor.base import ExecutorPolicy as _CanonicalExecutorPolicy
 
-    def __init__(self):
-        self.bash_whitelist = SafetyGate.BASH_WHITELIST
-        self.max_cost_per_action = SafetyGate.MAX_COST_PER_ACTION
-        self.max_cost_per_cycle = SafetyGate.MAX_COST_PER_CYCLE
-        self.max_cost_per_day = SafetyGate.MAX_COST_PER_DAY
-        self.afk_windows = SafetyGate.AFK_WINDOWS
+
+class ExecutorPolicy(_CanonicalExecutorPolicy):
+    """Compatibility alias — canonical definition lives in src.core.executor.base."""
+
+    pass

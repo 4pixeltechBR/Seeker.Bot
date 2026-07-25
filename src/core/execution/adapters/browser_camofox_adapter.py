@@ -32,7 +32,28 @@ def register():
         from seeker_agent.tools.browser_camofox import camofox_snapshot
         return camofox_snapshot()
 
-    register_adapter("browser_camo", "BROWSER_CAMO", desc, execute_browser_camo)
-    register_adapter("browser_camo", "BROWSER_CAMO_CLICK", "", execute_browser_camo_click)
-    register_adapter("browser_camo", "BROWSER_CAMO_TYPE", "", execute_browser_camo_type)
-    register_adapter("browser_camo", "BROWSER_CAMO_SNAPSHOT", "", execute_browser_camo_snapshot)
+    register_adapter(
+        "browser_camo", "BROWSER_CAMO", desc, execute_browser_camo,
+        examples=[
+            '[BROWSER_CAMO: "https://www.example.com"]',
+            '[BROWSER_CAMO: "https://www.linkedin.com/feed/"]',
+        ],
+    )
+    register_adapter(
+        "browser_camo", "BROWSER_CAMO_CLICK", "", execute_browser_camo_click,
+        examples=[
+            '[BROWSER_CAMO_CLICK: "@e5"]',
+            '[BROWSER_CAMO_CLICK: "button.submit"]',
+        ],
+    )
+    register_adapter(
+        "browser_camo", "BROWSER_CAMO_TYPE", "", execute_browser_camo_type,
+        examples=[
+            '[BROWSER_CAMO_TYPE: "@e10|seu texto aqui"]',
+            '[BROWSER_CAMO_TYPE: "input#search|AI agents 2026"]',
+        ],
+    )
+    register_adapter(
+        "browser_camo", "BROWSER_CAMO_SNAPSHOT", "", execute_browser_camo_snapshot,
+        examples=["[BROWSER_CAMO_SNAPSHOT]"],
+    )

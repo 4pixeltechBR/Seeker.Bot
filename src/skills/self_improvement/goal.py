@@ -193,12 +193,13 @@ class SelfImprovementGoal:
             f"=== ORIGINAL SOURCE CODE ===\n{source_code}\n===========================\n"
         )
 
-        from config.models import ModelRouter, MOONSHOT_KIMI_V1
+        from config.models import ModelRouter, GEMINI_35_FLASH
         from src.core.utils import parse_llm_json
 
         try:
-            # Cria um router one-off apenas com Kimi para tarefas analíticas pesadas
-            kimi_router = ModelRouter(routes={CognitiveRole.DEEP: [MOONSHOT_KIMI_V1]})
+            # Cria router one-off com Gemini 3.5 Flash (grátis, 1500 RPD) para análise de código
+            # S.A.R.A é análise estrutural - não precisa de modelo pago
+            sara_router = ModelRouter(routes={CognitiveRole.DEEP: [GEMINI_35_FLASH]})
 
             response = await invoke_with_fallback(
                 CognitiveRole.DEEP,
@@ -208,7 +209,7 @@ class SelfImprovementGoal:
                     max_tokens=4000,
                     temperature=0.0,
                 ),
-                kimi_router,
+                sara_router,
                 self.pipeline.api_keys,
             )
             cycle_cost += response.cost_usd

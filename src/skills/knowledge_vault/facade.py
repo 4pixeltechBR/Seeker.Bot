@@ -23,13 +23,16 @@ log = logging.getLogger("seeker.knowledge_vault.facade")
 
 
 class KnowledgeVault:
-    def __init__(self, cascade_adapter, vlm_client=None, web_searcher=None):
-        self.writer = ObsidianWriter()
-        self.analyzer = KnowledgeAnalyzer(cascade_adapter)
-        self.searcher = VaultSearcher()
+    def __init__(self, cascade_adapter, vlm_client=None, web_searcher=None, inbox_path=None):
         self.cascade = cascade_adapter
         self.vlm_client = vlm_client
         self.web_searcher = web_searcher
+        if inbox_path:
+            self.writer = ObsidianWriter(inbox_path=inbox_path)
+        else:
+            self.writer = ObsidianWriter()
+        self.analyzer = KnowledgeAnalyzer(cascade_adapter)
+        self.searcher = VaultSearcher()
 
     async def process_images(
         self, image_bytes_list: List[bytes], user_hint: str = ""
@@ -399,3 +402,265 @@ class KnowledgeVault:
             f"{answer}\n\n"
             f"━━━ Fontes ━━━\n{sources_block}"
         )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # WhatsApp v3.12 Phase 1b/1c — novos processadores
+    # ─────────────────────────────────────────────────────────────────────
+
+    async def process_docx(self, docx_bytes: bytes, user_hint: str = "") -> str:
+        """Processa DOCX: extrai texto, analisa e grava no cofre."""
+        try:
+            from .extractors import extract_from_docx
+            text = await extract_from_docx(docx_bytes)
+            if not text or text.startswith("["):
+                return f"❌ Falha ao extrair DOCX: {text}"
+
+            if self.cascade is None:
+                path = self.writer.write_note(
+                    title=user_hint or "Documento DOCX",
+                    body=text,
+                    tags=["docx"],
+                    source_type="docx",
+                )
+                tags_str = " ".join([f"#{t}" for t in ["docx"]])
+                return f"✅ **Nota salva (DOCX): {path.stem}**\n📂 {path.parent}\n🏷️ {tags_str}"
+
+            query = self._derive_query(text)
+            web_context = await self._research(query)
+            note_data = await self.analyzer.analyze_and_tag(
+                text, "docx", user_hint=user_hint,
+                extra_meta={"web_context": web_context}
+            )
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="docx",
+            )
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (DOCX): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar DOCX: {e}")
+            return f"❌ Erro ao processar DOCX: {str(e)[:100]}"
+
+    async def process_xlsx(self, xlsx_bytes: bytes, user_hint: str = "") -> str:
+        """Processa XLSX: extrai sheets, analisa e grava no cofre."""
+        try:
+            from .extractors import extract_from_xlsx
+            text = await extract_from_xlsx(xlsx_bytes)
+            if not text or text.startswith("["):
+                return f"❌ Falha ao extrair XLSX: {text}"
+
+            if self.cascade is None:
+                path = self.writer.write_note(
+                    title=user_hint or "Planilha XLSX",
+                    body=text,
+                    tags=["xlsx"],
+                    source_type="xlsx",
+                )
+                return f"✅ **Nota salva (XLSX): {path.stem}**\n📂 {path.parent}"
+
+            query = self._derive_query(text)
+            web_context = await self._research(query)
+            note_data = await self.analyzer.analyze_and_tag(
+                text, "xlsx", user_hint=user_hint,
+                extra_meta={"web_context": web_context}
+            )
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="xlsx",
+            )
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (XLSX): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar XLSX: {e}")
+            return f"❌ Erro ao processar XLSX: {str(e)[:100]}"
+
+    async def process_pptx(self, pptx_bytes: bytes, user_hint: str = "") -> str:
+        """Processa PPTX: extrai slides, analisa e grava no cofre."""
+        try:
+            from .extractors import extract_from_pptx
+            text = await extract_from_pptx(pptx_bytes)
+            if not text or text.startswith("["):
+                return f"❌ Falha ao extrair PPTX: {text}"
+
+            if self.cascade is None:
+                path = self.writer.write_note(
+                    title=user_hint or "Apresentação PPTX",
+                    body=text,
+                    tags=["pptx"],
+                    source_type="pptx",
+                )
+                return f"✅ **Nota salva (PPTX): {path.stem}**\n📂 {path.parent}"
+
+            query = self._derive_query(text)
+            web_context = await self._research(query)
+            note_data = await self.analyzer.analyze_and_tag(
+                text, "pptx", user_hint=user_hint,
+                extra_meta={"web_context": web_context}
+            )
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="pptx",
+            )
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (PPTX): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar PPTX: {e}")
+            return f"❌ Erro ao processar PPTX: {str(e)[:100]}"
+
+    async def process_vcard(self, vcf_bytes: bytes, user_hint: str = "") -> str:
+        """Processa vCard: parseia, gera nota markdown e grava no cofre."""
+        try:
+            from .extractors import extract_from_vcard
+            text = await extract_from_vcard(vcf_bytes)
+            if not text or text.startswith("["):
+                return f"❌ Falha ao parsear vCard: {text}"
+
+            if self.cascade is None:
+                path = self.writer.write_note(
+                    title=user_hint or "Contato vCard",
+                    body=text,
+                    tags=["vcard", "contato"],
+                    source_type="vcard",
+                )
+                return f"✅ **Nota salva (vCard): {path.stem}**\n📂 {path.parent}"
+
+            note_data = await self.analyzer.analyze_and_tag(
+                text, "vcard", user_hint=user_hint
+            )
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="vcard",
+            )
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (vCard): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar vCard: {e}")
+            return f"❌ Erro ao processar vCard: {str(e)[:100]}"
+
+    async def process_location(
+        self, lat: float, lon: float, name: str = "", address: str = ""
+    ) -> str:
+        """Processa localização (lat/lon): reverse-geocoding + nota no cofre."""
+        try:
+            from .extractors import reverse_geocode
+            if not address:
+                try:
+                    address = reverse_geocode(lat, lon)
+                except Exception as e:
+                    log.debug(f"[facade] reverse_geocode falhou: {e}")
+                    address = f"{lat:.4f}, {lon:.4f}"
+
+            title_name = name or address or f"{lat:.4f},{lon:.4f}"
+            body = (
+                f"# {title_name}\n\n"
+                f"- **Latitude**: {lat}\n"
+                f"- **Longitude**: {lon}\n"
+                f"- **Endereço**: {address}\n"
+            )
+
+            path = self.writer.write_note(
+                title=f"Localização: {title_name}",
+                body=body,
+                tags=["localização", "whatsapp"],
+                source_type="location",
+            )
+            return f"✅ **Localização salva: {path.stem}**\n📂 {path.parent}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar localização: {e}")
+            return f"❌ Erro ao processar localização: {str(e)[:100]}"
+
+    async def process_video(self, video_bytes: bytes, user_hint: str = "") -> str:
+        """Processa vídeo: extrai transcrição (e frames) e grava no cofre."""
+        try:
+            from .extractors import extract_from_video
+            text = await extract_from_video(video_bytes, vlm_client=self.vlm_client)
+            if not text or text.startswith("["):
+                return f"❌ Falha ao extrair conteúdo do vídeo: {text}"
+
+            if self.cascade is None:
+                path = self.writer.write_note(
+                    title=user_hint or "Vídeo",
+                    body=text,
+                    tags=["vídeo"],
+                    source_type="video",
+                )
+                return f"✅ **Nota salva (Vídeo): {path.stem}**\n📂 {path.parent}"
+
+            query = self._derive_query(text)
+            web_context = await self._research(query)
+            note_data = await self.analyzer.analyze_and_tag(
+                text, "video", user_hint=user_hint,
+                extra_meta={"web_context": web_context}
+            )
+            self.writer.write_note(
+                title=note_data.title,
+                body=note_data.content_body,
+                tags=note_data.tags,
+                source_type="video",
+            )
+            tags_str = " ".join([f"#{t}" for t in note_data.tags])
+            return f"✅ **Nota salva (Vídeo): {note_data.title}**\n📂 Inbox/\n🏷️ {tags_str}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar vídeo: {e}")
+            return f"❌ Erro ao processar vídeo: {str(e)[:100]}"
+
+    async def process_sticker(self, source_label: str = "Sticker") -> str:
+        """Registra um sticker (sem texto extraível) como nota-marcador."""
+        try:
+            body = (
+                f"🎨 **{source_label}** — ignorado (sticker não contém "
+                f"texto extraível).\n"
+            )
+            path = self.writer.write_note(
+                title=f"Sticker: {source_label}",
+                body=body,
+                tags=["sticker", "whatsapp"],
+                source_type="sticker",
+            )
+            return f"✅ **Sticker registrado: {path.stem}**\n📂 {path.parent}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao registrar sticker: {e}")
+            return f"❌ Erro ao registrar sticker: {str(e)[:100]}"
+
+    async def process_poll(
+        self, question: str, options: list, votes: dict | None = None
+    ) -> str:
+        """Processa enquete do WhatsApp: grava dados crus como tabela markdown."""
+        try:
+            votes = votes or {}
+            total = sum(
+                v for v in votes.values() if isinstance(v, (int, float))
+            )
+            lines = [
+                f"# Enquete: {question}",
+                "",
+                "| Opção | Votos |",
+                "|---|---|",
+            ]
+            for i, opt in enumerate(options):
+                v = votes.get(str(i), votes.get(opt, 0))
+                if not isinstance(v, (int, float)):
+                    v = 0
+                pct = f" ({v / total * 100:.0f}%)" if total > 0 else ""
+                lines.append(f"| {opt} | {v}{pct} |")
+            if total > 0:
+                lines.append(f"\n**Total**: {int(total)} votos")
+            body = "\n".join(lines)
+            path = self.writer.write_note(
+                title=f"Enquete: {question[:60]}",
+                body=body,
+                tags=["enquete", "whatsapp", "poll"],
+                source_type="poll",
+            )
+            return f"✅ **Enquete salva: {path.stem}**\n📂 {path.parent}"
+        except Exception as e:
+            log.error(f"[facade] Erro ao processar enquete: {e}")
+            return f"❌ Erro ao processar enquete: {str(e)[:100]}"

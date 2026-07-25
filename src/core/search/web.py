@@ -189,6 +189,11 @@ class TavilyBackend(SearchBackend):
                     except Exception as close_err:
                         log.debug(f"[tavily] erro ao fechar cliente (ignorado): {close_err}")
                     self._client = None
+            elif resp.status_code == 402:
+                if self.breaker:
+                    await self.breaker.record_failure("tavily", 402)
+                log.warning(f"[tavily] HTTP 402 Payment Required — quota esgotada. Pulando provider.")
+                return SearchResponse(query=query, backend="tavily")
             else:
                 if self.breaker:
                     await self.breaker.record_success("tavily")
@@ -257,7 +262,11 @@ class BraveBackend(SearchBackend):
                 if resp.status_code == 429:
                     if self.breaker:
                         await self.breaker.record_failure("brave", 429)
-                    # Retorna sem levantar: evita contagem dupla de falha no except
+                    return SearchResponse(query=query, backend="brave")
+                if resp.status_code == 402:
+                    if self.breaker:
+                        await self.breaker.record_failure("brave", 402)
+                    log.warning(f"[brave] HTTP 402 Payment Required — quota esgotada. Pulando provider.")
                     return SearchResponse(query=query, backend="brave")
                 resp.raise_for_status()
 
@@ -775,16 +784,30 @@ class WebSearcher:
         #    primeiro resultado não-vazio que chegar (race). Reduz latência de
         #    ~N×timeout (sequencial) para ~1×timeout do backend mais rápido.
         eligible = []
+        skipped_reasons = {}
         for backend in self.backends:
             backend_name = backend.__class__.__name__.lower().replace("backend", "")
-            # Verifica limites preventivos de cota antes de bater na API
+            # Verifica limites preventivos de cota antes de bater na API (FASE 2.2)
             if self.cost_tracker and hasattr(self.cost_tracker, "quota_manager"):
                 if not self.cost_tracker.quota_manager.has_quota(backend_name):
-                    log.warning(f"[search] ⚠️ Cota preventiva diária/mensal esgotada para '{backend_name}'. Pulando.")
+                    log.warning(f"[search] ⚠️ Cota preventiva esgotada para '{backend_name}'. Pulando.")
                     continue
+            # Smart quota awareness — consulta rate_limits + quotas.json antes de chamar
+            skip_reason = self.breaker.should_skip_backend(backend_name)
+            if skip_reason:
+                log.warning(f"[search] ⚠️ Backend '{backend_name}' pulado: {skip_reason}")
+                skipped_reasons[backend_name] = skip_reason
+                continue
             eligible.append(backend)
 
         if not eligible:
+            all_status = self.breaker.get_all_status()
+            all_paid = all_status.get("_all_paid_offline", False)
+            if all_paid:
+                log.error(
+                    f"[search] 🚨 TODOS os providers pagos estão offline ou sem quota! "
+                    f"Situação: {skipped_reasons}"
+                )
             return SearchResponse(query=query)
 
         per_backend_timeout = float(os.getenv("SEARCH_BACKEND_TIMEOUT", "8.0"))

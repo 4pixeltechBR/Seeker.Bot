@@ -25,6 +25,8 @@ CRASH_LOOP_COOLDOWN = 300  # 5 min de pausa se atingir MAX_RESTARTS
 # Resolvendo caminhos base
 BASE_DIR = Path(__file__).parent.resolve()
 SEEKER_AGENT_DIR = BASE_DIR / "seeker_agent"
+if not SEEKER_AGENT_DIR.exists():
+    SEEKER_AGENT_DIR = BASE_DIR
 
 LOG_FILE = str(BASE_DIR / "logs" / "agent_watchdog.log")
 GATEWAY_LOG_FILE = str(BASE_DIR / "logs" / "agent_gateway.log")
@@ -32,6 +34,11 @@ GATEWAY_LOG_FILE = str(BASE_DIR / "logs" / "agent_gateway.log")
 # Carregando a home do agente para localizar o heartbeat
 AGENT_HOME = Path.home() / ".seeker_agent"
 ENV_PATH = SEEKER_AGENT_DIR / ".env"
+if not ENV_PATH.exists():
+    ENV_PATH = BASE_DIR / ".env"
+if not ENV_PATH.exists():
+    ENV_PATH = BASE_DIR / "config" / ".env"
+
 if ENV_PATH.exists():
     try:
         with open(ENV_PATH, "r", encoding="utf-8") as f:
@@ -258,9 +265,31 @@ def acquire_singleton_lock() -> bool:
     return True
 
 
+def _gateway_module_exists() -> bool:
+    """Verifica se o módulo gateway.run é importável a partir de SEEKER_AGENT_DIR."""
+    gateway_pkg = SEEKER_AGENT_DIR / "gateway"
+    if gateway_pkg.is_dir() and (gateway_pkg / "__init__.py").exists():
+        return True
+    # Tenta também como gateway/run.py standalone
+    if (gateway_pkg / "run.py").exists():
+        return True
+    return False
+
+
 def main():
     if not acquire_singleton_lock():
         sys.exit(2)
+
+    # Validação prévia: se o módulo gateway não existir, encerra
+    # graciosamente em vez de entrar em crash-loop.
+    if not _gateway_module_exists():
+        log.warning(
+            f"Módulo 'gateway' não encontrado em {SEEKER_AGENT_DIR}. "
+            f"Agent Gateway Watchdog ficará inativo até que o módulo seja instalado."
+        )
+        # Encerrar com código 0 (sucesso) para que o orquestrador
+        # não interprete como crash e derrube o bot.
+        sys.exit(0)
 
     log.info("=" * 60)
     log.info("Seeker.Agent Gateway Watchdog iniciado")

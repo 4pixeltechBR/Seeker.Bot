@@ -46,6 +46,18 @@ dependencies = [
     "aioimaplib>=2.0",
     "aiosmtplib>=5.0",
     "pytz>=2024.1",
+    # Skill: research_machine — NotebookLM integration (lazy import)
+    "notebooklm-py>=0.2,<0.4",
+    # Skill: custom_extension (V2 multi-source trend detection + thumbnail CV)
+    # Adicionadas em jul/2026 após Fix #2: feedparser era import top-level
+    # em trend_v2.py e derrubava o boot inteiro quando faltava.
+    "feedparser>=6.0",
+    "mediapipe>=0.10",
+    "opencv-python>=4.9",
+    "google-api-python-client>=2.0",
+    # MCP (Model Context Protocol) — suporte a servidores externos
+    # (filesystem, github, etc.) via stdio transport
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]

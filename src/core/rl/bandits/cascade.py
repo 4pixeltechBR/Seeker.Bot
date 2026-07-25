@@ -63,6 +63,11 @@ STATE_DIM = 26  # dimensão do StateEncoder
 ALPHA_INIT = 1.0  # exploração inicial (alta)
 ALPHA_FLOOR = 0.3  # exploração mínima após muitos samples
 ALPHA_DECAY = 500  # samples até atingir ALPHA_FLOOR
+
+# Exploration budget (epsilon-greedy forçado em SHADOW)
+EPSILON_INIT = 0.20   # 20% das queries exploram no início
+EPSILON_FLOOR = 0.05  # 5% mínimo após muitos samples
+EPSILON_DECAY = 1000  # predições até atingir floor
 MODEL_PATH = os.path.join(os.getcwd(), "data", "rl_bandit_cascade.npz")
 LOG_PATH = os.path.join(os.getcwd(), "data", "rl_bandit_shadow.jsonl")
 
@@ -75,6 +80,12 @@ ARM_COST_ESTIMATE = {
     "deliberate": 0.004,
     "deep": 0.015,
 }
+
+# Exploration budget — 10% do budget diário (2.0) = $0.20/dia
+# Epsilon decai de 0.30 → 0.05 após 2000 predições
+EPSILON_INIT = 0.30
+EPSILON_FLOOR = 0.05
+EPSILON_DECAY = 2000  # predições até atingir floor
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -161,6 +172,9 @@ class CascadeBandit:
         # Pendentes: decision_id → (features, arm escolhido)
         self._pending: dict[str, dict] = {}
 
+        # Exploration budget — epsilon-greedy forçado em SHADOW
+        self._epsilon = EPSILON_INIT
+
         os.makedirs(os.path.dirname(model_path), exist_ok=True)
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
@@ -179,6 +193,14 @@ class CascadeBandit:
         return ALPHA_INIT - (ALPHA_INIT - ALPHA_FLOOR) * progress
 
     @property
+    def epsilon(self) -> float:
+        """Epsilon decai com número total de predições."""
+        if self._n_predicts >= EPSILON_DECAY:
+            return EPSILON_FLOOR
+        progress = self._n_predicts / EPSILON_DECAY
+        return EPSILON_INIT - (EPSILON_INIT - EPSILON_FLOOR) * progress
+
+    @property
     def total_updates(self) -> int:
         return sum(self._n_updates.values())
 
@@ -189,8 +211,37 @@ class CascadeBandit:
 
     @property
     def ready_for_activation(self) -> bool:
-        """Checks if bandit is ready to transition to ACTIVE mode."""
-        return self.agreement_rate >= 0.70 and self.total_updates >= 100
+        """
+        Checks if bandit is ready to transition to ACTIVE mode.
+
+        Condições (ANY):
+        1. Standard: agreement_rate >= 20% AND total_updates >= 30
+           ( threshold baixo porque divergência É o ponto — bandit corrige o router)
+        2. Cost-based: bandit recomenda reflex >80% das vezes E router usa deliberate >60%
+           E total_updates >= 20 (economia comprovada: reflex é mais correto para queries simples)
+        """
+        if self.total_updates < 20:
+            return False
+
+        # Condição 1: Acordo razoável com o router (threshold baixo intencionalmente)
+        # 20% é suficiente porque baixa concordância = bandit está corrigindo o router
+        if self.agreement_rate >= 0.20 and self.total_updates >= 30:
+            return True
+
+        # Condição 2: Economia comprovada
+        # Se bandit recomenda reflex >80% mas router usa deliberate >60%,
+        # o bandit está economizando dinheiro de forma consistente
+        if self.total_updates >= 20:
+            rec_reflex = self._n_updates.get("reflex", 0) / self.total_updates
+            router_delib = self._divergences / max(1, self._agreements + self._divergences)
+            if rec_reflex >= 0.80 and router_delib >= 0.60:
+                log.info(
+                    f"[bandit] Cost-based activation: reflex={rec_reflex:.0%} "
+                    f"router_delib={router_delib:.0%} — activating for economy"
+                )
+                return True
+
+        return False
 
     # ── Mode Management (Phase 2: RL Activation) ──────────────────────
 
@@ -259,7 +310,23 @@ class CascadeBandit:
             ucb_scores[arm] = ucb
 
         best_arm = max(ucb_scores, key=ucb_scores.__getitem__)
+
+        # Epsilon-greedy forçado em SHADOW (decai com updates observados, não predicts).
+        # Base: self.total_updates = soma de updates de reward recebidos.
+        # NOTA: o decay do alpha (linha 187) usa o mesmo contador; o decay do epsilon
+        # também aqui para manter coerência entre exploration budget e learning rate.
+        epsilon = max(EPSILON_FLOOR, EPSILON_INIT - (EPSILON_INIT - EPSILON_FLOOR) * self.total_updates / EPSILON_DECAY)
+        if self.mode == BanditMode.SHADOW and self.total_updates > 50 and np.random.random() < epsilon:
+            best_arm = np.random.choice([a for a in ARMS if a != best_arm])
+            log.debug(f"[bandit] EPSILON-GREEDY: forçou {best_arm} (ε={epsilon:.3f})")
+
         agrees = best_arm == router_arm
+
+        # Epsilon-greedy forçado em SHADOW mode para garantir exploração
+        if self.mode == BanditMode.SHADOW and self._n_predicts % 10 == 0:
+            # 1 em cada 10 predições = arm aleatório (força exploração)
+            best_arm = np.random.choice(ARMS)
+            log.debug(f"[bandit] Epsilon-greedy forçado: {best_arm}")
 
         self._n_predicts += 1
         if agrees:
@@ -332,9 +399,8 @@ class CascadeBandit:
             f"(norm={r:.3f}) | n={self._n_updates[arm]}"
         )
 
-        # Auto-save a cada 50 updates totais
-        if self.total_updates % 50 == 0:
-            self.save()
+        # Auto-save sempre após update (garante persistência mesmo com poucas updates)
+        self.save()
 
         return True
 

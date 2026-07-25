@@ -9,12 +9,38 @@ qualquer um derrubaria a importação do módulo e travaria o boot do bot
 
 import os
 import re
+import json
+import time
+import math
+import asyncio
+import subprocess
 import logging
+from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
 from src.core.search.web import fetch_page_text
+from src.core.utils import filter_ytdlp_stderr
 
 log = logging.getLogger("seeker.knowledge_vault.extractors")
+
+
+GEO_CACHE_FILENAME = "whatsapp_geo_cache.json"
+GEO_CACHE_TTL_DAYS = 30
+SECONDS_PER_DAY = 86400
+
+
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Write JSON atomically: write to .tmp, then os.replace."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            tmp.unlink()
+        except Exception:
+            pass
 
 
 async def fetch_raw_text(url: str, max_chars: int = 12000) -> str:
@@ -196,17 +222,18 @@ async def extract_from_youtube(url: str) -> Tuple[str, Dict]:
             "subtitlesformat": "json",
             "writesubtitles": True,
         }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            metadata["title"] = info.get("title", metadata["title"])
-            metadata["channel"] = info.get("uploader", metadata["channel"])
-            metadata["duration"] = info.get("duration")
+        with filter_ytdlp_stderr():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        metadata["title"] = info.get("title", metadata["title"])
+        metadata["channel"] = info.get("uploader", metadata["channel"])
+        metadata["duration"] = info.get("duration")
 
-            if not transcript_text:
-                # Se não pegamos via API, podemos tentar ler os arquivos de legenda se o yt-dlp baixasse,
-                # mas o youtube-transcript-api é mais direto. Se chegamos aqui sem texto,
-                # é provável que não existam legendas ativas.
-                transcript_text = "[Sem legendas disponíveis para este vídeo]"
+        if not transcript_text:
+            # Se não pegamos via API, podemos tentar ler os arquivos de legenda se o yt-dlp baixasse,
+            # mas o youtube-transcript-api é mais direto. Se chegamos aqui sem texto,
+            # é provável que não existam legendas ativas.
+            transcript_text = "[Sem legendas disponíveis para este vídeo]"
     except Exception as e:
         log.error(f"[extractors] Erro ao extrair metadados/fallback: {e}")
 
@@ -423,3 +450,216 @@ async def extract_from_mht(mht_bytes: bytes) -> str:
         return text_content.strip()
         
     return "[MHT vazio ou sem partes textuais compatíveis]"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# WhatsApp v3.12 Phase 1b — novos extractors (Office, vCard, video, geo)
+# ─────────────────────────────────────────────────────────────────────
+
+async def extract_from_docx(docx_bytes: bytes) -> str:
+    """Extract text from DOCX. Lazy import python-docx. Returns markdown."""
+    if not docx_bytes:
+        return "[Documento vazio]"
+    if len(docx_bytes) > 50 * 1024 * 1024:
+        return "[ERRO: DOCX maior que 50MB]"
+    try:
+        import docx
+        import io
+        doc = docx.Document(io.BytesIO(docx_bytes))
+        parts = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                parts.append(para.text)
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " | ".join(cell.text for cell in row.cells)
+                parts.append(f"| {row_text} |")
+        return "\n".join(parts) if parts else "[Sem texto extraível]"
+    except Exception as e:
+        log.warning(f"[extractors] DOCX falhou: {e}")
+        return f"[ERRO DOCX: {e}]"
+
+
+async def extract_from_xlsx(xlsx_bytes: bytes) -> str:
+    """Extract sheets from XLSX. Lazy import openpyxl. Returns CSV-like markdown."""
+    if not xlsx_bytes:
+        return "[Planilha vazia]"
+    if len(xlsx_bytes) > 50 * 1024 * 1024:
+        return "[ERRO: XLSX maior que 50MB]"
+    try:
+        from openpyxl import load_workbook
+        import io
+        wb = load_workbook(io.BytesIO(xlsx_bytes), read_only=True, data_only=True)
+        parts = []
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            parts.append(f"## Sheet: {sheet_name}")
+            for row in ws.iter_rows(values_only=True):
+                if any(cell is not None for cell in row):
+                    cells = [str(c) if c is not None else "" for c in row]
+                    parts.append("| " + " | ".join(cells) + " |")
+        wb.close()
+        return "\n".join(parts) if len(parts) > 1 else "[Sem dados]"
+    except Exception as e:
+        log.warning(f"[extractors] XLSX falhou: {e}")
+        return f"[ERRO XLSX: {e}]"
+
+
+async def extract_from_pptx(pptx_bytes: bytes) -> str:
+    """Extract slides from PPTX. Lazy import python-pptx. Returns markdown."""
+    if not pptx_bytes:
+        return "[Apresentação vazia]"
+    if len(pptx_bytes) > 50 * 1024 * 1024:
+        return "[ERRO: PPTX maior que 50MB]"
+    try:
+        from pptx import Presentation
+        import io
+        prs = Presentation(io.BytesIO(pptx_bytes))
+        parts = []
+        for i, slide in enumerate(prs.slides, 1):
+            parts.append(f"## Slide {i}")
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text.strip():
+                    parts.append(shape.text)
+        return "\n".join(parts) if parts else "[Sem texto extraível]"
+    except Exception as e:
+        log.warning(f"[extractors] PPTX falhou: {e}")
+        return f"[ERRO PPTX: {e}]"
+
+
+async def extract_from_vcard(vcf_bytes: bytes) -> str:
+    """Parse vCard 3.0/4.0 bytes. Returns formatted text."""
+    if not vcf_bytes:
+        return "[vCard vazio]"
+    try:
+        text = vcf_bytes.decode("utf-8", errors="replace")
+        cards = []
+        current = {}
+        for line in text.splitlines():
+            if line.strip() == "BEGIN:VCARD":
+                current = {}
+            elif line.strip() == "END:VCARD":
+                if current:
+                    cards.append(current)
+            elif ":" in line and not line.startswith("BEGIN") and not line.startswith("END"):
+                key, _, value = line.partition(":")
+                base_key = key.strip().split(";")[0]
+                current[base_key] = value.strip()
+        if not cards:
+            return "[vCard inválido]"
+        out = ["# Contatos extraídos"]
+        for c in cards:
+            out.append(f"## {c.get('FN', c.get('N', '?'))}")
+            for k in ("TEL", "EMAIL", "ORG", "TITLE", "URL", "ADR"):
+                if k in c:
+                    out.append(f"- **{k}**: {c[k]}")
+        return "\n".join(out)
+    except Exception as e:
+        log.warning(f"[extractors] vCard falhou: {e}")
+        return f"[ERRO vCard: {e}]"
+
+
+async def extract_from_video(video_bytes: bytes, vlm_client=None) -> str:
+    """Extract audio track from video and transcribe (Groq Whisper + local fallback).
+
+    NOTE: Keyframe OCR is intentionally NOT implemented in v3.12 — only audio
+    transcript. Add keyframe support in v3.13+ if needed.
+    """
+    if not video_bytes:
+        return "[Vídeo vazio]"
+    if len(video_bytes) > 50 * 1024 * 1024:
+        return "[ERRO: Vídeo maior que 50MB]"
+    try:
+        import tempfile
+        import imageio_ffmpeg
+
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as v_in:
+            v_in.write(video_bytes)
+            v_in_path = v_in.name
+        audio_path = v_in_path + ".mp3"
+        try:
+            # Extract audio via thread pool (no event-loop block)
+            proc = await asyncio.to_thread(
+                subprocess.run,
+                [ffmpeg_exe, "-y", "-i", v_in_path, "-vn", "-acodec", "libmp3lame",
+                 "-ar", "16000", audio_path],
+                capture_output=True, timeout=60,
+            )
+            transcript = ""
+            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                try:
+                    from src.skills.transcription.stt_groq import transcribe_audio_groq
+                    with open(audio_path, "rb") as af:
+                        transcript = await transcribe_audio_groq(af.read())
+                except Exception as e:
+                    log.warning(f"[extractors] transcrição falhou: {e}")
+                    transcript = "[Transcrição falhou]"
+
+            # OCR keyframes if VLM available — for now skip with clear log message
+            if vlm_client and hasattr(vlm_client, "ocr_fast"):
+                log.debug("[extractors] Keyframe OCR ainda não implementado; only audio")
+
+            parts = ["# Transcrição de vídeo"]
+            if transcript:
+                parts.append(transcript)
+            return "\n\n".join(parts) if len(parts) > 1 else "[Sem conteúdo extraível]"
+        finally:
+            for p in (v_in_path, audio_path):
+                try:
+                    os.unlink(p)
+                except OSError:
+                    pass
+    except Exception as e:
+        log.warning(f"[extractors] Vídeo falhou: {e}")
+        return f"[ERRO Vídeo: {e}]"
+
+
+def reverse_geocode(lat: float, lon: float) -> str:
+    """Reverse-geocode via Google Maps API with 30-day file cache."""
+    try:
+        from pathlib import Path
+        cache_path = Path(__file__).resolve().parents[3] / "data" / GEO_CACHE_FILENAME
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+        cache: dict = {}
+        if cache_path.exists():
+            try:
+                cache = json.loads(cache_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                cache = {}
+
+        key = f"{round(lat, 4)},{round(lon, 4)}"
+        now_ts = time.time()
+        if key in cache:
+            age_days = (now_ts - cache[key].get("ts", 0)) / SECONDS_PER_DAY
+            if age_days < GEO_CACHE_TTL_DAYS:
+                return cache[key]["address"]
+
+        api_key = os.getenv("GOOGLE_CLOUD_API_KEY", "")
+        if not api_key:
+            return f"{lat:.4f}, {lon:.4f}"
+
+        try:
+            import httpx
+            url = "https://maps.googleapis.com/maps/api/geocode/json"
+            params = {"latlng": f"{lat},{lon}", "key": api_key, "language": "pt-BR"}
+            with httpx.Client(timeout=5.0) as client:
+                r = client.get(url, params=params)
+                data = r.json()
+            results = data.get("results", [])
+            address = results[0].get("formatted_address", key) if results else key
+        except Exception as e:
+            log.warning(f"[extractors] geocode falhou: {e}")
+            return f"{lat:.4f}, {lon:.4f}"
+
+        try:
+            cache[key] = {"address": address, "ts": now_ts}
+            _atomic_write_json(cache_path, cache)
+        except OSError as e:
+            log.debug(f"[extractors] cache write ignorado: {e}")
+
+        return address
+    except Exception as e:
+        log.warning(f"[extractors] reverse_geocode falhou: {e}")
+        return f"{lat:.4f}, {lon:.4f}"

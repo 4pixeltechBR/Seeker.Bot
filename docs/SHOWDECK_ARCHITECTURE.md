@@ -78,7 +78,7 @@ Streamlit executa todo o script a cada interação de UI. Para evitar sobrecarga
 * **Resiliência (Seeder Embutido):** Caso o banco de dados esteja vazio ou as tabelas do CRM não existam, o método `seed_demo_leads_if_empty()` é disparado no boot da aplicação, populando o CRM com leads reais simulados (Ex: Peão de Barretos, São João de Caruaru e Campina Grande) para manter o sistema funcional.
 
 ### 4.2 Motor de Priorização (`opportunity_engine.py`)
-O score de prioridade diária exibido nos cards é gerado sob demanda combinando o BANT base (50% do peso) com heurísticas de mercado calculadas na classe `src/skills/seeker_sales/opportunity_engine.py`:
+O score de prioridade diária exibido nos cards é gerado sob demanda combinando o BANT base (50% do peso) com heurísticas de mercado calculadas na classe `src/skills/specialist_skill/opportunity_engine.py`:
 $$\text{Score Prioridade} = \text{BANT} \times 0.5 + \min(\text{Bônus Acumulado}, 60)$$
 
 Os bônus são atribuídos a partir de 5 fatores principais:
@@ -112,5 +112,5 @@ A interface do ShowDeck segue estritamente as diretrizes visuais do **Lumen 2.0*
 * **Consulta Rápida via Terminal:**
   Caso precise verificar a fila de prioridades diretamente do console sem subir o painel web:
   ```bash
-  python -m src.skills.seeker_sales --window 6 --top 5
+  python -m src.skills.specialist_skill --window 6 --top 5
   ```

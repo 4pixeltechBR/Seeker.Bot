@@ -21,28 +21,65 @@ ENABLED_FLAGS = {
     "moa": os.getenv("PORTED_MOA_ENABLED", "true").lower() in ("true", "1", "yes"),
     "x_search": os.getenv("PORTED_X_SEARCH_ENABLED", "true").lower() in ("true", "1", "yes"),
     "media": os.getenv("PORTED_MEDIA_ENABLED", "true").lower() in ("true", "1", "yes"),
+    "stt": os.getenv("PORTED_STT_ENABLED", "true").lower() in ("true", "1", "yes"),
+    "tts": os.getenv("PORTED_TTS_ENABLED", "true").lower() in ("true", "1", "yes"),
+    "firecrawl": os.getenv("PORTED_FIRECRAWL_ENABLED", "true").lower() in ("true", "1", "yes"),
+    "crm": os.getenv("PORTED_CRM_ENABLED", "true").lower() in ("true", "1", "yes"),
 }
 
 # Armazena os executores registrados
 # Assinatura: func(arg, response_text) -> str
 _executors: Dict[str, Callable[[str, str], Awaitable[str]]] = {}
 _prompts: Dict[str, str] = {}
+# Examples por tag — melhora a tool selection pelos LLMs tier 1.
+# Formato: list de strings, uma por exemplo, no formato "[TAG: arg]" ou "[TAG]".
+_examples: Dict[str, list[str]] = {}
 
-def register_adapter(name: str, tag: str, prompt_desc: str, executor: Callable[[str, str], Awaitable[str]]):
-    """Registra dinamicamente um adaptador se ele estiver habilitado nas configurações."""
+
+def register_adapter(
+    name: str,
+    tag: str,
+    prompt_desc: str,
+    executor: Callable[[str, str], Awaitable[str]],
+    examples: list[str] = None,
+):
+    """Registra dinamicamente um adaptador se ele estiver habilitado nas configurações.
+
+    Args:
+        name: nome interno (ex: "browser_camo").
+        tag: tag usada no prompt pelo LLM (ex: "BROWSER_CAMO").
+        prompt_desc: descrição da ferramenta (formato markdown livre).
+        executor: callable async (arg, response_text) -> str.
+        examples: lista opcional de exemplos de uso no formato
+            `[TAG: "arg1"]` ou `[TAG]`. Se fornecida, é injetada no prompt
+            para melhorar a tool selection dos LLMs tier 1.
+    """
     if ENABLED_FLAGS.get(name, False):
         _executors[tag] = executor
         _prompts[tag] = prompt_desc
+        if examples:
+            _examples[tag] = examples
         log.info(f"Adaptador '{name}' registrado com sucesso sob a tag '{tag}'.")
 
+
 def get_ported_tools_prompt() -> str:
-    """Retorna o bloco de prompt explicativo para o LLM apenas com as ferramentas portadas ativas."""
+    """Retorna o bloco de prompt explicativo para o LLM apenas com as ferramentas portadas ativas.
+
+    Inclui examples inline para cada ferramenta (se registrados) — ajuda
+    modelos tier 1 a escolher a ferramenta certa na primeira tentativa.
+    """
     if not _prompts:
         return ""
-    
+
     parts = ["\n━━━ FERRAMENTAS AVANÇADAS ADICIONAIS ━━━"]
     for tag, desc in _prompts.items():
         parts.append(desc)
+        # Adiciona examples inline se houver
+        examples = _examples.get(tag)
+        if examples:
+            parts.append("\nExemplos de uso:")
+            for ex in examples[:3]:  # máximo 3 examples por tool
+                parts.append(f"  {ex}")
     return "\n".join(parts)
 
 def is_tag_registered(tag: str) -> bool:
@@ -127,6 +164,33 @@ try:
         register()
 except Exception as e:
     log.warning(f"Erro ao carregar adaptador 'media': {e}")
+
+try:
+    if ENABLED_FLAGS.get("stt", False):
+        from src.core.execution.adapters.stt_adapter import register
+        register()
+except Exception as e:
+    log.warning(f"Erro ao carregar adaptador 'stt': {e}")
+
+try:
+    if ENABLED_FLAGS.get("tts", False):
+        from src.core.execution.adapters.tts_adapter import register
+        register()
+except Exception as e:
+    log.warning(f"Erro ao carregar adaptador 'tts': {e}")
+
+try:
+    if ENABLED_FLAGS.get("firecrawl", False):
+        from src.core.execution.adapters.firecrawl_adapter import register
+        register()
+except Exception as e:
+    log.warning(f"Erro ao carregar adaptador 'firecrawl': {e}")
+
+try:
+    if ENABLED_FLAGS.get("crm", False):
+        register()
+except Exception as e:
+    log.warning(f"Erro ao carregar adaptador 'crm': {e}")
 
 
 async def start_background_tasks():

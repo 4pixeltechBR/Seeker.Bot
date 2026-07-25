@@ -163,7 +163,11 @@ class ErrorDatabase:
 
     def _create_tables(self) -> None:
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA busy_timeout=5000")
+            except Exception:
+                conn.execute("PRAGMA journal_mode=DELETE")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS errors (
                     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -213,6 +217,8 @@ class ErrorDatabase:
         Verifica se este erro já foi analisado nas últimas N horas.
         Evita gastar LLM calls em tracebacks repetidos.
         """
+        if not self._initialized:
+            await self.init()
         tb_hash = hash_traceback(traceback)
         cutoff = time.time() - (hours * 3600)
 
@@ -241,6 +247,8 @@ class ErrorDatabase:
         Registra ou atualiza um erro. Retorna o error_id.
         Se o hash já existe, incrementa count e atualiza last_seen.
         """
+        if not self._initialized:
+            await self.init()
         tb_hash = hash_traceback(traceback)
         now = time.time()
 
@@ -287,6 +295,8 @@ class ErrorDatabase:
         rationale: str,
     ) -> int:
         """Registra um patch proposto (aprovado ou rejeitado)."""
+        if not self._initialized:
+            await self.init()
         def _insert() -> int:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
@@ -315,6 +325,8 @@ class ErrorDatabase:
 
     async def get_stats(self) -> dict:
         """Retorna estatísticas de auto-cura para o health dashboard."""
+        if not self._initialized:
+            await self.init()
         def _query():
             with sqlite3.connect(self.db_path) as conn:
                 total_errors = conn.execute("SELECT COUNT(*) FROM errors").fetchone()[0]
@@ -346,6 +358,8 @@ class ErrorDatabase:
 
     async def format_stats_for_telegram(self) -> str:
         """Formata estatísticas para o comando /sara ou health monitor."""
+        if not self._initialized:
+            await self.init()
         stats = await self.get_stats()
         top = "\n".join(
             f"  - {f['file']}: {f['count']}x"
@@ -381,6 +395,37 @@ class PendingPatchStore:
 
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._initialized = False
+
+    async def init(self) -> None:
+        """Garante que a tabela pending_patches existe (idempotente).
+
+        Como esta classe compartilha o DB com ErrorDatabase, podemos confiar
+        que a tabela já existe quando ErrorDatabase.init() rodou antes.
+        Mas para garantir fail-safe, executamos CREATE TABLE IF NOT EXISTS.
+        """
+        if self._initialized:
+            return
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+
+        def _create() -> None:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS pending_patches (
+                        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                        file_path     TEXT NOT NULL,
+                        proposed_code TEXT NOT NULL,
+                        rationale     TEXT NOT NULL DEFAULT '',
+                        status        TEXT NOT NULL DEFAULT 'pending',
+                        created_at    REAL NOT NULL,
+                        resolved_at   REAL
+                    )
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_pending_status ON pending_patches(status)")
+                conn.commit()
+
+        await asyncio.to_thread(_create)
+        self._initialized = True
 
     async def create_pending(
         self,
@@ -392,6 +437,8 @@ class PendingPatchStore:
         Registra um patch validado aguardando aprovação.
         Retorna o pending_id a ser embedado no callback_data dos botões.
         """
+        if not self._initialized:
+            await self.init()
         def _insert() -> int:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
@@ -413,6 +460,8 @@ class PendingPatchStore:
         Retorna o patch pendente se ainda válido (status=pending, < 24h).
         Retorna None se já resolvido, expirado ou não encontrado.
         """
+        if not self._initialized:
+            await self.init()
         expiry_cutoff = time.time() - (self.EXPIRY_HOURS * 3600)
 
         def _fetch() -> Optional[tuple]:

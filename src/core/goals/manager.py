@@ -356,10 +356,12 @@ class GoalManager:
         await self.memory._db.execute(
             "UPDATE goals SET enabled = 0, status = 'emergency_stop' WHERE enabled = 1"
         )
-        count = await self._db.execute(
+        cursor = await self.memory._db.execute(
             "SELECT COUNT(*) FROM goal_actions_log WHERE timestamp >= ?",
             (datetime.now().isoformat(),),
         )
+        row = await cursor.fetchone()
+        count = row[0] if row else 0
         await self.memory._db.commit()
         log.critical("[goal_manager] ⚠️ EMERGENCY STOP ATIVADO")
         return count

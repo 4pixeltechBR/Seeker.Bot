@@ -6,6 +6,7 @@ import json
 import logging
 from typing import List
 from dataclasses import dataclass
+from .detectors import detect_content_class
 from .prompts import (
     ANALYSIS_PROMPT_SYSTEM,
     ANALYSIS_PROMPT_USER,
@@ -52,11 +53,44 @@ class KnowledgeAnalyzer:
     ) -> NoteData:
         """
         Dispatcher central. Roteia para o prompt especializado por source_type.
+
+        Antes de rotear, aplica heuristicas deterministas em raw_text via
+        detectors.detect_content_class(). Se confianca for alta (>0.6) e
+        source_type for de documento, substitui para 'prompt'. Em qualquer
+        caso, enriquece extra_meta com detected_company/model/tools/tags.
         """
         extra_meta = extra_meta or {}
 
+        # ── Deteccao heuristica pre-LLM (Fase 4 Promptograph) ──
+        if raw_text and len(raw_text) > 200:
+            try:
+                detection = detect_content_class(raw_text, source_type)
+                detected_meta = detection.as_meta()
+                # Merge nao-destrutivo: detector so adiciona chaves novas
+                for k, v in detected_meta.items():
+                    if k not in extra_meta:
+                        extra_meta[k] = v
+                # Override de source_type para prompts com confianca alta
+                if (
+                    detection.content_class == "prompt"
+                    and detection.confidence > 0.6
+                    and source_type in ("pdf", "site", "repo", "print", "ocr", "text")
+                ):
+                    source_type = "prompt"
+                    logging.getLogger(__name__).info(
+                        f"[analyzer] source_type override -> 'prompt' "
+                        f"(conf={detection.confidence:.2f}, company={detection.company})"
+                    )
+            except Exception as e:
+                logging.getLogger(__name__).debug(
+                    f"[analyzer] detector falhou (seguindo normal): {e}"
+                )
+
         if source_type == "ideia-victor":
             return await self._analyze_idea(raw_text, extra_meta)
+        elif source_type == "prompt":
+            # Override pela detector heuristica - roteia como prompt de IA
+            return await self._analyze_prompt(raw_text, extra_meta)
         elif source_type == "youtube":
             return await self._analyze_youtube(raw_text, source_url, extra_meta)
         elif source_type == "site":
@@ -270,6 +304,61 @@ class KnowledgeAnalyzer:
         note.content_body = self._build_generic_body(note, web_context)
         return note
 
+    async def _analyze_prompt(self, raw_text: str, meta: dict) -> NoteData:
+        """Analista especial para system prompts de IA detectados pela heuristica.
+
+        Aproveita os detected_company/model/tools/tags ja setados em extra_meta
+        pelo detectors.detect_content_class(). O LLM continua responsavel por
+        title/summary/key_insights, mas ja recebe o contexto e tem hint de
+        category='Prompt de IA'.
+        """
+        detected_company = meta.get("detected_company", "")
+        detected_model = meta.get("detected_model", "")
+        detected_tools = meta.get("detected_tools", [])
+        detected_tags = meta.get("detected_xml_tags", [])
+        detected_persona = meta.get("detected_persona", "")
+        confidence = meta.get("detected_confidence", 0.0)
+
+        hint = (
+            f"Conteudo detectado como SYSTEM PROMPT de IA (confianca={confidence:.0%}).\n"
+            f"Empresa: {detected_company or '?'}\n"
+            f"Modelo: {detected_model or '?'}\n"
+            f"Persona: {detected_persona or '?'}\n"
+            f"Tools: {', '.join(detected_tools) or 'none'}\n"
+            f"XML tags: {', '.join(detected_tags[:10]) or 'none'}\n"
+        )
+        prompt_user = ANALYSIS_PROMPT_USER.format(
+            source_type="prompt",
+            source_url="",
+            user_hint=hint,
+            raw_text=raw_text[:12000],
+        )
+        data = await self._call_llm(ANALYSIS_PROMPT_SYSTEM, prompt_user)
+
+        tags = data.get("tags", [])
+        if "prompt-ia" not in [t.lower() for t in tags]:
+            tags.insert(0, "prompt-ia")
+        if detected_company:
+            company_tag = detected_company.lower().replace(" ", "-")
+            if company_tag not in [t.lower() for t in tags]:
+                tags.insert(1, company_tag)
+
+        note = NoteData(
+            title=data.get("title", f"System Prompt - {detected_company or 'unknown'}"),
+            summary=data.get("summary", ""),
+            tags=tags,
+            key_insights=data.get("key_insights", []),
+            category=data.get("category", "Prompt de IA"),
+            related_topics=data.get("related_topics", []),
+            source_type="prompt",
+        )
+        # Add detector markers em extra meta para downstream (writer/search)
+        meta["detected_score_breakdown"] = meta.get("detected_score_breakdown", {})
+        note.content_body = self._build_prompt_body(note, detected_company,
+                                                    detected_model, detected_tools,
+                                                    detected_tags)
+        return note
+
     # ── LLM Call ──────────────────────────────────────────────────────
 
     async def _call_llm(self, system_prompt: str, user_prompt: str) -> dict:
@@ -433,6 +522,47 @@ class KnowledgeAnalyzer:
         connections = self._find_connections(note)
         if connections:
             lines.append("## Notas Relacionadas no Cofre")
+            for conn in connections:
+                lines.append(f"- [[{conn}]]")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _build_prompt_body(
+        self, note: NoteData, company: str, model: str,
+        tools: list[str], xml_tags: list[str],
+    ) -> str:
+        """Body markdown especial para system prompts de IA detectados."""
+        lines = [f"## Resumo Executivo\n{note.summary}\n"]
+        if note.category:
+            lines.append(f"**Categoria:** {note.category}\n")
+
+        if note.key_insights:
+            lines.append("## Insights Chave")
+            for insight in note.key_insights:
+                lines.append(f"- {insight}")
+            lines.append("")
+
+        if company or model:
+            lines.append("## Deteccao Heuristica")
+            if company:
+                lines.append(f"- Empresa: {company}")
+            if model:
+                lines.append(f"- Modelo: {model}")
+            if tools:
+                lines.append(f"- Tools: {', '.join(tools[:8])}")
+            if xml_tags:
+                lines.append(f"- XML tags: {', '.join(xml_tags[:10])}")
+            lines.append("")
+
+        if note.related_topics:
+            lines.append(
+                f"**Topicos Relacionados:** {', '.join(note.related_topics)}\n"
+            )
+
+        connections = self._find_connections(note)
+        if connections:
+            lines.append("## Conexoes (Segundo Cerebro)")
             for conn in connections:
                 lines.append(f"- [[{conn}]]")
             lines.append("")

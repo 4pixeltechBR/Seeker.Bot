@@ -2,6 +2,59 @@ version: '3.8'
 
 services:
   # ─────────────────────────────────────────────────────────────────
+  # Evolution API v2.3.7 — WhatsApp gateway (license-free, NÃO usar v2.4.0)
+  # ─────────────────────────────────────────────────────────────────
+  evolution-db:
+    image: postgres:16-alpine
+    container_name: seeker-evolution-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: seeker
+      POSTGRES_PASSWORD: seeker
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution-db-data:/var/lib/postgresql/data
+    networks:
+      - seeker-network
+
+  # Redis dedicado para Evolution API (cache de grupos, sessions, webhooks).
+  # Sem isso, o endpoint /group/fetchAllGroups?getParticipants=* trava por 30+ segundos.
+  evolution-redis:
+    image: redis:7.2-alpine
+    container_name: seeker-evolution-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    volumes:
+      - evolution-redis-data:/data
+    networks:
+      - seeker-network
+
+  evolution-api:
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: seeker-evolution
+    restart: unless-stopped
+    depends_on:
+      - evolution-db
+      - evolution-redis
+    environment:
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:-seeker-local-dev-key}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_ENABLED: "true"
+      DATABASE_CONNECTION_URI: postgresql://seeker:seeker@evolution-db:5432/evolution
+      SERVER_PORT: "8080"
+      CONFIG_SESSION_PHONE_CLIENT: "Seeker Vault"
+      LANG: pt-BR
+      # Redis: container dedicado (sem auth, isolado do broker existente)
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/6
+    ports:
+      - "${EVOLUTION_PORT:-8080}:8080"
+    volumes:
+      - evolution-data:/evolution/store
+    networks:
+      - seeker-network
+
+  # ─────────────────────────────────────────────────────────────────
   # Seeker.Bot — Main Service
   # ─────────────────────────────────────────────────────────────────
   seeker-bot:
@@ -57,7 +110,7 @@ services:
 
     # Health check
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import sqlite3; c=sqlite3.connect('data/seeker_memory.db'); c.execute('PRAGMA journal_mode'); c.close(); print('OK')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -110,3 +163,6 @@ networks:
 volumes:
   ollama-data:
     driver: local
+  evolution-db-data:
+  evolution-data:
+  evolution-redis-data:

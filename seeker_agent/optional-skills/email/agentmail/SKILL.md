@@ -98,9 +98,9 @@ All 11 AgentMail tools are now available automatically.
 4. get_thread to read the verification code
 ```
 
-**Agent-to-human outreach:**
+**Agent-to-human specialist_skill:**
 ```
-1. create_inbox (username: "seeker_agent-outreach")
+1. create_inbox (username: "seeker_agent-specialist_skill")
 2. send_message (to: user@example.com, subject: "Hello", text: "...")
 3. list_threads to check for replies
 ```

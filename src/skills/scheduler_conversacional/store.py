@@ -363,21 +363,27 @@ class SchedulerStore:
         await self.db.commit()
 
     async def cleanup_expired_sessions(self) -> int:
-        """Remove sessões expiradas. Retorna count"""
-        sql = "SELECT COUNT(*) as count FROM scheduler_wizard_sessions WHERE expires_at IS NOT NULL AND expires_at <= ?"
+        """Remove sessões expiradas. Retorna count.
+
+        Operação atômica: usa rowcount do DELETE em vez de SELECT+DELETE separados,
+        eliminando contention de lock no banco compartilhado.
+        """
+        import sqlite3
+
         now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-
-        async with self.db.execute(sql, (now,)) as cur:
-            row = await cur.fetchone()
-            count = row["count"] if row else 0
-
-        await self.db.execute(
-            "DELETE FROM scheduler_wizard_sessions WHERE expires_at IS NOT NULL AND expires_at <= ?",
-            (now,),
-        )
-        await self.db.commit()
-
-        return count
+        try:
+            async with self.db.execute(
+                "DELETE FROM scheduler_wizard_sessions"
+                " WHERE expires_at IS NOT NULL AND expires_at <= ?",
+                (now,),
+            ) as cur:
+                count = cur.rowcount or 0
+            await self.db.commit()
+            return count
+        except sqlite3.OperationalError:
+            # Banco temporariamente bloqueado por outra operação — skip silencioso.
+            # Sessões expiradas serão limpas no próximo ciclo (60s).
+            return 0
 
     # ────────────────────────────────────────────────────────
     # Helpers

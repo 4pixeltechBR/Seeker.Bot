@@ -154,7 +154,7 @@ class CascadeAdapter:
 
         Previously the breaker keyed on provider name alone, so 3 timeouts
         from nvidia/nemotron-ultra (a notoriously slow ~30s model) would
-        blacklist ALL nvidia models — including nvidia/deepseek-v3.2 and
+        blacklist ALL nvidia models — including nvidia/deepseek-v4-pro and
         nvidia/gemma-4-31b which respond much faster. This dropped the
         NVIDIA NIM hit-rate to ~0.1%. Per-model keys isolate the failure.
         """

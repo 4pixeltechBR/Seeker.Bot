@@ -1,10 +1,11 @@
-# viralx9_channels.yaml - Seed de canais concorrentes para mineracao do ViralX9.
 # URLs canonicas /channel/UCID (nao quebram se o @handle mudar).
 # 'nome' e rotulo humano; o miner usa url+regiao. 'ativo: false' pausa o canal
 # (gerenciavel via /vx9_pausar | /vx9_ativar | /vx9_remover no Telegram).
 # 'expansao_sugerida' e preenchido pelo goal e aprovado via Telegram.
+# 'ativo' no nível do nicho controla se o miner processa esse nicho (comando /x9).
 
 microbiologia_ia:
+  ativo: true
   seed:
   - nome: Journey to the Microcosmos
     url: https://www.youtube.com/channel/UCBbnbBWJtwsf0jLGUwX5Q3g
@@ -14,9 +15,6 @@ microbiologia_ia:
     regiao: us
   - nome: Kurzgesagt
     url: https://www.youtube.com/channel/UCsXVk37bltHxD1rDPwtNM8Q
-    regiao: us
-  - nome: SciShow
-    url: https://www.youtube.com/channel/UCZYTClx2T1of7BRZ86-8fow
     regiao: us
   - nome: Veritasium
     url: https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA
@@ -98,6 +96,7 @@ microbiologia_ia:
     regiao: br
   expansao_sugerida: []
 forensic_tech:
+  ativo: false
   seed:
   - nome: Forensic Files (FilmRise)
     url: https://www.youtube.com/channel/UCU4BHh9Dwfd7-I_xTZ5037Q
@@ -191,6 +190,7 @@ forensic_tech:
     regiao: br
   expansao_sugerida: []
 sitio_404:
+  ativo: false
   seed:
   - nome: Nexpo
     url: https://www.youtube.com/channel/UCpFFItkfZz1qz5PpHpqzYBw
@@ -284,6 +284,7 @@ sitio_404:
     regiao: br
   expansao_sugerida: []
 crimes_digitais:
+  ativo: false
   seed:
   - nome: The PC Security Channel
     url: https://www.youtube.com/channel/UCKGe7fZ_S788Jaspxg-_5Sg
@@ -377,6 +378,7 @@ crimes_digitais:
     regiao: br
   expansao_sugerida: []
 rastro_zero:
+  ativo: true
   seed:
   - nome: The Hated One
     url: https://www.youtube.com/channel/UCjr2bPAyPV7t35MvcgT3W8Q

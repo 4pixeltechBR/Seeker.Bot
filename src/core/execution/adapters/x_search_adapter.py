@@ -50,4 +50,14 @@ def register():
             log.error(f"Falha na busca do X: {e}")
             return f"[ERRO ao buscar no X: {e}]"
 
-    register_adapter("x_search", "X_SEARCH", desc, execute_x_search)
+    register_adapter(
+        "x_search",
+        "X_SEARCH",
+        desc,
+        execute_x_search,
+        examples=[
+            '[X_SEARCH: "AI agents"]',
+            '[X_SEARCH: "GPT-5 release|openai,sama|2026-01-01|2026-06-01"]',
+            '[X_SEARCH: "rust async runtime|tkuchiki,withoutboats|2026-05-01|2026-06-11"]',
+        ],
+    )

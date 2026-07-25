@@ -93,6 +93,7 @@ async def _handle_download(message: Message, url: str):
     Baixa o vídeo via InstaScraper.download_single_post e envia pelo Telegram.
     Roda o download em thread separada para não bloquear o event loop.
     """
+    video_path: Path | None = None
     status = await message.answer(
         f"⏳ <b>Baixando vídeo...</b>\n"
         f"<code>{url}</code>\n\n"

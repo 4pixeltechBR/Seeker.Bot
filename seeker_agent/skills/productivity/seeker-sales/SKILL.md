@@ -24,10 +24,10 @@ Run the native module using the Seeker environment:
 
 ```powershell
 # Windows
-& "E:\Seeker.Bot\.venv\Scripts\python.exe" -m src.skills.seeker_sales [options]
+& "E:\Seeker.Bot\.venv\Scripts\python.exe" -m src.skills.specialist_skill [options]
 
 # Linux/macOS
-E:/Seeker.Bot/.venv/bin/python -m src.skills.seeker_sales [options]
+E:/Seeker.Bot/.venv/bin/python -m src.skills.specialist_skill [options]
 ```
 
 ### Options:

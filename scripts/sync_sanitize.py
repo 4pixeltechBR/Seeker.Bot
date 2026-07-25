@@ -40,6 +40,9 @@ COMMERCIAL_DIRS = [
     "src/skills/viralx9",
     "src/skills/cortex",
     "src/skills/revenue_hunter",
+    "src/skills/muni_discovery",
+    "src/skills/muni_enrich",
+    "src/skills/outreach",
     # NOTA: drive_manager NAO eh comercial — eh o cliente Google Drive (/drive command)
 ]
 
@@ -68,6 +71,7 @@ COMMERCIAL_FILES = [
     "src/channels/telegram/commands/radar.py",
     "src/channels/telegram/commands/viralx9.py",
     "src/channels/telegram/bot_new.py",  # stale, ainda tem /scout e /crm
+    "src/core/execution/adapters/crm_query_adapter.py",
     "tests/test_event_bridge.py",
     "tests/test_month_enricher.py",
     "tests/test_opportunity_engine.py",
@@ -86,6 +90,10 @@ COMMERCIAL_PATTERNS = [
     (r"\bevent_map_scout\b", "event_map_scout identifier"),
     (r"\bevent_radar\b", "event_radar identifier"),
     (r"\bviralx9\b", "viralx9 identifier"),
+    (r"\bmuni_discovery\b", "muni_discovery identifier"),
+    (r"\bmuni_enrich\b", "muni_enrich identifier"),
+    (r"\boutreach\b", "outreach identifier"),
+    (r"\bcrm_query_adapter\b", "crm_query_adapter identifier"),
     (r"\bHunterCrew\b", "HunterCrew class"),
     (r"\bhunter_crew\b", "hunter_crew module"),
     (r"\bsetup_sales_handlers\b", "setup_sales_handlers function"),
@@ -373,6 +381,12 @@ def patch_skills_yaml(path: Path) -> bool:
         re.compile(r"\s*seeker_sales:\s*[^\n]+\n"),
         re.compile(r"\s*seeker_sales_week:\s*[^\n]+\n"),
         re.compile(r"\s*show_leads_daily:\s*[^\n]+\n"),
+        re.compile(r"\s*event_map_scout:\s*[^\n]+\n"),
+        re.compile(r"\s*event_radar:\s*[^\n]+\n"),
+        re.compile(r"\s*viralx9:\s*[^\n]+\n"),
+        re.compile(r"\s*muni_discovery:\s*[^\n]+\n"),
+        re.compile(r"\s*muni_enrich:\s*[^\n]+\n"),
+        re.compile(r"\s*outreach:\s*[^\n]+\n"),
     ]
     content = original
     for pat in patterns:
@@ -381,6 +395,84 @@ def patch_skills_yaml(path: Path) -> bool:
         path.write_text(content, encoding="utf-8")
         return True
     return False
+
+
+def patch_commercial_references(root: Path) -> list[str]:
+    """
+    Remove referências inline, imports e comentários sobre ferramentas comerciais
+    dos arquivos de código e documentação públicos.
+    """
+    patched: list[str] = []
+    commercial_terms = [
+        "seeker_sales_week",
+        "seeker_sales",
+        "show_leads_daily",
+        "event_map_scout",
+        "event_radar",
+        "viralx9",
+        "muni_discovery",
+        "muni_enrich",
+        "outreach",
+        "crm_query_adapter",
+        "hunter_crew",
+        "HunterCrew",
+    ]
+
+    extensions = {".py", ".yaml", ".yml", ".toml", ".md"}
+
+    for path in root.rglob("*"):
+        if not path.is_file() or path.suffix not in extensions:
+            continue
+        if any(part in SCAN_IGNORED_PARTS for part in path.parts):
+            continue
+        if path.name == "sync_sanitize.py":
+            continue
+
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+        except (UnicodeDecodeError, OSError):
+            continue
+
+        new_lines = []
+        modified = False
+
+        for line in lines:
+            # Se a linha contem algum termo comercial em import ou dicionario
+            if any(term in line for term in commercial_terms):
+                # Se for arquivo markdown (RELEASE_NOTES.md), limpa a palavra ou omite a linha de marcacao
+                if path.suffix == ".md":
+                    cleaned_line = line
+                    for term in commercial_terms:
+                        cleaned_line = re.sub(rf"\b{term}\b", "specialist_skill", cleaned_line, flags=re.IGNORECASE)
+                    if cleaned_line != line:
+                        modified = True
+                        new_lines.append(cleaned_line)
+                    continue
+
+                # Para arquivos de código (.py, .toml, .yaml)
+                # Se for linha de import, dicionario de registradores, telemetry ou fallback, omite a linha
+                if any(kw in line for kw in ["import", "from ", "dict", "telemetry", "registry", "fallback", "BotCommand", "test"]):
+                    modified = True
+                    continue
+                else:
+                    # Substitui a palavra por um id genérico neutro se estiver dentro de uma string de código
+                    cleaned_line = line
+                    for term in commercial_terms:
+                        cleaned_line = re.sub(rf"\b{term}\b", "custom_extension", cleaned_line)
+                    if cleaned_line != line:
+                        modified = True
+                        new_lines.append(cleaned_line)
+                    else:
+                        modified = True
+                        continue
+            else:
+                new_lines.append(line)
+
+        if modified:
+            path.write_text("".join(new_lines), encoding="utf-8")
+            patched.append(path.relative_to(root).as_posix())
+
+    return patched
 
 
 # ============================================================
@@ -492,7 +584,12 @@ def main() -> int:
     if patch_skills_yaml(skills_yaml):
         print("  ~ patchado:      config/skills.yaml")
 
-    # 7) security scan
+    # 7) patch universal de referências comerciais residuais
+    patched_refs = patch_commercial_references(dest)
+    if patched_refs:
+        print(f"  ~ patchado {len(patched_refs)} arquivos com referencias comerciais residuais")
+
+    # 8) security scan
     print()
     issues = security_scan(dest)
     if issues:
@@ -509,3 +606,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

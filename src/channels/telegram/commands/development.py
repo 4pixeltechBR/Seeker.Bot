@@ -174,14 +174,21 @@ def setup_development_handlers(dp: Dispatcher, pipeline: SeekerPipeline, _bug_co
 
             # Auto-restart via watchdog se o patch foi aplicado
             if "PATCH APLICADO" in msg:
-                await message.answer(
-                    "🔄 **Reiniciando Seeker.Bot para aplicar o patch em 3 segundos...**",
-                    parse_mode=ParseMode.MARKDOWN,
-                )
-                import signal
+                god_users = getattr(pipeline._message_controller, "_god_mode_users", set()) if hasattr(pipeline, "_message_controller") else set()
+                if message.from_user.id in god_users:
+                    await message.answer(
+                        "🔄 **Reiniciando Seeker.Bot para aplicar o patch em 3 segundos...**",
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                    import signal
 
-                await asyncio.sleep(3)
-                os.kill(os.getpid(), signal.SIGTERM)
+                    await asyncio.sleep(3)
+                    os.kill(os.getpid(), signal.SIGTERM)
+                else:
+                    await message.answer(
+                        "✅ Patch aplicado. Use /restart (com God Mode) para aplicar mudanças.",
+                        parse_mode=ParseMode.HTML,
+                    )
         except Exception as e:
             log.error(f"[bug_analyzer] Erro em /bug_approve: {e}", exc_info=True)
             await message.answer(f"❌ Erro: {str(e)[:100]}", parse_mode=ParseMode.HTML)

@@ -442,6 +442,11 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     BASE_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 
+class ZaiProvider(OpenAICompatibleProvider):
+    """Z.ai (Zhipu) — GLM Flash gratuito permanente."""
+    BASE_URL = "https://api.z.ai/api/paas/v4/chat/completions"
+
+
 class GeminiProvider(BaseProvider):
     BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -659,6 +664,7 @@ PROVIDER_MAP = {
     "nvidia": NvidiaProvider,
     "openrouter": OpenRouterProvider,
     "ollama": OllamaProvider,
+    "zai": ZaiProvider,
 }
 
 
@@ -683,16 +689,38 @@ async def invoke_with_fallback(
 
     Agora usa connection pool global — close() é no-op,
     connections são reutilizadas entre requests.
+
+    Se um LLMCallGuard estiver ativo (via src.core.llm_guard),
+    checa max_calls/max_cost antes de cada chamada. Se o guard
+    recusar, propaga BudgetExceededError sem chamar provider.
     """
+    from src.core.llm_guard import get_active_guard, BudgetExceededError
+
+    guard = get_active_guard()
+
     primary = router.get(role)
     fallbacks = router.get_fallbacks(role)
     all_configs = [primary] + fallbacks
 
     last_error = None
     for config in all_configs:
+        # Cada tentativa conta como 1 call. Se o guard recusar,
+        # paramos antes mesmo de chamar o provider.
+        if guard is not None:
+            try:
+                guard.check()
+            except BudgetExceededError:
+                # Re-raise: o caller precisa saber que budget estourou.
+                raise
+
         try:
             provider = create_provider(config, api_keys)
-            return await provider.complete(request)
+            response = await provider.complete(request)
+            if guard is not None:
+                # Tenta extrair custo da response. Se não houver, registra 0.
+                cost = getattr(response, "cost_usd", 0.0) or 0.0
+                guard.record(cost)
+            return response
         except Exception as e:
             last_error = e
             log.warning(f"[fallback] {config.provider}/{config.model_id} falhou: {e}")

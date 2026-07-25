@@ -4,45 +4,11 @@ import subprocess
 import logging
 import asyncio
 from src.core.executor.models import ActionStep, ActionResult, ApprovalTier
+from src.core.executor.safety import SafetyGate
 
 log = logging.getLogger("executor.handlers.bash")
 
-# Bash Whitelist (3-tier security)
-BASH_WHITELIST = {
-    "L2_SILENT": [
-        "ls",
-        "cat",
-        "grep",
-        "find",
-        "head",
-        "tail",
-        "wc",
-        "git status",
-        "pwd",
-        "echo",
-    ],
-    "L1_LOGGED": [
-        "mkdir",
-        "touch",
-        "cp",
-        "mv",
-        "echo",
-        ">",
-        "git add",
-        "git diff",
-        "git fetch",
-    ],
-    "L0_MANUAL": [
-        "rm",
-        "rmdir",
-        "chmod",
-        "chown",
-        "dd",
-        "git rm",
-        "git reset",
-        "git rebase",
-    ],
-}
+BASH_WHITELIST = SafetyGate.BASH_WHITELIST
 
 
 class BashHandler:

@@ -53,6 +53,9 @@ from src.core.memory.embeddings import GeminiEmbedder, SemanticSearch
 from src.core.memory.session import SessionManager
 from src.core.memory.compressor import SessionCompressor
 from src.core.memory.session_store import SessionStore
+from src.core.memory.soul_watcher import SoulWatcher
+from src.core.events import get_event_bus
+from src.core.capability_graph import get_capability_graph
 from src.core.intent_card import IntentClassifier
 from src.core.safety_layer_enhanced import (
     SafetyLayer,
@@ -106,6 +109,7 @@ class PipelineResult:
     decision_id: str = field(
         default_factory=lambda: str(uuid.uuid4())
     )  # ID p/ RL feedback
+    reward_bias_applied: float = 0.0
 
 
 class SeekerPipeline:
@@ -207,6 +211,9 @@ class SeekerPipeline:
         # Sprint 2 — LinUCB Bandit (shadow mode: prediz mas não age)
         self.cascade_bandit = CascadeBandit(mode=BanditMode.SHADOW)
         self.cascade_bandit.load()  # carrega modelo salvo se existir
+
+        # FASE 2.3 — Reward-driven depth adjustment
+        self._reward_depth_bias: float = 0.0
 
         # Batch Operations Manager — consolidação de commits (Sprint 11.3)
         self.batch_manager = BatchOperationsManager(max_pending=100)
@@ -365,6 +372,33 @@ class SeekerPipeline:
         # Agenda decay periódico (6h)
         self._decay_task = asyncio.create_task(self._periodic_decay())
 
+        # SOUL.md Hot Reload
+        self._soul_watcher = SoulWatcher(poll_interval=30)
+        self._soul_watcher.start()
+        # Hook para recarregar contexto de sessão
+        self._soul_watcher.register_callback(self._on_soul_reload)
+
+        # Terminal handler state — guarda comandos perigosos pendentes de confirmação
+        # (uso interno do /terminal command)
+        self._terminal_pending = None
+
+        # Event Bus: subscribers padrão
+        bus = get_event_bus()
+        bus.subscribe("system.error", self._on_system_error)
+        bus.subscribe("message.completed", self._on_message_completed)
+
+        # Capability Graph: auto-registro dos serviços do core (LLM, memória, etc.).
+        # NOTA: skills de feature (email_monitor, custom_extension, etc.) se registram
+        # separadamente em src/skills/__init__.py. Esta divisão separa serviços de
+        # infraestrutura (aqui) de features de produto (skills package). NÃO registrar
+        # a mesma capability nos dois lugares.
+        cap_graph = get_capability_graph()
+        cap_graph.register("knowledge_vault", ["vault_search", "vault_ingest"])
+        cap_graph.register("web_search", ["search_web"])
+        cap_graph.register("memory", ["recall_facts", "store_fact"])
+        cap_graph.register("cascade", ["llm_generate"], dependencies=["search_web"])
+        cap_graph.register("arbitrage", ["verify_claims"], dependencies=["llm_generate", "search_web"])
+
         # Inicializa phases
         self._phase_reflex = ReflexPhase(self.model_router, self.api_keys)
         self._phase_deliberate = DeliberatePhase(
@@ -385,6 +419,32 @@ class SeekerPipeline:
         self._initialized = True
         log.info("[pipeline] Inicializado com session context + embeddings persistidos")
 
+    async def _on_soul_reload(self, new_soul: str) -> None:
+        """Callback when SOUL.md changes — update session context for new conversations."""
+        log.info("[pipeline] SOUL.md recarregado — contexto de identidade atualizado")
+        # Nova sessão pegará o SOUL.md atualizado no próximo load
+
+    async def _on_system_error(self, payload: dict) -> None:
+        """Subscriber para system.error — loga para alertas futuros."""
+        log.warning(f"[event:system.error] {payload.get('error')} em {payload.get('stage')}")
+
+    async def _on_message_completed(self, payload: dict) -> None:
+        """Subscriber para message.completed — atualiza métricas internas."""
+        self._memory_stats["events"] = self._memory_stats.get("events", 0) + 1
+
+    async def shutdown(self) -> None:
+        """Graceful shutdown."""
+        if hasattr(self, "_decay_task"):
+            self._decay_task.cancel()
+        if hasattr(self, "_soul_watcher"):
+            self._soul_watcher.stop()
+        # EventBus: cancela handlers pendentes
+        try:
+            await get_event_bus().shutdown(timeout=1.0)
+        except Exception:
+            pass
+        log.info("[pipeline] Shutdown completo")
+
     async def process(
         self,
         user_input: str,
@@ -401,10 +461,82 @@ class SeekerPipeline:
 
         start = time.perf_counter()
 
+        # LLMCallGuard: limita número de chamadas LLM e custo por turno.
+        # Evita loops infinitos em refinement/cascade que podem custar $5+
+        # sem que o usuário perceba. Configurável via env LLM_MAX_CALLS_PER_TURN
+        # e LLM_MAX_COST_USD_PER_TURN. Default: 20 calls / $0.50.
+        from src.core.llm_guard import LLMCallGuard, set_active_guard, clear_active_guard, BudgetExceededError
+        max_calls = int(os.getenv("LLM_MAX_CALLS_PER_TURN", "20"))
+        max_cost = float(os.getenv("LLM_MAX_COST_USD_PER_TURN", "0.50"))
+        guard = LLMCallGuard(
+            max_calls=max_calls,
+            max_cost_usd=max_cost,
+            label=f"session:{session_id}",
+        )
+        guard_token = set_active_guard(guard)
+        try:
+            return await self._process_impl(
+                user_input=user_input,
+                session_id=session_id,
+                execution_mode=execution_mode,
+                afk_protocol=afk_protocol,
+                start=start,
+            )
+        except BudgetExceededError as e:
+            log.error(f"[pipeline] {e}")
+            return PipelineResult(
+                response=(
+                    f"⚠️ **Limite de chamadas LLM atingido neste turno.**\n\n"
+                    f"Por segurança, o bot limitou a {max_calls} chamadas ou "
+                    f"${max_cost:.2f} por turno. Isso geralmente indica um loop "
+                    f"na fase de refinement ou cascade. Tente reformular a "
+                    f"pergunta ou use `/config` para ajustar os limites."
+                ),
+                depth=CognitiveDepth.REFLEX,
+                llm_calls=guard.calls,
+                total_cost_usd=guard.cost_usd,
+                total_latency_ms=int((time.perf_counter() - start) * 1000),
+                facts_used=0,
+                decision_id="",
+            )
+        except Exception as e:
+            log.exception("[pipeline] Erro crítico em process()")
+            await get_event_bus().emit("system.error", {
+                "session_id": session_id,
+                "error": type(e).__name__,
+                "message": str(e),
+                "stage": "pipeline.process",
+            })
+            return PipelineResult(
+                response="⚠️ Ocorreu um erro inesperado. Tente novamente ou use /help.",
+                depth=CognitiveDepth.REFLEX,
+                routing_reason="Erro crítico",
+                total_latency_ms=int((time.perf_counter() - start) * 1000),
+                facts_used=0,
+                decision_id="",
+            )
+        finally:
+            clear_active_guard(guard_token)
+
+    async def _process_impl(
+        self,
+        user_input: str,
+        session_id: str,
+        execution_mode: str,
+        afk_protocol,
+        start: float,
+    ) -> "PipelineResult":
+        """Corpo real de process(). Envolto por LLMCallGuard + try/except."""
+
         # Reseta o guardrail de assinaturas a cada novo turno do usuário,
         # garantindo que pesquisas legítimas de tópicos distintos não sejam
         # bloqueadas por histórico de turnos anteriores.
         self.signature_guardrail.reset_turn(session_id)
+
+        await get_event_bus().emit("message.received", {
+            "session_id": session_id,
+            "length": len(user_input),
+        })
 
         # ── 0. Session context ────────────────────────────────
         session_context = self.session.format_context(session_id)
@@ -456,16 +588,49 @@ class SeekerPipeline:
                 decision_id=decision_id,
             )
             if not bandit_decision.agrees:
-                log.info(
-                    f"[bandit:shadow] Diverge: router={bandit_decision.router_arm} "
-                    f"→ bandit sugeriria={bandit_decision.recommended_arm} "
-                    f"(α={bandit_decision.alpha:.3f})"
-                )
+                if self.cascade_bandit.mode == BanditMode.SHADOW:
+                    log.info(
+                        f"[bandit:shadow] Diverge: router={bandit_decision.router_arm} "
+                        f"→ bandit sugeriria={bandit_decision.recommended_arm} "
+                        f"(α={bandit_decision.alpha:.3f})"
+                    )
+                elif self.cascade_bandit.mode == BanditMode.ACTIVE:
+                    if bandit_decision.recommended_arm != decision.depth.value:
+                        override_depth = CognitiveDepth(bandit_decision.recommended_arm)
+                        log.info(
+                            f"[bandit:active] OVERRIDE depth: {decision.depth.value} → {override_depth.value} "
+                            f"(UCB reflex={bandit_decision.ucb_scores.get('reflex', 0):.3f} "
+                            f"delib={bandit_decision.ucb_scores.get('deliberate', 0):.3f} "
+                            f"deep={bandit_decision.ucb_scores.get('deep', 0):.3f})"
+                        )
+                        decision.depth = override_depth
         except Exception as e:
             log.debug(f"[bandit] Erro no predict (ignorado): {e}")
 
         # Fecha eventos stale de decisões anteriores sem feedback
         self.reward_collector.close_stale_events()
+
+        # ── FASE 2.3: Reward-Driven Depth Bias ─────────────────────
+        try:
+            stats = self.reward_collector.get_stats()
+            if stats.get("total_events", 0) > 0:
+                avg_reward = stats.get("avg_reward", 0.0)
+                self._reward_depth_bias = avg_reward * 0.3
+                if self._reward_depth_bias > 0.1 and decision.depth == CognitiveDepth.REFLEX:
+                    if not decision.needs_web:
+                        log.info(
+                            f"[reward:router] Promovendo reflex→deliberate "
+                            f"(bias={self._reward_depth_bias:+.2f}, avg_reward={avg_reward:+.2f})"
+                        )
+                        decision.depth = CognitiveDepth.DELIBERATE
+                elif self._reward_depth_bias < -0.1 and decision.depth == CognitiveDepth.DELIBERATE:
+                    log.info(
+                        f"[reward:router] Rebaixando deliberate→reflex "
+                        f"(bias={self._reward_depth_bias:+.2f}, avg_reward={avg_reward:+.2f})"
+                    )
+                    decision.depth = CognitiveDepth.REFLEX
+        except Exception as e:
+            log.debug(f"[reward:router] Erro ao aplicar reward bias: {e}")
 
         # ── 2.5. Intent Classification + Safety Check ─────────
         intent_card = self.intent_classifier.classify(user_input, user_id=session_id)
@@ -612,11 +777,28 @@ class SeekerPipeline:
                         query_solicitada = response_text[start_idx:end_idx].strip().strip('"').strip("'")
                         log.info(f"[pipeline] Active Loop - SEARCH_REQUIRED: '{query_solicitada}'")
                         has_tool_call = True
-                        try:
-                            search_results = await self.searcher.search(query_solicitada, max_results=3)
-                            tool_output = f"\n\n━━━ RETORNO DA FERRAMENTA (SEARCH_REQUIRED) ━━━\n{search_results.to_context(max_results=3)}"
-                        except Exception as e:
-                            tool_output = f"\n\n━━━ RETORNO DA FERRAMENTA (SEARCH_REQUIRED) - ERRO ━━━\n{e}"
+
+                        # Anti-loop: Se já estamos no 2o loop e o contexto já tem dados web,
+                        # NÃO buscar novamente — forçar síntese com o que já temos
+                        already_has_web = (
+                            "━━━ DADOS DA WEB ━━━" in (ctx.memory_prompt or "")
+                            or "━━━ RETORNO DA FERRAMENTA (SEARCH_REQUIRED) ━━━" in (ctx.memory_prompt or "")
+                        )
+                        if active_loop > 0 and already_has_web:
+                            log.info("[pipeline] Anti-loop: SEARCH_REQUIRED no 2o loop com dados web disponíveis — forçando síntese")
+                            tool_output = (
+                                "\n\n━━━ INSTRUÇÃO DO PIPELINE ━━━\n"
+                                "IMPORTANTE: Você já possui dados de busca web suficientes no contexto acima. "
+                                "NÃO emita [SEARCH_REQUIRED:] novamente. Use os dados disponíveis para gerar "
+                                "uma resposta COMPLETA e PRECISA ao usuário. Se os dados forem insuficientes, "
+                                "explique o que encontrou e o que não foi possível confirmar."
+                            )
+                        else:
+                            try:
+                                search_results = await self.searcher.search(query_solicitada, max_results=3)
+                                tool_output = f"\n\n━━━ RETORNO DA FERRAMENTA (SEARCH_REQUIRED) ━━━\n{search_results.to_context(max_results=3)}"
+                            except Exception as e:
+                                tool_output = f"\n\n━━━ RETORNO DA FERRAMENTA (SEARCH_REQUIRED) - ERRO ━━━\n{e}"
                 
                 # 2. READ_FILE
                 elif "[READ_FILE:" in response_text:
@@ -951,6 +1133,50 @@ class SeekerPipeline:
             # Se não exigiu busca ou atingiu limite de iterações, sai do loop
             break
 
+        # ── Sanitização pós-loop: remove tags de ferramentas do response ──
+        # Se o loop expirou e o LLM ainda deixou tags [SEARCH_REQUIRED:] etc
+        # no response, elas seriam visíveis ao usuário. Remove e substitui
+        # por uma resposta amigável.
+        if phase_result and phase_result.response:
+            import re as _re
+            _tool_tag_patterns = [
+                r"\[SEARCH_REQUIRED:[^\]]*\]",
+                r"\[READ_FILE:[^\]]*\]",
+                r"\[WRITE_FILE:[^\]]*\].*?\[/WRITE_FILE\]",
+                r"\[PATCH_FILE:[^\]]*\].*?\[/PATCH_FILE\]",
+                r"\[TERMINAL_EXECUTE:[^\]]*\]",
+                r"\[SEARCH_SESSION:[^\]]*\]",
+                r"\[DELEGATE_TASK:[^\]]*\]",
+                r"\[BROWSER_OPEN:[^\]]*\]",
+                r"\[BROWSER_CLICK:[^\]]*\]",
+                r"\[BROWSER_FILL:[^\]]*\]",
+                r"\[BROWSER_SNAPSHOT\]",
+                r"\[X_SEARCH:[^\]]*\]",
+                r"\[TTS:[^\]]*\]",
+                r"\[GENERATE_IMAGE:[^\]]*\]",
+                r"\[SEND_EMAIL:[^\]]*\]",
+                r"\[KANBAN_ADD:[^\]]*\]",
+                r"\[KANBAN_MOVE:[^\]]*\]",
+                r"\[KANBAN_LIST\]",
+                r"\[OSV_CHECK\]",
+            ]
+            cleaned = phase_result.response
+            for pat in _tool_tag_patterns:
+                cleaned = _re.sub(pat, "", cleaned, flags=_re.DOTALL)
+            cleaned = cleaned.strip()
+
+            # Se sobrou só a tag (resposta era 100% tool call), substitui
+            if not cleaned or len(cleaned) < 10:
+                log.warning("[pipeline] Response vazio ou só tags de ferramenta após loop — gerando fallback")
+                cleaned = (
+                    "Desculpe, não consegui processar sua solicitação completamente. "
+                    "Pode reformular ou tentar novamente?"
+                )
+                # Zera custo da resposta fallback (sem LLM adicional)
+                phase_result.response = cleaned
+            else:
+                phase_result.response = cleaned
+
         # ── 4. Monta resultado ────────────────────────────────
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         result = PipelineResult(
@@ -965,6 +1191,7 @@ class SeekerPipeline:
             image_bytes=phase_result.image_bytes,
             facts_used=facts_used,
             decision_id=decision_id,
+            reward_bias_applied=self._reward_depth_bias,
         )
 
         # ── Integridade: registra métricas (Sprint 12) ────────
@@ -1009,10 +1236,19 @@ class SeekerPipeline:
         # imediatamente; a extração acontece em paralelo.
         self._spawn_background(self._post_process(session_id, user_input, result))
 
-        return result
+        await get_event_bus().emit("message.completed", {
+            "session_id": session_id,
+            "depth": result.depth.value,
+            "cost_usd": result.total_cost_usd,
+            "latency_ms": result.total_latency_ms,
+            "llm_calls": result.llm_calls,
+            "decision_id": decision_id,
+        })
 
         return result
 
+    # ─────────────────────────────────────────────────────────
+    # RL FEEDBACK
     # ─────────────────────────────────────────────────────────
     # RL FEEDBACK
     # ─────────────────────────────────────────────────────────
@@ -1418,8 +1654,11 @@ class SeekerPipeline:
                         entity_type=ent.get("type", "unknown"),
                         properties=ent.get("props"),
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(
+                        f"[pipeline._post_process] Falha ao salvar entidade "
+                        f"name={ent.get('name')!r} type={ent.get('type')!r}: {e}"
+                    )
 
             # Salva Triplas
             for t in triples:
@@ -1432,8 +1671,11 @@ class SeekerPipeline:
                         confidence=t.get("confidence", 1.0),
                         adapter_name=result.routing_reason[:50],
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.warning(
+                        f"[pipeline._post_process] Falha ao salvar tripla "
+                        f"{t.get('subject')!r}-{t.get('predicate')!r}->{t.get('object')!r}: {e}"
+                    )
 
             # Salva fatos + embeddings (sem commit individual)
             for f in facts:
@@ -1448,8 +1690,11 @@ class SeekerPipeline:
                 if self.semantic_search and fact_id > 0:
                     try:
                         await self.semantic_search.add(fact_id, f["fact"])
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log.warning(
+                            f"[pipeline._post_process] Falha ao indexar embedding "
+                            f"do fact_id={fact_id}: {e}"
+                        )
 
             # Registra episódio (sem commit individual)
             await self.memory.record_episode(

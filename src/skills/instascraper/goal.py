@@ -1,7 +1,6 @@
-import logging
 import json
+import logging
 import os
-from datetime import datetime
 
 from src.core.pipeline import SeekerPipeline
 from src.core.goals.protocol import (
@@ -82,69 +81,20 @@ class InstaScraperGoal(AutonomousGoal):
             log.error(f"[instascraper] Erro ao gravar targets.json: {e}")
 
     async def run_cycle(self) -> GoalResult:
-        now = datetime.now()
-        today_str = now.strftime("%Y-%m-%d")
+        """
+        Clonagem autônoma de perfis DESATIVADA.
 
-        self._status = GoalStatus.RUNNING
-        targets = self.load_targets()
-
-        # Filtra os perfis que estão marcados como 'pending'
-        pending_targets = [t for t in targets if t.get("status") == "pending"]
-
-        if not pending_targets:
-            self._status = GoalStatus.IDLE
-            return GoalResult(
-                success=True,
-                summary="InstaScraper: Nenhum perfil com status 'pending' para extrair.",
-                cost_usd=0.0,
-            )
-
-        log.info(f"[instascraper] Executando ciclo de raspagem para {len(pending_targets)} alvos.")
-        results_summary = []
-        notifications = []
-
-        for target in pending_targets:
-            username = target["name"]
-            limit = target.get("limit", 10)
-
-            log.info(f"[instascraper] Iniciando raspagem autônoma de @{username} (limite: {limit}).")
-            
-            # Executa a raspagem (bloqueante mas executado de forma segura no threadpool se necessário,
-            # como time.sleep é usado, roda sequencialmente no scheduler)
-            result_msg = self.scraper.raspar_perfil(username, limit_posts=limit)
-            
-            results_summary.append(f"@{username}: {result_msg}")
-
-            if "Sucesso" in result_msg:
-                # Marca o alvo como completed ou mantém ativo mudando a data do último sync
-                target["status"] = "completed"
-                target["last_synced"] = today_str
-                
-                notifications.append(
-                    f"📸 <b>InstaScraper: @{username} clonado com sucesso!</b>\n"
-                    f"• Vídeos e metadados salvos na pasta local do Seeker.\n"
-                    f"• Notas Markdown geradas e injetadas na Inbox do Obsidian.\n"
-                )
-            else:
-                notifications.append(
-                    f"⚠️ <b>InstaScraper: Falha ao clonar @{username}</b>\n"
-                    f"• Detalhe: {result_msg}\n"
-                )
-
-        # Salva o status atualizado
-        self.save_targets(targets)
-
-        self._last_run_date = today_str
+        O InstaScraper opera apenas em modo on-demand: o usuário solicita o download
+        de um vídeo específico pelo chat e o bot baixa via download_single_post.
+        A clonagem periódica de perfis foi removida para evitar conflitos de path,
+        shadowban e downloads não solicitados.
+        """
         self._status = GoalStatus.IDLE
-
-        summary = "; ".join(results_summary)
-        notification_html = "\n\n".join(notifications)
-
+        log.info("[instascraper] Ciclo autônomo de clonagem desativado — use /instascraper para baixar vídeos individuais.")
         return GoalResult(
             success=True,
-            summary=f"InstaScraper: {summary}",
-            notification=notification_html,
-            cost_usd=0.0,  # Scraping local gratuito sem uso de API LLM paga
+            summary="InstaScraper: clonagem autônoma desativada. Use /instascraper para downloads sob demanda.",
+            cost_usd=0.0,
         )
 
 

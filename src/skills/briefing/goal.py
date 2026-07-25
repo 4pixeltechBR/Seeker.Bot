@@ -46,7 +46,7 @@ class DailyNewsGoal:
 
     @property
     def name(self) -> str:
-        return "daily_news"
+        return "briefing"
 
     @property
     def interval_seconds(self) -> int:

@@ -27,7 +27,11 @@ class FileOpsHandler:
         start_time = time.time()
 
         try:
-            cmd_parts = step.command.split(":", 2)
+            cmd_parts = step.command.split("|", 2)
+            if len(cmd_parts) < 2:
+                cmd_parts_fallback = step.command.split(":", 2)
+                if len(cmd_parts_fallback) >= 2 and len(cmd_parts) < 2:
+                    cmd_parts = cmd_parts_fallback
             op = cmd_parts[0].lower()
 
             if op == "read":

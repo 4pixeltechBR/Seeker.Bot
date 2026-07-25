@@ -18,9 +18,13 @@ from .models import (
 )
 from .base import ActionHandler
 from .orchestrator import ActionOrchestrator
-from .actions import ActionExecutor
 from .safety import SafetyGate, SafetyGateEvaluator, ExecutorPolicy
 from .afk_protocol import AFKProtocol, AFKProtocolCoordinator, UserStatus
+
+# NOTE: ActionExecutor foi removido — actions.py nunca foi implementado.
+# remote_executor/goal.py está desabilitado em config/skills.yaml até
+# alguém escrever src/core/executor/actions.py com execute_plan() e
+# summarize_results(). Não reativar este import sem criar o módulo.
 
 __all__ = [
     # Models
@@ -36,8 +40,7 @@ __all__ = [
     "AuditEntry",
     # Orchestrator
     "ActionOrchestrator",
-    # Executor
-    "ActionExecutor",
+    # Handlers
     "ActionHandler",
     # Safety
     "SafetyGate",

@@ -1,22 +1,11 @@
 @echo off
-title Seeker.Bot
-echo ══════════════════════════════════════════════
-echo   SEEKER.BOT — Inicio Rapido
-echo ══════════════════════════════════════════════
-echo.
-
+chcp 65001 >nul
+title Seeker Unified Console
 cd /d E:\Seeker.Bot
 
-:: Ativa o venv
-call .venv\Scripts\activate.bat
+:: Usa diretamente o Python do venv para evitar ambiguidade
+.venv\Scripts\python.exe seeker_orchestrator.py
 
-:: Inicia o bot
-echo [start] Iniciando Seeker.Bot...
-echo [start] Ctrl+C para parar
 echo.
-python -m src
-
-:: Se cair aqui, o bot parou
-echo.
-echo [start] Bot encerrado.
+echo [v] Tudo encerrado.
 pause

@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "_comment": "Servidor MCP de filesystem. Usa mcp_wrapper.py que resolve npx.cmd -> node.exe + npx-cli.js e cmd.exe -> node.exe + script, eliminando janelas pretas no Windows.",
+      "command": "E:\\Seeker.Bot\\.venv\\Scripts\\pythonw.exe",
+      "args": [
+        "E:\\Seeker.Bot\\scripts\\mcp_wrapper.py",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Users\\Victor"
+      ]
+    },
+    "github": {
+      "_comment": "Servidor MCP do GitHub. Mesmo wrapper. Requer GITHUB_TOKEN no ambiente (lido via ${VAR}).",
+      "command": "E:\\Seeker.Bot\\.venv\\Scripts\\pythonw.exe",
+      "args": [
+        "E:\\Seeker.Bot\\scripts\\mcp_wrapper.py",
+        "npx",
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "promptograph": {
+      "_comment": "MCP server do Promptograph - busca em 5317 prompts reais, valida, gera, stats. Python stdlib sem deps.",
+      "command": "E:\\Seeker.Bot\\.venv\\Scripts\\pythonw.exe",
+      "args": [
+        "E:\\Seeker.Bot\\scripts\\promptograph_mcp_server.py"
+      ]
+    }
+  }
+}

@@ -1,16 +1,6 @@
 @echo off
-title Seeker.Bot + Agent Starter
-echo ══════════════════════════════════════════════
-echo   SEEKER.BOT + AGENT — Inicializacao Completa
-echo ══════════════════════════════════════════════
-echo.
+title Seeker Unified Console
 cd /d "%~dp0"
-
-echo [1/2] Iniciando Watchdog do Bot Conversacional (Telegram)...
-start "Seeker Bot Watchdog" cmd /c "call .venv\Scripts\activate.bat && python seeker_watchdog.py"
-
-echo [2/2] Iniciando Watchdog do Seeker Agent (Gateway / Crons)...
-start "Seeker Agent Watchdog" cmd /c "call .venv\Scripts\activate.bat && python seeker_agent_watchdog.py"
-
-echo.
-exit
+call .venv\Scripts\activate.bat 2>nul
+python seeker_orchestrator.py
+pause

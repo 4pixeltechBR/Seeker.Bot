@@ -61,7 +61,9 @@ CREATE TRIGGER IF NOT EXISTS after_session_turns_delete AFTER DELETE ON session_
 END;
 
 CREATE TRIGGER IF NOT EXISTS after_session_turns_update AFTER UPDATE ON session_turns BEGIN
-    UPDATE session_turns_fts SET content = new.content WHERE turn_id = old.id;
+    DELETE FROM session_turns_fts WHERE turn_id = old.id;
+    INSERT INTO session_turns_fts (turn_id, session_id, content)
+    VALUES (new.id, new.session_id, new.content);
 END;
 """
 
@@ -79,6 +81,9 @@ class SessionStore:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
+        await self._db.execute("PRAGMA journal_mode=WAL")
+        await self._db.execute("PRAGMA busy_timeout=5000")
+        await self._db.execute("PRAGMA foreign_keys=ON")
         await self._db.executescript(SCHEMA)
         await self._db.commit()
         self._initialized = True

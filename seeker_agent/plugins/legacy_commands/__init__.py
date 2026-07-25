@@ -46,7 +46,6 @@ except ImportError:
 # Globais de estado do plugin
 pipeline = None
 sense_news_goal = None
-event_radar_goal = None
 desktop_watch_goal = None
 init_lock = None
 telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -187,12 +186,9 @@ async def sense_news_loop():
         
         await asyncio.sleep(60)
 
-async def event_radar_loop():
     logger.info("Iniciando background loop do EventRadar...")
     while True:
         try:
-            if event_radar_goal:
-                result = await event_radar_goal.run_cycle()
                 if result and result.notification:
                     logger.info("EventRadar cycle executado!")
                     await send_telegram_notification(result.notification)
@@ -249,7 +245,6 @@ async def get_init_lock() -> asyncio.Lock:
     return init_lock
 
 async def initialize_pipeline_and_loops():
-    global pipeline, sense_news_goal, event_radar_goal, desktop_watch_goal
     lock = await get_init_lock()
     async with lock:
         if pipeline is not None:
@@ -273,11 +268,9 @@ async def initialize_pipeline_and_loops():
             logger.info("SeekerPipeline inicializada com sucesso!")
             
             from src.skills.sense_news.goal import SenseNewsGoal
-            from src.skills.event_radar.goal import EventRadarGoal
             from src.skills.desktop_watch.goal import DesktopWatchGoal
             
             sense_news_goal = SenseNewsGoal(pipeline)
-            event_radar_goal = EventRadarGoal(pipeline)
             desktop_watch_goal = DesktopWatchGoal(pipeline)
             
             all_states = load_legacy_state()
@@ -285,7 +278,6 @@ async def initialize_pipeline_and_loops():
             desktop_watch_goal.load_state(all_states.get("desktop_watch", {}))
             
             asyncio.create_task(sense_news_loop())
-            asyncio.create_task(event_radar_loop())
             asyncio.create_task(desktop_watch_loop())
             
             logger.info("Todos os Goals legados e seus loops de background foram iniciados.")
@@ -473,7 +465,7 @@ async def cmd_radar(args: str) -> Optional[str]:
     if pipeline is None:
         await initialize_pipeline_and_loops()
 
-    state_path = project_root / "data" / "event_radar" / "event_radar_state.json"
+    state_path = project_root / "data" / "custom_extension" / "event_radar_state.json"
     
     if not state_path.exists():
         return "❌ Estado do EventRadar não encontrado. Aguarde a inicialização da pipeline ou configure manualmente."
@@ -715,7 +707,7 @@ async def handle_news_callback(query, nicho_input: str, adapter):
 
 async def handle_radar_callback(query, action_data: str, adapter):
     """Manipula cliques inline para preferências do EventRadar."""
-    state_path = project_root / "data" / "event_radar" / "event_radar_state.json"
+    state_path = project_root / "data" / "custom_extension" / "event_radar_state.json"
     if not state_path.exists():
         await query.answer(text="❌ Estado do Radar não encontrado")
         return

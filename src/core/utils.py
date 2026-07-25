@@ -8,6 +8,9 @@ Funções usadas por múltiplos módulos (phases, skills, extractor).
 import json
 import logging
 import re
+import contextlib
+import io
+import sys
 
 log = logging.getLogger("seeker.utils")
 
@@ -66,3 +69,30 @@ def parse_llm_json(text: str) -> dict | list:
         raise ValueError(
             f"JSON inválido a partir da posição {start_idx}: {e}"
         ) from e
+
+
+class MembersOnlyStderrFilter:
+    """Redireciona stderr filtrando mensagens de members-only do yt-dlp."""
+
+    def __init__(self, real_stderr=None):
+        self.real_stderr = real_stderr or sys.stderr
+        self._capture = io.StringIO()
+        self.encoding = getattr(self.real_stderr, "encoding", "utf-8")
+        self.errors = getattr(self.real_stderr, "errors", "replace")
+
+    def write(self, text: str | bytes):
+        if isinstance(text, bytes):
+            text = text.decode("utf-8", errors="replace")
+        self._capture.write(text)
+        lowered = text.lower()
+        if "members on level" in lowered or "members-only" in lowered:
+            return
+        self.real_stderr.write(text)
+
+    def flush(self):
+        self.real_stderr.flush()
+
+
+def filter_ytdlp_stderr():
+    """Retorna um context manager que filtra stderr do yt-dlp."""
+    return contextlib.redirect_stderr(MembersOnlyStderrFilter(sys.stderr))

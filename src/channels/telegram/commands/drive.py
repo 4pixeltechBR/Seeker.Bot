@@ -172,7 +172,14 @@ async def cq_drive_mkdir(callback: CallbackQuery):
     await callback.answer()
 
 
-@drive_router.message(F.text)
+@drive_router.message(
+    F.text,
+    # Só intercepta se o usuário está em algum flow ativo do Drive.
+    # Sem esse filtro, o catch-all F.text engole TODAS as mensagens
+    # de texto do bot, impedindo o message_router (handle_text) de rodar.
+    lambda msg: (msg.from_user and msg.from_user.id in _auth_waiting)
+    or (msg.from_user and msg.from_user.id in _upload_pending),
+)
 async def handle_text_intercepts(message: Message):
     user_id = message.from_user.id
     text = message.text.strip()

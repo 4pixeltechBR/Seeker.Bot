@@ -117,7 +117,7 @@ seeker_agent
 
 **Agent 对人类的外发联系：**
 ```
-1. create_inbox (username: "seeker_agent-outreach")
+1. create_inbox (username: "seeker_agent-specialist_skill")
 2. send_message (to: user@example.com, subject: "Hello", text: "...")
 3. list_threads 检查回复
 ```

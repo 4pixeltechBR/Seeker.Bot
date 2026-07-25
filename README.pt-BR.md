@@ -2,7 +2,7 @@
 
 # 🤖 Seeker.Bot
 
-**Agente cognitivo autônomo para Telegram com memória persistente, visão computacional e 14 skills modulares.**
+**Agente cognitivo autônomo para Telegram & WhatsApp com memória persistente, visão computacional, 10 adaptadores de execução e 42 skills modulares.**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -19,26 +19,21 @@
 
 ## ✨ O que é o Seeker?
 
-O Seeker.Bot não é um chatbot — é um **agente cognitivo autônomo** que vive no seu Telegram. Ele decide como pensar sobre cada mensagem (reflexiva, deliberada, ou análise profunda), pesquisa na web, lembra de tudo que vocês discutiram, e roda 14 skills independentes em background — de curadoria diária de notícias até gestão de conhecimento.
+O Seeker.Bot não é um chatbot — é um **agente cognitivo autônomo** que vive no seu Telegram e WhatsApp. Ele decide como pensar sobre cada mensagem (reflexiva, deliberada, ou análise profunda), pesquisa na web, lembra de tudo que vocês discutiram, e roda 42 skills independentes em background — de inteligência comercial/CRM até curadoria diária de notícias e ingestão de grupos do WhatsApp no Obsidian Vault.
 
-O que o torna diferente: uma **cascade multi-provider de APIs** que nunca para de funcionar, um **RL Bandit** (Aprendizado por Reforço) que aprende qual modelo de IA funciona melhor para cada tarefa, e **Evidence Arbitrage** — triangulação de respostas de múltiplos providers para pegar alucinações.
+O que o torna diferente: uma **cascade multi-provider de APIs (6 Tiers)** que nunca para de funcionar, 10 adaptadores de execução portados (`MOA`, `BROWSER_CAMO`, `CRM`, `FIRECRAWL`, `CRONJOB`, etc.), um **RL Bandit** (Aprendizado por Reforço) que aprende qual modelo de IA funciona melhor para cada tarefa, um **Servidor MCP Nativo**, e **Evidence Arbitrage** para evitar alucinações.
 
 Você pode rodar ele inteiramente na nuvem com tiers gratuitos de API, ou **100% localmente** na sua GPU sem precisar de internet.
 
 ---
 
-## 🆕 Novidades da v3.7-stable (Sprint 13.1)
+## 🆕 Novidades da v3.12-stable
 
-- **InstaScraper como SaveAsBot:** Refatoração completa do comando de download do Instagram. Agora funciona de forma totalmente simplificada enviando o link do post direto no chat, baixando de forma assíncrona, e enviando de volta o vídeo bruto em formato nativo (.mp4) ou como documento (para arquivos > 50MB) para evitar compressão, apagando o arquivo temporário local em seguida.
-- **Filtro de Relevância com Chain-of-Thought (CoT):** Upgrade estrutural no classificador e minerador de conteúdo do Seeker. O agente agora extrai metadados ricos (descrição parcial, tags, categorias do vídeo) e executa uma validação semântica com raciocínio Chain-of-Thought antes de decidir se o conteúdo é de fato relevante para o nicho configurado. Isso reduz falsos positivos e clickbaits off-topic drasticamente.
-
-## 🆕 Novidades da v3.6-stable (Sprint 12.2)
-
-- **Painel de Configurações Interativo (`/config`):** Uma interface em botões diretamente no chat do Telegram para alternar skills em tempo de execução (gravação automática em `skills.yaml`), exibir modelos de IA ativos, checar custos do dia e realizar restart controlado do bot.
-- **Skills Especialistas Ativas:** Ativação automática de monitoramento de tela (`desktop_watch`), leitura de e-mails (`email_monitor`) e executor de planos remotos (`remote_executor`).
-- **Lembretes via NLP e UUID Curto (v3.5):** Identificação de lembretes com 8 caracteres e cancelamento direto usando frases de linguagem natural (ex: "cancelar lembrete a8f210d4").
-- **Importação de ZIP & MHT no Cofre (v3.5):** Envio e processamento de arquivos compactados e arquivos `.mht` direto para o cofre do Obsidian como Markdown higienizado.
-- **Vídeos do InstaScraper Diretos (v3.5):** Envio de vídeos do Instagram de forma direta no chat como arquivos MP4 limpos.
+- **Pipeline WhatsApp Vault (`src/skills/whatsapp_vault/`):** Ingestão via Webhook em tempo real e polling agendado via Evolution API v2.3.7. Processa 9 mídias (OCR Florence-2, PyMuPDF, transcrição Whisper, tabelas DOCX/XLSX/PPTX, vCard, geolocalizações) com salvamento no Obsidian Vault e deduplicação FIFO atômica (`SeenIdsStore`).
+- **Painel Interativo `/wa_config` e `/wa_resend`:** Controle de grupos WhatsApp monitorados, janelas diárias e reprocessamento de mensagens diretamente no Telegram com hot-reload.
+- **Servidores MCP & RPC Nativos (`src/core/execution/`):** Servidor HTTP/SSE Model Context Protocol (`POST /mcp`, `GET /mcp/sse`) na porta 8000 e JSON-RPC 2.0 na porta 8001.
+- **10 Adaptadores de Execução (`src/core/execution/adapters/`):** Módulos de ação incluindo Mixture of Agents (`MOA`), Automação Camofox, Web Scraping Firecrawl, Inteligência X/Twitter e Consultas CRM.
+- **Orquestrador v2 & Watchdogs:** Execução resiliente via `seeker_orchestrator.py` e `seeker_watchdog.py` com lockfile singleton, monitoramento de heartbeat e auto-recovery.
 
 ---
 
@@ -67,7 +62,7 @@ O Seeker usa uma **cascade multi-provider** — você pode usar apenas **1 chave
 | **Google Gemini** | `gemini-embedding-001` | 💾 Embeddings (memória) | ✅ 100 RPM | mesma chave |
 | **Google Gemini** | `gemini-2.5-flash` | 👁️ VLM Cloud (visão) | ✅ 5 RPM | mesma chave |
 | **Groq** | `llama-4-scout-17b` | ⚡ FAST (ultra-rápido) | ✅ 30 RPM, 14.4K/dia | [console.groq.com](https://console.groq.com/keys) |
-| **NVIDIA NIM** | `deepseek-v3.2` | 🧠 DEEP + 📝 SYNTHESIS | ✅ 40 RPM, ilimitado | [build.nvidia.com](https://build.nvidia.com/) |
+| **NVIDIA NIM** | `deepseek-v4-pro` | 🧠 DEEP + 📝 SYNTHESIS | ✅ 40 RPM, ilimitado | [build.nvidia.com](https://build.nvidia.com/) |
 | **NVIDIA NIM** | `nemotron-ultra-253b` | 🧠 DEEP (fallback pesado) | ✅ 40 RPM | mesma chave |
 | **NVIDIA NIM** | `qwq-32b` | 🔴 ADVERSARIAL (reasoning) | ✅ 40 RPM | mesma chave |
 | **NVIDIA NIM** | `gemma-4-31b-it` | ⚖️ JUDGE + 🔴 ADVERSARIAL | ✅ 40 RPM | mesma chave |

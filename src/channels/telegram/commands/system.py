@@ -5,6 +5,7 @@ from aiogram.enums import ParseMode
 import html
 import asyncio
 import re
+from pathlib import Path
 from config.models import CognitiveRole
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import _rate_limiters
@@ -14,6 +15,13 @@ from src.channels.telegram.formatter import split_message
 from src.skills.tech_scout.goal import CATEGORY_NAMES
 
 log = logging.getLogger("seeker.telegram.system")
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _validate_sara_path(file_path: str) -> bool:
+    resolved = Path(file_path).resolve()
+    return str(resolved).startswith(str(_PROJECT_ROOT))
 
 
 def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
@@ -831,46 +839,6 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
                 "❌ Erro inesperado na limpeza de dados", parse_mode=ParseMode.HTML
             )
 
-    @dp.message(F.text == "/dashboard")
-    async def cmd_dashboard(message: Message):
-        """Mostra dashboard financeiro com status atual"""
-        try:
-            relatorio = await pipeline.analytics_reporter.gerar_relatorio_diario()
-            await message.answer(relatorio.conteudo_html, parse_mode=ParseMode.HTML)
-        except AttributeError as e:
-            log.error(
-                f"[dashboard] Analytics reporter not available: {e}",
-                exc_info=True,
-                extra={"context": "dashboard", "error_type": "AttributeError"},
-            )
-            await message.answer(
-                "❌ Sistema de análise não está disponível", parse_mode=ParseMode.HTML
-            )
-        except (ValueError, KeyError) as e:
-            log.error(
-                f"[dashboard] Invalid report data: {e}",
-                exc_info=True,
-                extra={"context": "dashboard", "error_type": type(e).__name__},
-            )
-            await message.answer(
-                "❌ Erro ao gerar dashboard", parse_mode=ParseMode.HTML
-            )
-        except asyncio.TimeoutError:
-            log.warning("[dashboard] Dashboard generation timeout")
-            await message.answer(
-                "⏱️ Geração de dashboard está demorando. Tente novamente.",
-                parse_mode=ParseMode.HTML,
-            )
-        except Exception as e:
-            log.critical(
-                f"[dashboard] Unexpected error: {e}",
-                exc_info=True,
-                extra={"context": "dashboard", "error_type": type(e).__name__},
-            )
-            await message.answer(
-                "❌ Erro inesperado ao carregar dashboard", parse_mode=ParseMode.HTML
-            )
-
     @dp.message(F.text == "/forecast")
     async def cmd_forecast(message: Message):
         """Mostra previsoes de custos para proximos 7 e 30 dias"""
@@ -945,6 +913,10 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
     @dp.message(F.text == "/restart")
     async def cmd_restart(message: Message):
         """Reinicia o bot manualmente"""
+        god_users = getattr(pipeline._message_controller, "_god_mode_users", set()) if hasattr(pipeline, "_message_controller") else set()
+        if message.from_user.id not in god_users:
+            await message.answer("❌ Este comando requer God Mode. Use /god primeiro.")
+            return
         await message.answer(
             "♻️ <b>Reiniciando Seeker.Bot...</b>\nO Watchdog subirá o sistema em 5s.",
             parse_mode=ParseMode.HTML
@@ -1006,6 +978,15 @@ def setup_system_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
         file_path = patch["file_path"]
         proposed_code = patch["proposed_code"]
         rationale = patch.get("rationale", "")
+
+        if not _validate_sara_path(file_path):
+            await query.message.edit_text(
+                f"❌ <b>Patch #{pending_id} REJEITADO por segurança</b>\n"
+                f"O caminho <code>{html.escape(file_path)}</code> está fora do projeto.",
+                parse_mode=ParseMode.HTML,
+            )
+            await store.reject(pending_id)
+            return
 
         try:
             # Backup .bak antes de overwrite

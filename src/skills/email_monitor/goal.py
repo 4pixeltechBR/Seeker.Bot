@@ -10,6 +10,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
+from src.core.events import get_event_bus
 from src.core.pipeline import SeekerPipeline
 from src.providers.base import LLMRequest, invoke_with_fallback
 from src.core.goals.protocol import (
@@ -159,6 +160,12 @@ class EmailMonitorGoal:
         self._status = GoalStatus.RUNNING
         cycle_cost = 0.0
 
+        # Event: email.started
+        try:
+            await get_event_bus().emit("email.started", {"goal": "email_monitor"})
+        except Exception:
+            pass
+
         try:
             # Tenta via Gmail API (mais confiável que IMAP)
             emails = await self._fetch_unread_gmail_api()
@@ -252,6 +259,16 @@ class EmailMonitorGoal:
             self._last_run_date = today_str
             self._status = GoalStatus.IDLE
 
+            # Event: email.completed
+            try:
+                await get_event_bus().emit("email.completed", {
+                    "goal": "email_monitor",
+                    "emails_processed": count,
+                    "cost_usd": cycle_cost,
+                })
+            except Exception:
+                pass
+
             return GoalResult(
                 success=True,
                 summary=f"Inbox Digest entregue para {count} emails",
@@ -262,6 +279,16 @@ class EmailMonitorGoal:
         except Exception as e:
             self._status = GoalStatus.ERROR
             log.error(f"[email_monitor] Erro no ciclo: {e}", exc_info=True)
+
+            # Event: email.failed
+            try:
+                await get_event_bus().emit("email.failed", {
+                    "goal": "email_monitor",
+                    "error": str(e)[:200],
+                })
+            except Exception:
+                pass
+
             return GoalResult(
                 success=False,
                 summary=f"Falha: {e}",

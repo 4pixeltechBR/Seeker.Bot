@@ -335,6 +335,7 @@ class MessageController:
     # ─── 3. TEXT HANDLING ─────────────────────────────────────────────────────────
     async def handle_text(self, message: Message):
         user_input = message.text.strip()
+        log.info(f"[message] handle_text entrada — chat={message.chat.id} user={message.from_user.id} | '{user_input[:120]}'")
         if not user_input:
             return
 
@@ -395,18 +396,23 @@ class MessageController:
     async def _process_and_reply(self, message: Message, user_input: str) -> None:
         """Main routing pipeline execution com streaming progressivo de estágios."""
         if await self._handle_bug_wizard(message, user_input):
+            log.info(f"[message] Roteado para bug_wizard")
             return
 
         if await self._handle_scheduler_wizard(message, user_input):
+            log.info(f"[message] Roteado para scheduler_wizard")
             return
 
         if await self._handle_nl_cancel_reminder(message, user_input):
+            log.info(f"[message] Roteado para nl_cancel_reminder")
             return
 
         if await self._handle_instagram_download(message, user_input):
+            log.info(f"[message] Roteado para instagram_download")
             return
 
         if await self._handle_nl_reminder(message, user_input):
+            log.info(f"[message] Roteado para nl_reminder")
             return
 
         user_input = await self._inject_url_context(message, user_input)
@@ -418,15 +424,26 @@ class MessageController:
         session_id = f"telegram:{message.chat.id}"
         self._record_rl_feedback(message, user_input)
 
+        log.info(f"[message] Iniciando pipeline — session={session_id} | '{user_input[:120]}'")
+
         # Envia mensagem placeholder — será editada progressivamente
         # em vez de abrir nova mensagem no final (AI-style streaming)
         placeholder = await message.answer("⏳ <i>Processando...</i>", parse_mode=ParseMode.HTML)
 
         afk_protocol = getattr(self.pipeline, "afk_protocol", None)
 
-        # Inicia o pipeline como task em background
+        # Inicia o pipeline com ReAct retry. Envolve a chamada com retry
+        # automático em erros transientes (timeout, connection) com observation
+        # da exception. Limita a 2 retries para não estourar o budget.
+        from src.core.react_retry import with_react_retry, ReactRetryExhausted
         pipeline_task = asyncio.create_task(
-            self.pipeline.process(user_input, session_id=session_id, afk_protocol=afk_protocol)
+            with_react_retry(
+                self.pipeline.process,
+                user_input,
+                session_id=session_id,
+                afk_protocol=afk_protocol,
+                max_retries=2,
+            )
         )
 
         # Estágios visíveis (rotação enquanto pipeline processa)
@@ -471,11 +488,30 @@ class MessageController:
 
         except Exception as e:
             pipeline_task.cancel()
+            # ReactRetryExhausted tem info útil sobre tentativas. Mostra
+            # mensagem específica para o usuário entender o que aconteceu.
+            from src.core.react_retry import ReactRetryExhausted
+            from src.core.llm_guard import BudgetExceededError
+            if isinstance(e, ReactRetryExhausted):
+                err_msg = (
+                    f"⚠️ Pipeline falhou após {e.attempts} tentativas.\n"
+                    f"Último erro: {str(e.original_error)[:150]}"
+                )
+            elif isinstance(e, BudgetExceededError):
+                err_msg = (
+                    f"⚠️ Limite de chamadas LLM atingido.\n"
+                    f"{str(e)[:200]}"
+                )
+            else:
+                err_msg = f"❌ Erro: {str(e)[:200]}"
             log.error(f"Erro no pipeline: {e}", exc_info=True)
             try:
-                await placeholder.edit_text(f"❌ Erro: {str(e)[:200]}")
+                await placeholder.edit_text(err_msg, parse_mode=ParseMode.HTML)
             except Exception:
-                await message.answer(f"❌ Erro: {str(e)[:200]}")
+                try:
+                    await message.answer(err_msg, parse_mode=ParseMode.HTML)
+                except Exception:
+                    pass
             return
 
         self._record_ooda_loop(message, user_input, result)
@@ -991,7 +1027,7 @@ def setup_message_handlers(
         _check_transcribe_state,
     )
     controller.setup(dp)
-    # Inject god_mode_users compatibility
+    pipeline._message_controller = controller
     god_users = dp.get("god_mode_users")
     if god_users is None:
         god_users = set()

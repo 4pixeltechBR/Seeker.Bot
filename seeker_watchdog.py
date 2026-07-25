@@ -1,17 +1,17 @@
 """
-Seeker.Bot — Watchdog Process (DESATIVADO)
+Seeker.Bot — Bot Process Watchdog
 seeker_watchdog.py
 
-⚠️  Este watchdog foi substituído pelo seeker_agent_watchdog.py.
-    Use start_agent_watchdog.bat para iniciar o Seeker Agent.
+Monitora o bot principal (Telegram) e reinicia automaticamente se:
+  - O processo morrer (crash com exit code != 0)
+  - O bot travar (sem resposta no heartbeat por N segundos)
+  - Ocorrer exception fatal inesperada
 
-Monitora o bot principal e reinicia automaticamente se:
-  - O processo morrer
-  - O bot travar (sem resposta por N segundos)
-  - Crash com exception fatal
+Orquestração v2:
+  Executado pelo seeker_orchestrator.py em foreground.
+  Utiliza lockfile singleton (logs/watchdog.lock) para evitar múltiplos bots concorrentes.
 
 Uso: python seeker_watchdog.py
-     (sempre rodar esse, nunca o bot diretamente em produção)
 """
 
 # ── Watchdog reativado ──────────────────────────────────────────────────

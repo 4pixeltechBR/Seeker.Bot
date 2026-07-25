@@ -13,7 +13,7 @@ import html
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, F
 from prometheus_client import start_http_server
-from aiogram.types import Message, CallbackQuery, BotCommand, User
+from aiogram.types import Message, CallbackQuery, BotCommand
 from aiogram.enums import ParseMode, ChatAction
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -58,39 +58,51 @@ async def keep_typing(bot: Bot, chat_id: int, stop: asyncio.Event):
 
 
 async def setup_commands(bot: Bot):
+    """Registra comandos no menu azul do Telegram (BotCommand list).
+
+    IMPORTANTE: este menu é o que aparece quando o usuário digita `/` no chat
+    do Telegram. Só liste comandos que estão implementados em
+    src/channels/telegram/commands/*.py. Para inventário completo, ver
+    docs/HANDLERS_INVENTORY.md.
+
+    Manter ordenado alfabeticamente (exceto /start que fica primeiro).
+    """
     commands = [
-        BotCommand(command="/start", description="Menu de ajuda e inicialização"),
+        BotCommand(command="/start", description="▶️ Menu de ajuda + inventário de comandos"),
+        # === Recuperação/Boot ===
         BotCommand(command="/config", description="⚙️ Painel de configuração (Skills, Providers, Restart)"),
-        BotCommand(command="/criar_skill", description="🛠️ Cria dinamicamente uma nova skill (Patcher L3)"),
-        BotCommand(command="/status", description="Painel de providers, memória e metas"),
-        BotCommand(command="/saude", description="Dashboard de saúde dos goals (detalhado)"),
-        BotCommand(command="/perf", description="Dashboard de performance e latência"),
-        BotCommand(command="/perf_detailed", description="Métricas detalhadas por fase"),
-        BotCommand(command="/cascade_status", description="Status detalhado da API Cascade (6 tiers)"),
-        BotCommand(command="/recovery", description="Status de circuit breakers e degradação"),
-        BotCommand(command="/memory", description="Fatos aprendidos na sessão"),
-        BotCommand(command="/god", description="Arma God Mode para a próxima mensagem"),
-        BotCommand(command="/search", description="Busca direta e forçada na web"),
-        BotCommand(command="/deep", description="🕵️ Pesquisa profunda autônoma (Kimi)"),
-        BotCommand(command="/rate", description="Exibe status dos rate limiters"),
-        BotCommand(command="/decay", description="Roda limpeza de confiança manual"),
-        BotCommand(command="/budget", description="Gastos de hoje por provedor"),
-        BotCommand(command="/budget_monthly", description="Gastos do mês por provedor"),
-        BotCommand(command="/data_stats", description="Estatisticas do armazem de dados"),
-        BotCommand(command="/data_clean", description="Executa limpeza de dados antigos"),
-        BotCommand(command="/dashboard", description="Dashboard financeiro com status atual"),
-        BotCommand(command="/forecast", description="Previsoes de custos para proximos 7 e 30 dias"),
-        BotCommand(command="/habits", description="Padrões de decisão aprendidos"),
-        BotCommand(command="/bandit", description="🎯 LinUCB em shadow mode (progresso de RL)"),
-        BotCommand(command="/audit_sara", description="📊 Audit integrado do S.A.R.A"),
-        BotCommand(command="/print", description="Screenshot rápido da tela sem analise"),
-        BotCommand(command="/watch", description="Ativa vigilância de tela (modo AFK)"),
-        BotCommand(command="/watchoff", description="Desativa vigilância de tela"),
-        BotCommand(command="/git_backup", description="Faz backup manual do código no GitHub privado"),
-        BotCommand(command="/configure_news", description="Personaliza nichos do SenseNews"),
-        BotCommand(command="/switch", description="🔄 Alterna entre modelos LLM (opinião, performance)"),
-        BotCommand(command="/feedback", description="💬 Envia feedback/problema sobre o bot"),
         BotCommand(command="/restart", description="🔄 Reinicia o bot (admin)"),
+        # === Diagnóstico do Sistema ===
+        BotCommand(command="/status", description="📊 Painel de providers, memória e metas"),
+        BotCommand(command="/saude", description="🏥 Dashboard de saúde dos goals (detalhado)"),
+        BotCommand(command="/dashboard", description="📊 Dashboard completo do sistema (saúde, RL, custos, breakers)"),
+        BotCommand(command="/perf", description="⚡ Dashboard de performance e latência"),
+        BotCommand(command="/perf_detailed", description="⚡ Métricas detalhadas por fase"),
+        BotCommand(command="/cascade_status", description="🔄 Status detalhado da API Cascade (6 tiers)"),
+        BotCommand(command="/recovery", description="🛡️ Status de circuit breakers e degradação"),
+        BotCommand(command="/rate", description="⏱️ Exibe status dos rate limiters"),
+        # === Memória e Sessão ===
+        BotCommand(command="/memory", description="🧠 Fatos aprendidos na sessão"),
+        BotCommand(command="/god", description="⚡ Arma God Mode para a próxima mensagem"),
+        BotCommand(command="/cancelar", description="❌ Cancela operação atual (vault, transcrição)"),
+        # === Decaimento e Limpeza ===
+        BotCommand(command="/decay", description="🧹 Roda limpeza de confiança manual"),
+        BotCommand(command="/data_stats", description="💾 Estatísticas do armazém de dados"),
+        BotCommand(command="/data_clean", description="🧹 Executa limpeza de dados antigos"),
+        # === Custos ===
+        BotCommand(command="/budget", description="💰 Gastos de hoje por provedor"),
+        BotCommand(command="/budget_monthly", description="💰 Gastos do mês por provedor"),
+        BotCommand(command="/forecast", description="📈 Previsões de custos para próximos 7 e 30 dias"),
+        # === RL (Aprendizado por Reforço) ===
+        BotCommand(command="/bandit", description="🎯 LinUCB em shadow mode (progresso de RL)"),
+        BotCommand(command="/bandit_stats", description="🎯 Estatísticas do LinUCB (atalho para /bandit)"),
+        BotCommand(command="/rl_tune", description="🧠 Tuning de parâmetros do LinUCB"),
+        BotCommand(command="/rl_stats", description="📈 Estatísticas do LinUCB (conversão, arm stats)"),
+        BotCommand(command="/rl_activate", description="🟢 Ativa o aprendizado por reforço (produção)"),
+        BotCommand(command="/rl_deactivate", description="🔴 Desativa o aprendizado por reforço (shadow)"),
+        BotCommand(command="/habits", description="🎯 Padrões de decisão aprendidos"),
+        BotCommand(command="/audit_sara", description="🩺 Audit integrado do S.A.R.A"),
+        # === Tarefas Agendadas (scheduler_conversacional) ===
         BotCommand(command="/agendar", description="📅 Agenda nova tarefa (wizard conversacional)"),
         BotCommand(command="/listar", description="📋 Lista tarefas agendadas do chat"),
         BotCommand(command="/detalhe", description="🔍 Ver detalhes de tarefa (/detalhe <ID>)"),
@@ -98,20 +110,55 @@ async def setup_commands(bot: Bot):
         BotCommand(command="/reativar", description="▶️ Reativa tarefa (/reativar <ID>)"),
         BotCommand(command="/remover", description="🗑 Remove tarefa (/remover <ID>)"),
         BotCommand(command="/executar", description="⚡ Executa tarefa agora (/executar <ID>)"),
+        # === Knowledge / Obsidian / Pesquisa ===
+        BotCommand(command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"),
+        BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
+        BotCommand(command="/research", description="🔬 Pesquisa profunda sobre um tópico"),
+        BotCommand(command="/research_schedule", description="🗓️ Agenda pesquisa recorrente"),
+        # === Email ===
+        BotCommand(command="/test_email", description="🧪 Força execução do Email Monitor (diagnóstico)"),
+        # === ViralX9 (YouTube trending mining) ===
+        BotCommand(command="/x9", description="🔭 ViralX9: ativar/desativar nichos de mineração"),
+        BotCommand(command="/vx9_pausar", description="⏸ Pausar nicho do ViralX9"),
+        BotCommand(command="/vx9_ativar", description="▶️ Ativar nicho do ViralX9"),
+        BotCommand(command="/vx9_remover", description="🗑 Remover nicho do ViralX9"),
+        BotCommand(command="/swarm_status", description="🐝 Status do Ruflo Swarm (multi-agente)"),
+        # === Radar de Eventos ===
+        # === Dev / Ferramentas ===
+        BotCommand(command="/criar_skill", description="🛠️ Cria dinamicamente uma nova skill (Patcher L3)"),
+        BotCommand(command="/git_backup", description="💾 Faz backup manual do código no GitHub privado"),
         BotCommand(command="/bug", description="🐛 Analisa bug com contexto e sugestões"),
         BotCommand(command="/bug_approve", description="✅ Aprova e aplica correções sugeridas"),
         BotCommand(command="/bug_cancel", description="❌ Cancela análise de bug"),
+        # === Pesquisa direta ===
+        BotCommand(command="/search", description="🔍 Busca direta e forçada na web"),
+        BotCommand(command="/deep", description="🕵️ Pesquisa profunda autônoma (Kimi)"),
+        # === Sherlock / Knowledge ===
         BotCommand(command="/sherlock", description="🕵️ SherlockNews: Painel Interativo de Monitoramento IA"),
-        BotCommand(command="/obsidian", description="📝 Salva conteúdo no cofre do Obsidian"),
-        BotCommand(command="/cofre", description="🔍 Pesquisa no cofre do Obsidian"),
+        BotCommand(command="/configure_news", description="📰 Personaliza nichos do SenseNews"),
+        # === Visão / Desktop ===
+        BotCommand(command="/print", description="🖼️ Screenshot rápido da tela sem análise"),
+        BotCommand(command="/watch", description="👁️ Ativa vigilância de tela (modo AFK)"),
+        BotCommand(command="/watchoff", description="🚫 Desativa vigilância de tela"),
+        # === Google Drive ===
         BotCommand(command="/drive", description="📁 Google Drive: listar, criar, enviar e baixar arquivos"),
+        # === Transcrição ===
         BotCommand(command="/transcrever", description="🎙️ Transcreve o próximo áudio enviado"),
+        # === Instagram ===
         BotCommand(command="/instascraper", description="📥 InstaScraper: Baixa vídeo do Instagram para o chat"),
-        BotCommand(command="/rl_tune", description="🧠 Tuning de parâmetros do LinUCB"),
-        BotCommand(command="/rl_activate", description="🟢 Ativa o aprendizado por reforço (produção)"),
-        BotCommand(command="/rl_deactivate", description="🔴 Desativa o aprendizado por reforço (shadow)"),
-        BotCommand(command="/rl_stats", description="📈 Estatísticas do LinUCB (conversão, arm stats)"),
-        BotCommand(command="/test_email", description="🧪 Força execução do Email Monitor (diagnóstico)"),
+        # === Vendas / CRM ===
+        # === LLM (controle de modelo) ===
+        BotCommand(command="/switch", description="🔄 Alterna entre modelos LLM (opinião, performance)"),
+        BotCommand(command="/feedback", description="💬 Envia feedback/problema sobre o bot"),
+        # === Terminal / MCP / WhatsApp (v3.9-3.12) ===
+        BotCommand(command="/terminal", description="🖥️ Executa comando shell no host (estilo Hermes)"),
+        BotCommand(command="/mcp", description="🔌 MCP: lista/invoca tools de servidores MCP (filesystem, github, etc.)"),
+        BotCommand(command="/wa", description="📱 Status rápido do WhatsApp Vault"),
+        BotCommand(command="/wa_config", description="⚙️ Painel de configuração do WhatsApp (hot-reload YAML)"),
+        BotCommand(command="/wa_resend", description="🔄 Re-processa uma mensagem WhatsApp específica"),
+        # === Promptograph (auditoria e geracao de system prompts) ===
+        BotCommand(command="/validate", description="📋 Audita system prompt (13 boas praticas, nota A+ a F)"),
+        BotCommand(command="/generate", description="✨ Gera system prompt (5 presets ou custom wizard)"),
     ]
     await bot.set_my_commands(commands)
 
@@ -204,13 +251,104 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
     setup_vision_handlers(dp, pipeline)
     setup_vault_handlers(dp, pipeline, vault, _obsidian_wait_users)
     setup_development_handlers(dp, pipeline, _bug_context)
-    setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
 
     from src.channels.telegram.commands.config import setup_config_handlers
     setup_config_handlers(dp, pipeline)
 
+    try:
+        from src.channels.telegram.commands.whatsapp_config import setup_whatsapp_config_handlers
+        setup_whatsapp_config_handlers(dp, pipeline)
+        log.info("[bot] whatsapp config handlers registered")
+    except ImportError:
+        log.warning("[bot] whatsapp config handler not loaded (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Error registering whatsapp config: {e}", exc_info=True)
+
+    try:
+        from src.channels.telegram.commands.whatsapp import setup_whatsapp_handlers
+        setup_whatsapp_handlers(dp, pipeline)
+        log.info("[bot] whatsapp handlers registered (/wa, /wa_resend)")
+    except ImportError:
+        log.warning("[bot] whatsapp handler not loaded (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Error registering whatsapp handlers: {e}", exc_info=True)
+
     from src.channels.telegram.commands.drive import setup_drive_handlers
     setup_drive_handlers(dp, pipeline)
+
+    try:
+        from src.channels.telegram.commands.dashboard import setup_dashboard_handlers
+        setup_dashboard_handlers(dp, pipeline)
+    except ImportError:
+        log.warning("[bot] dashboard handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar dashboard handlers: {e}", exc_info=True)
+
+    # IMPORTANTE: radar e custom_extension devem ser registrados ANTES do setup_message_handlers
+    # porque message.py registra um catch-all F.text que engole qualquer comando
+    # registrado depois dele. No aiogram 3 o primeiro handler com filtro correspondente ganha.
+    try:
+        from src.channels.telegram.commands.radar import setup_radar_handlers
+        setup_radar_handlers(dp, pipeline)
+    except ImportError:
+        log.warning("[bot] radar handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar radar handlers: {e}", exc_info=True)
+
+    try:
+    except ImportError:
+        log.warning("[bot] custom_extension handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar custom_extension handlers: {e}", exc_info=True)
+
+    try:
+        from src.channels.telegram.commands.research import setup_research_handlers
+        setup_research_handlers(dp, pipeline)
+    except ImportError:
+        log.warning("[bot] research handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar research handlers: {e}", exc_info=True)
+
+    try:
+        from src.channels.telegram.commands.terminal import setup_terminal_handlers
+        setup_terminal_handlers(dp, pipeline)
+        log.info("[bot] terminal handlers registrados com sucesso")
+    except ImportError:
+        log.warning("[bot] terminal handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar terminal handlers: {e}", exc_info=True)
+
+    try:
+        from src.channels.telegram.commands.mcp import setup_mcp_handlers
+        setup_mcp_handlers(dp, pipeline)
+        log.info("[bot] mcp handlers registrados com sucesso")
+    except ImportError:
+        log.warning("[bot] mcp handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar mcp handlers: {e}", exc_info=True)
+
+    try:
+        from src.channels.telegram.commands.validate import setup_validate_handlers
+        setup_validate_handlers(dp, pipeline)
+        log.info("[bot] validate handlers registrados com sucesso")
+    except ImportError:
+        log.warning("[bot] validate handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar validate handlers: {e}", exc_info=True)
+
+    try:
+        from src.channels.telegram.commands.generate import setup_generate_handlers
+        setup_generate_handlers(dp, pipeline)
+        log.info("[bot] generate handlers registrados com sucesso")
+    except ImportError:
+        log.warning("[bot] generate handler não carregado (ImportError)")
+    except Exception as e:
+        log.error(f"[bot] Erro ao registrar generate handlers: {e}", exc_info=True)
+
+    # DEVE SER O ÚLTIMO: registra o catch-all F.text que processa mensagens livres
+    setup_message_handlers(dp, pipeline, vault, _obsidian_wait_users, _check_obsidian_state, _transcribe_wait_users, _check_transcribe_state)
+
+
     @dp.message(F.text == "/start")
     async def cmd_start(message: Message):
 
@@ -605,6 +743,12 @@ def setup_handlers(dp: Dispatcher, pipeline: SeekerPipeline, allowed_users: set[
 
 
 async def main():
+    # ── Singleton lock (prevenir 2 bots fazendo polling do mesmo token) ──
+    from src.core.singleton_lock import acquire_bot_lock
+    if not acquire_bot_lock():
+        log.error("Outra instância do bot está ativa. Saindo para evitar TelegramConflictError.")
+        raise SystemExit(2)
+
     # ── Load .env ─────────────────────────────────────────
     env_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
@@ -659,7 +803,21 @@ async def main():
         "nvidia": os.getenv("NVIDIA_API_KEY", ""),
         "cerebras": os.getenv("CEREBRAS_API_KEY", ""),
         "openrouter": os.getenv("OPENROUTER_API_KEY", ""),
+        "zai": os.getenv("ZAI_API_KEY", ""),
+        "xai": os.getenv("XAI_API_KEY", ""),
     }
+
+    _gemini_key = api_keys.get("gemini", "")
+    # Google mudou o formato das chaves Gemini em jun/2026: novo formato começa
+    # com "AQ." (substituiu o "AIza..." antigo). Aceitar ambos os formatos.
+    if _gemini_key and not (_gemini_key.startswith("AIza") or _gemini_key.startswith("AQ.")):
+        log.warning(
+            "GEMINI_API_KEY tem prefixo '%s' que não é reconhecido. "
+            "Formatos válidos: 'AIza...' (legado, descontinuado em 19/06/2026) "
+            "ou 'AQ.' (novo Interactions API). "
+            "Gere nova chave em https://aistudio.google.com/app/apikey",
+            _gemini_key[:6],
+        )
 
     allowed_raw = os.getenv("TELEGRAM_ALLOWED_USERS", "")
     allowed_users: set[int] = set()
@@ -784,26 +942,21 @@ async def main():
     log.info("  Embeddings persistidos")
     log.info("  Aguardando mensagens...")
 
-    # Workaround para "Logged out" error após logOut() API call
-    # Se bot.me() falha, cria um User fake para permitir polling
+    # Validação final: se o bot não consegue responder getMe, aborta com erro claro.
+    # Antes havia um bypass que criava um User fake em "Logged out", o que mascarava
+    # token revogado pelo BotFather e fazia o bot rodar sem conseguir entregar mensagens.
+    # Agora falhamos de forma explícita.
     try:
         test_me = await bot.me()
         log.info(f"Bot verificado: @{test_me.username}")
     except Exception as e:
-        if "Logged out" in str(e):
-            log.warning("Bot retornou 'Logged out' em bot.me(), mas continuando com polling...")
-            # Cria um User fake para permitir que dispatcher inicie
-            # Nota: polling ainda funcionará porque bot.me() foi cacheado internamente
-            fake_user = User(
-                id=int(token.split(":")[0]),  # Extrai bot ID do token
-                is_bot=True,
-                first_name="SeekerBot",
-                username="SeekerBR1_bot"
-            )
-            bot._me = fake_user  # Cache do aiogram
-            log.warning("Usando User fake para bypass de session check")
-        else:
-            raise
+        log.error(
+            f"Falha ao validar o bot via getMe: {type(e).__name__}: {e}. "
+            f"Causas prováveis: token inválido/revogado pelo BotFather, "
+            f"conflito com outra instância usando o mesmo token, "
+            f"ou bloqueio regional do Telegram."
+        )
+        raise SystemExit(2) from e
 
     hb_stop_event = asyncio.Event()
     hb_task = None

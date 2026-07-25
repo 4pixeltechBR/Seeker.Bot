@@ -51,7 +51,7 @@ _SKILLS_YAML = Path(
 _PROTECTED_SKILLS = {"health_monitor", "self_improvement", "briefing"}
 
 # Skills comerciais — ficam no menu mas com label diferente
-_COMMERCIAL_SKILLS = {"seeker" + "_sales", "seeker" + "_sales_week", "show_leads_daily"}
+_COMMERCIAL_SKILLS = {"seeker" + "_sales", "seeker" + "_sales_week", "custom_extension"}
 
 # Rótulos amigáveis por skill
 _SKILL_LABELS = {
@@ -71,7 +71,7 @@ _SKILL_LABELS = {
     "git_automation": "Git Auto-Backup",
     "seeker" + "_sales": "🔒 Scout B2B (comercial)",
     "seeker" + "_sales_week": "🔒 Sales Week (comercial)",
-    "show_leads_daily": "🔒 ShowDeck Daily (comercial)",
+    "custom_extension": "🔒 ShowDeck Daily (comercial)",
 }
 
 # Emojis por categoria

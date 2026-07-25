@@ -186,7 +186,7 @@ class ApprovalRequired(Exception):
     pass
 
 
-class TimeoutError(ExecutionError):
+class ExecutorTimeoutError(ExecutionError):
     """Raised when action exceeds timeout."""
 
     pass

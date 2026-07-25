@@ -69,8 +69,28 @@ def register():
         from seeker_agent.tools.cronjob_tools import cronjob
         return cronjob(action="resume", job_id=arg)
 
-    register_adapter("cronjob", "CRON_CREATE", desc, execute_cron_create)
-    register_adapter("cronjob", "CRON_LIST", "", execute_cron_list)
-    register_adapter("cronjob", "CRON_REMOVE", "", execute_cron_remove)
-    register_adapter("cronjob", "CRON_PAUSE", "", execute_cron_pause)
-    register_adapter("cronjob", "CRON_RESUME", "", execute_cron_resume)
+    cron_examples_create = [
+        '[CRON_CREATE: "every 2h|Busque novidades sobre IA agents no Hacker News"]',
+        '[CRON_CREATE: "0 9 * * 1|Semanal: gere relatório de leads do CRM"]',
+        '[CRON_CREATE: "30m|Lembre o usuário de beber água"]',
+    ]
+    register_adapter(
+        "cronjob", "CRON_CREATE", desc, execute_cron_create,
+        examples=cron_examples_create,
+    )
+    register_adapter(
+        "cronjob", "CRON_LIST", "", execute_cron_list,
+        examples=["[CRON_LIST]"],
+    )
+    register_adapter(
+        "cronjob", "CRON_REMOVE", "", execute_cron_remove,
+        examples=['[CRON_REMOVE: "job_abc123"]'],
+    )
+    register_adapter(
+        "cronjob", "CRON_PAUSE", "", execute_cron_pause,
+        examples=['[CRON_PAUSE: "job_abc123"]'],
+    )
+    register_adapter(
+        "cronjob", "CRON_RESUME", "", execute_cron_resume,
+        examples=['[CRON_RESUME: "job_abc123"]'],
+    )

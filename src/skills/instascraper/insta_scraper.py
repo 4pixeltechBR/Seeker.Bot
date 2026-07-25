@@ -3,6 +3,10 @@ import time
 import random
 import logging
 import sys
+import re
+import json
+import uuid
+import shutil
 from pathlib import Path
 import instaloader
 import yaml
@@ -32,7 +36,7 @@ class InstaScraper:
 
     def __init__(
         self,
-        base_path: str = "E:/Seeker.Bot/Downloads/Instagram/",
+        base_path: str = os.getenv("SEEKER_INSTAGRAM_PATH", "Downloads/Instagram/"),
         inbox_path: str = DEFAULT_INBOX_PATH,
     ):
         self.base_path = Path(base_path)
@@ -50,9 +54,10 @@ class InstaScraper:
             save_metadata=True,                # Salva metadados brutos (JSON)
             compress_json=False
         )
+        self.loader.dirname_pattern = "{target}"
 
         # Carrega cookies do all_cookies.txt
-        self.cookie_file = "E:/Seeker.Bot/docs/all_cookies.txt"
+        self.cookie_file = os.getenv("SEEKER_INSTAGRAM_COOKIES", "docs/all_cookies.txt")
         self.cookies_dict = {}
         self.csrf_token = None
         self._load_cookies()
@@ -71,10 +76,11 @@ class InstaScraper:
         cookie_jar = http.cookiejar.MozillaCookieJar(self.cookie_file)
         try:
             cookie_jar.load(ignore_discard=True, ignore_expires=True)
-            self.loader.context._session.cookies.update(cookie_jar)
             
             for cookie in cookie_jar:
-                if "instagram.com" in cookie.domain or cookie.domain == "":
+                domain = cookie.domain or ""
+                if domain == "instagram.com" or domain.endswith(".instagram.com") or domain == "":
+                    self.loader.context._session.cookies.set_cookie(cookie)
                     self.cookies_dict[cookie.name] = cookie.value
                     if cookie.name == "csrftoken":
                         self.csrf_token = cookie.value
@@ -93,6 +99,12 @@ class InstaScraper:
         """
         try:
             self.loader.load_session_from_file(username)
+            for cookie in self.loader.context._session.cookies:
+                self.cookies_dict[cookie.name] = cookie.value
+                if cookie.name == "csrftoken":
+                    self.csrf_token = cookie.value
+            if self.csrf_token:
+                self.loader.context._session.headers["X-CSRFToken"] = self.csrf_token
             log.info(f"[instascraper] Sessão de {username} carregada.")
             return True, f"Sessão de {username} carregada com sucesso."
         except FileNotFoundError:
@@ -107,10 +119,23 @@ class InstaScraper:
         Clona posts de vídeo e metadados de um perfil do Instagram de forma assíncrona/loop.
         Gera as notas formatadas diretamente para a pasta Inbox do Obsidian.
         """
+        # Validação do formato do username para evitar falhas de criação de diretórios e poluição do disco
+        clean_profile = target_profile.lstrip("@").strip()
+        invalid_chars = set(r'/:*?"<>|\\')
+        if (
+            not clean_profile 
+            or any(c in invalid_chars for c in clean_profile) 
+            or "http://" in clean_profile 
+            or "https://" in clean_profile 
+            or "www." in clean_profile
+        ):
+            log.error(f"[instascraper] Perfil inválido: {target_profile}")
+            return f"Erro: O nome de usuário '{target_profile}' contém caracteres inválidos ou é uma URL. Use apenas o nome de usuário (ex: '@username')."
+
         try:
-            target_profile = target_profile.lstrip("@").strip()
+            target_profile = clean_profile
             target_dir = self.base_path / target_profile
-            target_dir.mkdir(parents=True, exist_ok=True)
+            # Não cria o diretório antes de confirmar que o perfil existe
 
             log.info(f"[instascraper] Carregando perfil: {target_profile}")
 
@@ -146,6 +171,9 @@ class InstaScraper:
                 log.error(f"[instascraper] Falha ao obter feed (Status {resp.status_code}): {resp.text[:500]}")
                 return f"Erro: Falha ao carregar o feed do perfil '{target_profile}' (Status {resp.status_code})."
 
+            # Só cria o diretório após confirmar que o perfil existe (evita lixo em disco)
+            target_dir.mkdir(parents=True, exist_ok=True)
+
             data = resp.json()
             items = data.get("items", [])
             log.info(f"[instascraper] Encontrados {len(items)} posts no feed.")
@@ -154,8 +182,6 @@ class InstaScraper:
                 return f"Erro: Nenhum post retornado para o perfil '{target_profile}'. Verifique se ele é privado ou se a conta está ativa."
 
             count = 0
-            original_cwd = os.getcwd()
-
             # Itera pelos posts do perfil
             for item in items:
                 if count >= limit_posts:
@@ -169,14 +195,11 @@ class InstaScraper:
 
                 if post.is_video:
                     log.info(f"[instascraper] Baixando post de vídeo {post.shortcode}...")
-                    
-                    # Salva a CWD original e altera para self.base_path antes de chamar download_post
-                    # para evitar problemas de higienização de caminhos absolutos do Instaloader
                     try:
-                        os.chdir(self.base_path)
-                        self.loader.download_post(post, target=target_profile)
-                    finally:
-                        os.chdir(original_cwd)
+                        target_relative = os.path.relpath(target_dir, Path.cwd())
+                    except ValueError:
+                        target_relative = str(target_dir)
+                    self.loader.download_post(post, target=target_relative)
 
                     # Tenta converter os metadados brutos do post em nota do Obsidian
                     try:
@@ -203,46 +226,251 @@ class InstaScraper:
             log.error(f"[instascraper] Erro crítico na raspagem: {e}", exc_info=True)
             return f"Erro crítico na extração do perfil {target_profile}: {e}"
 
+    def _download_video_with_curl(self, url: str, dest_path: Path):
+        """Download video via curl_cffi com streaming robusto para arquivos grandes."""
+        temp_dest = dest_path.with_suffix(".tmp")
+        try:
+            with open(temp_dest, "wb") as out_file:
+                resp = curl_requests.get(
+                    url,
+                    headers=self.loader.context._session.headers,
+                    cookies=self.cookies_dict,
+                    impersonate="chrome120",
+                    # 120 s para Reels grandes; fallback secundário não deve ser mais restritivo
+                    timeout=120,
+                    stream=True,
+                )
+                resp.raise_for_status()
+                bytes_written = 0
+                for chunk in resp.iter_content():
+                    if chunk:
+                        out_file.write(chunk)
+                        bytes_written += len(chunk)
+                        log.debug(f"[instascraper][curl] Progresso: {bytes_written / (1024*1024):.1f} MB")
+            if temp_dest.exists():
+                if dest_path.exists():
+                    dest_path.unlink()
+                temp_dest.rename(dest_path)
+            log.info(f"[instascraper] Vídeo baixado via curl para {dest_path}")
+        except Exception as dl_err:
+            log.error(f"[instascraper] Erro ao baixar vídeo via curl: {dl_err}")
+            if temp_dest.exists():
+                try:
+                    temp_dest.unlink()
+                except Exception:
+                    pass
+            if dest_path.exists():
+                try:
+                    dest_path.unlink()
+                except Exception:
+                    pass
+
     def download_single_post(self, post_url_or_shortcode: str) -> Path | None:
         """
         Baixa um post individual (vídeo) a partir de uma URL ou shortcode do Instagram.
         Retorna o caminho absoluto do arquivo .mp4 baixado (ou None).
+        Usa curl_cffi para contornar bloqueios do WAF da API de GraphQL.
         """
-        import re
         m = re.search(r"/(?:p|reel|tv)/([a-zA-Z0-9_-]+)", post_url_or_shortcode)
         if m:
             shortcode = m.group(1)
         else:
-            # Pega o shortcode limpo caso o usuário envie direto
             shortcode = post_url_or_shortcode.strip().split("/")[0]
-            
+
+        # Validar shortcode para evitar Path Traversal
+        if not re.match(r"^[a-zA-Z0-9_-]+$", shortcode):
+            log.warning(f"[instascraper] Shortcode inválido detectado (possível Path Traversal): {shortcode}")
+            return None
+        
         log.info(f"[instascraper] Buscando post unitário para shortcode: {shortcode}")
         
+        target_dir = self.base_path / "single_posts"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        dest_file = target_dir / f"single_{shortcode}_{uuid.uuid4().hex}.mp4"
+        temp_dest_file = dest_file.with_suffix(".tmp")
+        
+        # 1. Tenta consulta e download usando curl_cffi + GraphQL
         try:
+            log.info(f"[instascraper] Tentando obter metadados via GraphQL (curl_cffi) para: {shortcode}")
+            headers = {
+                "Accept": "*/*",
+                "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+                "Referer": "https://www.instagram.com/",
+                "X-IG-App-ID": "936619743392459",
+                "X-ASBD-ID": "198387",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+            if self.csrf_token:
+                headers["X-CSRFToken"] = self.csrf_token
+
+            graphql_url = "https://www.instagram.com/graphql/query"
+            payload = {
+                "doc_id": "8845758582119845",
+                "variables": json.dumps({"shortcode": shortcode}, separators=(',', ':')),
+                "server_timestamps": "true"
+            }
+
+            resp = curl_requests.post(
+                graphql_url,
+                data=payload,
+                headers=headers,
+                cookies=self.cookies_dict,
+                impersonate="chrome120",
+                timeout=30
+            )
+            
+            if resp.status_code == 200:
+                resp_json = resp.json()
+                media_data = None
+                if isinstance(resp_json, dict):
+                    data_dict = resp_json.get("data")
+                    if data_dict is not None and isinstance(data_dict, dict):
+                        if "xdt_shortcode_media" in data_dict:
+                            media_data = data_dict["xdt_shortcode_media"]
+                        elif "shortcode_media" in data_dict:
+                            media_data = data_dict["shortcode_media"]
+                
+                if media_data:
+                    if not media_data.get("is_video", False):
+                        log.warning(f"[instascraper] Post {shortcode} não é um vídeo via GraphQL.")
+                        return None
+                    
+                    video_url = media_data.get("video_url")
+                    if video_url:
+                        log.info(f"[instascraper] Baixando vídeo via curl_cffi de {video_url[:60]}...")
+                        try:
+                            with open(temp_dest_file, "wb") as out_file:
+                                dl_resp = curl_requests.get(
+                                    video_url,
+                                    headers={
+                                        "accept": "*/*",
+                                        "referer": "https://www.instagram.com/",
+                                    },
+                                    cookies=self.cookies_dict,
+                                    impersonate="chrome120",
+                                    # 120 s para suportar Reels grandes (>50 MB) em conexões lentas
+                                    timeout=120,
+                                    stream=True,
+                                )
+                                dl_resp.raise_for_status()
+                                bytes_written = 0
+                                # curl_cffi não suporta chunk_size; os chunks nativos já são eficientes
+                                for chunk in dl_resp.iter_content():
+                                    if chunk:
+                                        out_file.write(chunk)
+                                        bytes_written += len(chunk)
+                                        log.debug(f"[instascraper] Progresso: {bytes_written / (1024*1024):.1f} MB baixados")
+                            if temp_dest_file.exists():
+                                if dest_file.exists():
+                                    dest_file.unlink()
+                                temp_dest_file.rename(dest_file)
+                        except Exception as dl_err:
+                            log.error(f"[instascraper] Erro durante o download do stream: {dl_err}")
+                            if temp_dest_file.exists():
+                                try:
+                                    temp_dest_file.unlink()
+                                except Exception:
+                                    pass
+                            raise dl_err
+                        
+                        if dest_file.exists() and dest_file.stat().st_size > 0:
+                            log.info(f"[instascraper] Download bem sucedido via curl_cffi: {dest_file}")
+                            return dest_file.resolve()
+            
+            log.warning(f"[instascraper] GraphQL ou download falhou para {shortcode}, tentando fallback...")
+        except Exception as e:
+            log.warning(f"[instascraper] Erro durante download com curl_cffi para {shortcode}: {e}. Iniciando fallback...", exc_info=True)
+            if temp_dest_file.exists():
+                try:
+                    temp_dest_file.unlink()
+                except Exception:
+                    pass
+            if dest_file.exists():
+                try:
+                    dest_file.unlink()
+                except Exception:
+                    pass
+            
+        # 2. Fallback de legado usando Instaloader
+        log.info(f"[instascraper] Executando fallback via Instaloader para {shortcode}...")
+        temp_target_dir = target_dir / f"tmp_{uuid.uuid4().hex}"
+        try:
+            temp_target_dir.mkdir(parents=True, exist_ok=True)
             post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
             
             if not post.is_video:
-                log.warning(f"[instascraper] Post {shortcode} não é um vídeo.")
+                log.warning(f"[instascraper] Post {shortcode} não é um vídeo via Instaloader.")
                 return None
                 
-            target_dir = self.base_path / "single_posts"
-            target_dir.mkdir(parents=True, exist_ok=True)
-            
-            original_cwd = os.getcwd()
             try:
-                os.chdir(self.base_path)
-                self.loader.download_post(post, target="single_posts")
-            finally:
-                os.chdir(original_cwd)
+                target_relative = os.path.relpath(temp_target_dir, Path.cwd())
+            except ValueError:
+                target_relative = str(temp_target_dir)
+            self.loader.download_post(post, target=target_relative)
                 
-            for f in target_dir.glob(f"*{shortcode}*.mp4"):
-                return f.resolve()
-                
-        except Exception as e:
-            log.error(f"[instascraper] Falha ao baixar post {shortcode}: {e}", exc_info=True)
+            # Verifica se o arquivo foi baixado no diretório temporário
+            downloaded_files = list(temp_target_dir.glob("*.mp4"))
+            if downloaded_files:
+                f = downloaded_files[0]
+                dest_resolve = dest_file.resolve()
+                if dest_file.exists():
+                    dest_file.unlink()
+                f.rename(dest_file)
+                return dest_resolve
             
-        return None
-
+            # Fallback secundário: baixar com curl usando a URL obtida do objeto Post
+            video_url = getattr(post, "video_url", None) or getattr(post, "video_url_hd", None)
+            if video_url:
+                self._download_video_with_curl(video_url, dest_file)
+                if dest_file.exists():
+                    return dest_file.resolve()
+            return None
+        except Exception as e:
+            log.error(f"[instascraper] Falha crítica no fallback de download do post {shortcode}: {e}", exc_info=True)
+            if dest_file.exists():
+                try:
+                    dest_file.unlink()
+                except Exception:
+                    pass
+            # Tentativa de re-autenticação se possível
+            if self.instagram_user:
+                success, msg = self.autenticar(self.instagram_user)
+                if success:
+                    log.info("[instascraper] Re-autenticado, tentando download novamente no fallback.")
+                    reauth_temp_target_dir = target_dir / f"tmp_reauth_{uuid.uuid4().hex}"
+                    try:
+                        reauth_temp_target_dir.mkdir(parents=True, exist_ok=True)
+                        post = instaloader.Post.from_shortcode(self.loader.context, shortcode)
+                        if post.is_video:
+                            try:
+                                target_relative = os.path.relpath(reauth_temp_target_dir, Path.cwd())
+                            except ValueError:
+                                target_relative = str(reauth_temp_target_dir)
+                            self.loader.download_post(post, target=target_relative)
+                            downloaded_files = list(reauth_temp_target_dir.glob("*.mp4")) + list((self.base_path / target_relative).glob("*.mp4"))
+                            if downloaded_files:
+                                f = downloaded_files[0]
+                                dest_resolve = dest_file.resolve()
+                                if dest_file.exists():
+                                    dest_file.unlink()
+                                f.rename(dest_file)
+                                return dest_resolve
+                    except Exception as re_err:
+                        log.error(f"[instascraper] Falha ao tentar novamente após re-autenticar: {re_err}")
+                        if dest_file.exists():
+                            try:
+                                dest_file.unlink()
+                            except Exception:
+                                pass
+                    finally:
+                        if reauth_temp_target_dir.exists():
+                            import shutil
+                            shutil.rmtree(reauth_temp_target_dir, ignore_errors=True)
+            return None
+        finally:
+            if temp_target_dir.exists():
+                import shutil
+                shutil.rmtree(temp_target_dir, ignore_errors=True)
     def _create_obsidian_note(self, post: instaloader.Post, target_dir: Path):
         """
         Gera uma nota Markdown estruturada na Inbox do Obsidian referenciando a mídia local.
@@ -265,7 +493,6 @@ class InstaScraper:
         # Descobre o arquivo de mídia baixado localmente
         # O Instaloader nomeia arquivos com o padrão '{date_utc}_{shortcode}' ou similar
         media_file_name = None
-        date_pattern = post.date_utc.strftime("%Y-%m-%d")
         
         # Varre a pasta do perfil procurando o arquivo .mp4 correspondente
         for f in target_dir.glob(f"*{post.shortcode}*.mp4"):

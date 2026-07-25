@@ -36,7 +36,7 @@ class KnowledgeDigestGoal:
 
     @property
     def name(self) -> str:
-        return "knowledge_digest"
+        return "knowledge_vault"
 
     @property
     def interval_seconds(self) -> int:

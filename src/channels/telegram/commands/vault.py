@@ -99,10 +99,6 @@ def setup_vault_handlers(
             log.error(f"[cofre] Erro na busca: {e}", exc_info=True)
             await status_msg.edit_text(f"❌ Erro ao buscar no cofre: {str(e)[:100]}")
 
-    # Closure-scoped set para evitar bugs de dp["key"] no Aiogram 3.x
-    # O dp.__getitem__ usa workflow_data e é incompatível com o in operator
-    _obsidian_wait_users: set = set()
-
     def _check_obsidian_state(user_id: int) -> bool:
         """Verifica e limpa o estado de aguardo do obsidian para o usuário."""
         if user_id in _obsidian_wait_users:

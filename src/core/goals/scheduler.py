@@ -28,12 +28,14 @@ from datetime import date
 from enum import Enum
 from typing import Any, Coroutine
 
+from src.core.events import get_event_bus
 from src.core.goals.protocol import (
     AutonomousGoal,
     GoalStatus,
     NotificationChannel,
 )
 
+from src.core.events import get_event_bus
 from src.providers.base import LLMRequest, invoke_with_fallback
 from config.models import CognitiveRole
 
@@ -83,6 +85,7 @@ class GoalScheduler:
         )  # Background rethink tasks (tracked for shutdown)
         self._failure_counts: dict[str, int] = {}
         self._cycle_history: dict[str, deque] = {}
+        self._health_scores: dict[str, float] = {}
         self._global_spent_today: float = 0.0
         self._budget_date: str = ""
 
@@ -384,7 +387,7 @@ class GoalScheduler:
                 return True
         return False
 
-    def _should_execute_goal(self, goal_name: str) -> bool:
+    async def _should_execute_goal(self, goal_name: str) -> bool:
         priority = self._goal_priorities.get(goal_name, GoalPriority.NORMAL)
         
         # Verifica se há algum goal CRITICAL em execução
@@ -399,35 +402,32 @@ class GoalScheduler:
                     break
 
         if is_critical_running:
-            self._paused_by_preemption.add(goal_name)
+            if goal_name not in self._paused_by_preemption:
+                self._paused_by_preemption.add(goal_name)
+                # Event: goal.paused (preemption)
+                try:
+                    await get_event_bus().emit("goal.paused", {
+                        "goal": goal_name,
+                        "reason": "preemption",
+                        "preempted_by": "CRITICAL",
+                    })
+                except Exception:
+                    pass
             return False
             
         # Se não há critical running, despausa o goal se estava pausado
         if goal_name in self._paused_by_preemption:
             self._paused_by_preemption.discard(goal_name)
+            # Event: goal.resumed
+            try:
+                await get_event_bus().emit("goal.resumed", {
+                    "goal": goal_name,
+                    "reason": "preemption_cleared",
+                })
+            except Exception:
+                pass
             
         return True
-
-    def _get_next_priority_goal(self) -> str | None:
-        """
-        Retorna o goal de maior prioridade que está aguardando executar.
-        Considera preemption e pool limits.
-        """
-        if len(self._running_goals) >= self.MAX_CONCURRENT_GOALS:
-            return None  # Pool cheio
-
-        # Ordena goals por prioridade
-        sorted_goals = sorted(
-            self._goal_priorities.items(),
-            key=lambda x: x[1].value,  # Menor valor = maior prioridade
-        )
-
-        for goal_name, priority in sorted_goals:
-            if goal_name not in self._running_goals:
-                if self._should_execute_goal(goal_name):
-                    return goal_name
-
-        return None
 
     # ── Loop principal por goal ───────────────────────────
 
@@ -449,6 +449,10 @@ class GoalScheduler:
 
         while self.running:
             try:
+                # Otimização / Salvaguarda contra loops infinitos (intervalo <= 0 ou menor que 5s)
+                # Se for 0, trata como tarefa puramente passiva/sob demanda e dorme 1 hora (3600s).
+                interval = max(5, goal.interval_seconds) if goal.interval_seconds > 0 else 3600
+
                 today = date.today().isoformat()
 
                 # Reset diário
@@ -458,7 +462,7 @@ class GoalScheduler:
                     self._budget_date = today
 
                 # ── Sprint 7.2: Check preemption ──────────────────────────
-                if not self._should_execute_goal(goal.name):
+                if not await self._should_execute_goal(goal.name):
                     # Goal foi pausado por preemption ou pool cheio
                     await asyncio.sleep(5)  # Respira e tenta novamente
                     continue
@@ -466,7 +470,7 @@ class GoalScheduler:
                 # Check budget per-goal
                 if goal.budget.exhausted:
                     log.info(f"[scheduler/{goal.name}] Budget diário esgotado.")
-                    await asyncio.sleep(goal.interval_seconds)
+                    await asyncio.sleep(interval)
                     continue
 
                 # Check budget global
@@ -476,13 +480,13 @@ class GoalScheduler:
                         f"(${self._global_spent_today:.4f}). "
                         f"Todos os goals pausados."
                     )
-                    await asyncio.sleep(goal.interval_seconds)
+                    await asyncio.sleep(interval)
                     continue
 
                 # Backoff se muitas falhas
                 failures = self._failure_counts.get(goal.name, 0)
                 if failures >= self.MAX_CONSECUTIVE_FAILURES:
-                    backoff = goal.interval_seconds * 2
+                    backoff = interval * 2
                     log.warning(
                         f"[scheduler/{goal.name}] {failures} falhas, backoff {backoff}s"
                     )
@@ -496,16 +500,53 @@ class GoalScheduler:
                     if goal.name in self._paused_by_preemption:
                         self._paused_by_preemption.discard(goal.name)
 
+                    # Event: goal.started
+                    try:
+                        await get_event_bus().emit("goal.started", {
+                            "goal": goal.name,
+                            "priority": self._goal_priorities.get(goal.name, GoalPriority.NORMAL).name,
+                        })
+                    except Exception:
+                        pass
+
+                    _cycle_start = time.monotonic()
+                    _cycle_error: str | None = None
+                    _cycle_success = False
+                    result = None
                     try:
                         # Heartbeat: atualiza timestamp para o watchdog
                         self._write_heartbeat()
 
                         # Executa ciclo com timeout para prevenir deadlocks latentes
-                        _cycle_start = time.monotonic()
                         result = await asyncio.wait_for(goal.run_cycle(), timeout=600.0)
-                        _cycle_latency = time.monotonic() - _cycle_start
+                        _cycle_success = result.success
+                        _cycle_error = result.error if hasattr(result, "error") else None
+                    except Exception as e:
+                        _cycle_error = f"{type(e).__name__}: {e}"
+                        log.error(f"[scheduler/{goal.name}] Exceção no run_cycle: {e}", exc_info=True)
                     finally:
+                        _cycle_latency = time.monotonic() - _cycle_start
                         self._running_goals.discard(goal.name)
+                        # Telemetria: registra invocação para S.A.R.A. e dashboards.
+                        try:
+                            from src.core.skill_telemetry import record_skill_invocation
+                            record_skill_invocation(
+                                skill=goal.name,
+                                goal=goal.name,
+                                success=_cycle_success,
+                                cost_usd=(getattr(result, "cost_usd", 0.0) or 0.0) if result else 0.0,
+                                latency_ms=int(_cycle_latency * 1000),
+                                items_processed=(getattr(result, "items_processed", 0) or 0) if result else 0,
+                                error=_cycle_error,
+                            )
+                        except Exception as tel_e:
+                            log.debug(f"[scheduler] Falha ao gravar telemetria: {tel_e}")
+
+                # Se run_cycle falhou, result é None — pular registro de histórico
+                if result is None:
+                    self._failure_counts[goal.name] = self._failure_counts.get(goal.name, 0) + 1
+                    await asyncio.sleep(goal.interval_seconds)
+                    continue
 
                 # Registra histórico
                 self._cycle_history[goal.name].append(
@@ -545,6 +586,21 @@ class GoalScheduler:
                     f"${result.cost_usd:.4f}"
                 )
 
+                # Event: goal.completed
+                try:
+                    await get_event_bus().emit("goal.completed", {
+                        "goal": goal.name,
+                        "success": True,
+                        "cost_usd": result.cost_usd if result else 0.0,
+                        "latency_ms": int((time.monotonic() - _cycle_start) * 1000),
+                        "summary": result.summary if result else "",
+                    })
+                except Exception:
+                    pass
+
+            except asyncio.CancelledError:
+                # Propagate cancellation for clean shutdown — do not treat as goal failure
+                raise
             except Exception as e:
                 import traceback
 
@@ -567,6 +623,17 @@ class GoalScheduler:
                     exc_info=True,
                 )
 
+                # Event: goal.failed
+                try:
+                    await get_event_bus().emit("goal.failed", {
+                        "goal": goal.name,
+                        "error": str(e)[:200],
+                        "failure_count": self._failure_counts[goal.name],
+                        "latency_ms": int((time.monotonic() - _cycle_start) * 1000),
+                    })
+                except Exception:
+                    pass
+
                 # RETHINK: Confiança Extrema. Se for o início do backoff, emite relatório proativo
                 if self._failure_counts[goal.name] == self.MAX_CONSECUTIVE_FAILURES:
                     self._create_tracked_task(
@@ -586,11 +653,32 @@ class GoalScheduler:
                     )
 
             finally:
+                # Compute health score before saving
+                health = self._compute_goal_health_score(goal)
+                self._health_scores[goal.name] = health
                 self._save_goal_state(goal)
+
+            # Auto-pause goals with critically low health
+            if self._health_scores.get(goal.name, 100) < 30:
+                goal._status = GoalStatus.PAUSED
+                log.warning(
+                    f"[scheduler/{goal.name}] AUTO-PAUSED — health score {self._health_scores[goal.name]:.0f}/100"
+                )
+                # Event: goal.paused
+                try:
+                    await get_event_bus().emit("goal.paused", {
+                        "goal": goal.name,
+                        "reason": "health_score",
+                        "health_score": self._health_scores[goal.name],
+                    })
+                except Exception:
+                    pass
+                await asyncio.sleep(interval)
+                continue
                 
             # Se chegou aqui sem erro, ou se erro foi tratado, dorme o intervalo do goal.
             # Os continue dão bypass nesta etapa, usando seus sleeps curtos próprios.
-            await asyncio.sleep(goal.interval_seconds)
+            await asyncio.sleep(interval)
 
     # ── Background Task Management ──────────────────────────
     def _create_tracked_task(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task[Any]:
@@ -662,6 +750,29 @@ class GoalScheduler:
 
     # ── Persistência ──────────────────────────────────────
 
+    def _compute_goal_health_score(self, goal: AutonomousGoal) -> float:
+        """Calcula health score (0-100) baseado nos ultimos 20 ciclos."""
+        history = list(self._cycle_history.get(goal.name, []))[-20:]
+        if not history:
+            return 80.0
+
+        ok_count = sum(1 for h in history if h.get("ok", False))
+        total = len(history)
+        success_rate = ok_count / total if total > 0 else 0.0
+
+        latencies = [h.get("latency", 0) for h in history if h.get("ok")]
+        avg_latency = sum(latencies) / len(latencies) if latencies else 5000
+        latency_score = max(0, 1.0 - (avg_latency / 30000))
+
+        costs = [h.get("cost", 0) for h in history]
+        avg_cost = sum(costs) / len(costs) if costs else 0.0
+        budget = getattr(goal, "budget", None)
+        budget_limit = budget.max_per_cycle_usd if budget else 0.05
+        budget_score = max(0, 1.0 - (avg_cost / budget_limit)) if budget_limit > 0 else 1.0
+
+        score = 0.4 * success_rate + 0.2 * latency_score + 0.2 * budget_score + 0.2 * 0.8
+        return round(min(100, max(0, score * 100)), 1)
+
     def _save_goal_state(self, goal: AutonomousGoal) -> None:
         path = os.path.join(STATE_DIR, f"{goal.name}.json")
         try:
@@ -671,6 +782,7 @@ class GoalScheduler:
                 "budget_reset_date": goal.budget.budget_reset_date,
             }
             state["_failures"] = self._failure_counts.get(goal.name, 0)
+            state["_health_score"] = self._health_scores.get(goal.name, 80.0)
             # Persiste histórico de ciclos (últimas 20)
             state["_cycle_history"] = list(self._cycle_history.get(goal.name, []))
             with open(path, "w", encoding="utf-8") as f:
@@ -682,7 +794,13 @@ class GoalScheduler:
         path = os.path.join(STATE_DIR, f"{goal.name}.json")
         if not os.path.exists(path):
             return
+        # TTL eviction: discard state files older than 7 days
         try:
+            file_age_days = (time.time() - os.path.getmtime(path)) / 86400
+            if file_age_days > 7:
+                log.info(f"[scheduler] Estado de {goal.name} expirou ({file_age_days:.1f}d > 7d) - descartando")
+                os.remove(path)
+                return
             with open(path, "r", encoding="utf-8") as f:
                 state = json.load(f)
             # Restaura budget
@@ -695,8 +813,8 @@ class GoalScheduler:
                 self._cycle_history[goal.name] = deque(cycle_history, maxlen=20)
             # Restaura contagem de falhas
             self._failure_counts[goal.name] = state.pop("_failures", 0)
-            # Restaura failures
-            self._failure_counts[goal.name] = state.pop("_failures", 0)
+            # Restaura health score
+            self._health_scores[goal.name] = state.pop("_health_score", 80.0)
             # Restaura estado do goal
             goal.load_state(state)
             log.info(f"[scheduler] Estado restaurado: {goal.name}")

@@ -475,8 +475,29 @@ asyncio.run(research("Fusão nuclear fria"))
 
 ---
 
+## 📡 Remote RPC & Model Context Protocol (MCP) Server
+
+Seeker.Bot exposes a native HTTP JSON-RPC 2.0 interface and a Model Context Protocol (MCP) Server for integration with external clients (e.g. Claude Desktop, OpenCode, VSCode extensions).
+
+### 1. HTTP JSON-RPC 2.0 (`src/core/execution/rpc.py`)
+- **Port:** `http://127.0.0.1:8001/rpc` (or `:8000` depending on environment configuration)
+- **Method:** `POST`
+- **Payload:** Standard JSON-RPC 2.0 (`jsonrpc`, `method`, `params`, `id`)
+- **Methods:**
+  - `execute_action`: Invokes a registered tool or adapter action.
+  - `get_status`: Returns current pipeline and memory health status.
+
+### 2. Streamable & SSE MCP Server (`src/core/execution/mcp_server.py`)
+- **Streamable HTTP Endpoint:** `POST /mcp` — JSON-RPC transport protocol for Model Context Protocol tools.
+- **Server-Sent Events (SSE) Endpoint:** `GET /mcp/sse` — SSE stream endpoint for real-time tool discovery and execution.
+- **Exposed Capabilities:** Exposes Seeker's native file tools, search capabilities, and active adapters as standard MCP tools.
+
+---
+
 ## See Also
 
-- [Architecture](./ARCHITECTURE.md)
-- [Skills Guide](./SKILLS.md)
+- [Architecture Overview](./ARCHITECTURE_OVERVIEW.md)
+- [Adapters & Skills Catalog](./ADAPTERS_AND_SKILLS_CATALOG.md)
+- [Handlers Inventory](./HANDLERS_INVENTORY.md)
 - [Deployment Guide](../README.md#deployment)
+

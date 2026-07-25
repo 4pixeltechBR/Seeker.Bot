@@ -1,10 +1,18 @@
 import logging
+from pathlib import Path
 from aiogram import Dispatcher, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.enums import ParseMode
 from src.core.pipeline import SeekerPipeline
 
 log = logging.getLogger("seeker.telegram.tasks")
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _validate_sara_path(file_path: str) -> bool:
+    resolved = Path(file_path).resolve()
+    return str(resolved).startswith(str(_PROJECT_ROOT))
 
 
 def setup_tasks_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
@@ -100,68 +108,7 @@ def setup_tasks_handlers(dp: Dispatcher, pipeline: SeekerPipeline):
             await callback.answer(f"âŒ Erro: {str(e)[:50]}", show_alert=True)
 
     # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    # S.A.R.A Approval Callbacks (ApprovalEngine â€” Day 5)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    @dp.callback_query(F.data.startswith("sara_approve:"))
-    async def handle_sara_approve(callback: CallbackQuery):
-        """Aplica o patch S.A.R.A aprovado pelo usuÃ¡rio."""
-        try:
-            pending_id = int(callback.data.split(":", 1)[1])
-        except (ValueError, IndexError):
-            await callback.answer("Formato de callback invÃ¡lido", show_alert=True)
-            return
-
-        try:
-            from src.skills.self_improvement.error_database import get_pending_store
-            import shutil
-            import os
-
-            store = get_pending_store()
-            patch = await store.approve(pending_id)
-
-            if patch is None:
-                await callback.answer(
-                    "Patch jÃ¡ resolvido ou expirou (>24h)", show_alert=True
-                )
-                await callback.message.edit_reply_markup(reply_markup=None)
-                return
-
-            file_path = patch["file_path"]
-            new_code = patch["proposed_code"]
-            rationale = patch["rationale"]
-            filename = os.path.basename(file_path)
-
-            # Verifica se o arquivo ainda existe
-            if not os.path.exists(file_path):
-                await callback.answer(
-                    f"Arquivo nÃ£o encontrado: {filename}", show_alert=True
-                )
-                return
-
-            # Backup + Overwrite
-            backup_path = f"{file_path}.bak"
-            shutil.copy2(file_path, backup_path)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(new_code)
-
-            log.info(
-                f"[sara_approve] Patch {pending_id} aplicado em {filename} pelo usuario"
-            )
-
-            await callback.answer("Patch aplicado com sucesso!")
-            await callback.message.edit_text(
-                f"ðŸ›¡ï¸ <b>S.A.R.A â€” PATCH APLICADO</b>\n\n"
-                f"ðŸ“„ <b>Arquivo:</b> {filename}\n"
-                f"ðŸ§  <b>Motivo:</b> {rationale}\n"
-                f"<i>Backup salvo em .bak</i>",
-                parse_mode=ParseMode.HTML,
-            )
-        except Exception as e:
-            log.error(
-                f"[sara_approve] Erro ao aplicar patch {pending_id}: {e}", exc_info=True
-            )
-            await callback.answer(f"Erro ao aplicar: {str(e)[:80]}", show_alert=True)
+    #
 
     @dp.callback_query(F.data.startswith("sara_reject:"))
     async def handle_sara_reject(callback: CallbackQuery):

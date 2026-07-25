@@ -205,10 +205,4 @@ class Reporter:
 
     def formatar_para_telegram(self, relatorio: RelatorioFinanceiro) -> str:
         """Formata relatório para envio no Telegram"""
-        # Remove tags HTML e formata para Telegram
-        html = relatorio.conteudo_html
-        html = html.replace("<b>", "<b>").replace("</b>", "</b>")
-        html = html.replace("<i>", "<i>").replace("</i>", "</i>")
-        html = html.replace("<code>", "<code>").replace("</code>", "</code>")
-
-        return html
+        return relatorio.conteudo_html

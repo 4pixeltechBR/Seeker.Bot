@@ -1,0 +1,39 @@
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# WhatsApp Vault — Configuração (gerenciado por /wa_config)
+# Hot-reloaded a cada ciclo do WhatsAppVaultGoal.
+# Edite via /wa_config no Telegram ou manualmente com cuidado.
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+whatsapp:
+  enabled: true
+  mode: evolution_api
+  evolution:
+    base_url: ${EVOLUTION_BASE_URL:-http://localhost:8080}
+    api_key: ${EVOLUTION_API_KEY:-}
+    instance: ${EVOLUTION_INSTANCE:-seeker-main}
+  target:
+    group_id: 120363422727878974@g.us
+    group_name: ''
+    forward_own_number: ${WHATSAPP_OWN_NUMBER:-}
+  schedule:
+    windows:
+    - - 2
+      - 0
+    - - 6
+      - 0
+    - - 10
+      - 0
+    - - 14
+      - 0
+    - - 18
+      - 0
+    - - 22
+      - 0
+    max_per_cycle: 20
+    notify_on_empty: false
+  vault:
+    type: knowledge
+    custom_path: ''
+  notifications:
+    telegram: true
+    chat_id: ${TELEGRAM_HOME_CHANNEL:-7607235163}

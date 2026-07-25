@@ -285,9 +285,39 @@ class DecayEngine:
             f"{sessions_removed} turns de sessão limpas"
         )
 
+        # ── Cleanup de episodic (30d) ──
+        episodic_removed = 0
+        try:
+            cutoff = time.time() - (30 * 86400)
+            cur = await self.memory._db.execute(
+                "DELETE FROM episodic WHERE timestamp < ?", (cutoff,)
+            )
+            episodic_removed = cur.rowcount
+            await self.memory._db.commit()
+        except Exception as e:
+            log.warning(f"[decay] Falha ao limpar episodic: {e}")
+
+        # ── Cleanup de goal_cycles (30d, mantendo últimos 20) ──
+        goal_cycles_removed = 0
+        try:
+            cutoff = time.time() - (30 * 86400)
+            cur = await self.memory._db.execute(
+                """DELETE FROM goal_cycles WHERE timestamp < ?
+                   AND id NOT IN (
+                     SELECT id FROM goal_cycles ORDER BY timestamp DESC LIMIT 20
+                   )""",
+                (cutoff,),
+            )
+            goal_cycles_removed = cur.rowcount
+            await self.memory._db.commit()
+        except Exception as e:
+            log.warning(f"[decay] Falha ao limpar goal_cycles: {e}")
+
         return {
             "total": len(facts),
             "decayed": decayed,
             "removed": removed,
             "sessions_cleaned": sessions_removed,
+            "episodic_cleaned": episodic_removed,
+            "goal_cycles_cleaned": goal_cycles_removed,
         }

@@ -870,9 +870,9 @@ PORTUGUESE_SKILLS = {
     "daily_news": "Resumo diário de notícias (07:30 e 16:00)",
     "sense_news": "Resumo diário de tendências do Sense (10:00)",
     "sherlock_news": "Rotina investigativa de notícias (08:00)",
-    "seeker_sales": "Prospectar e enriquecer leads de vendas (a cada 2h)",
-    "seeker_sales_week": "Relatório de vendas da semana (Seg 07:30)",
-    "show_leads_daily": "Exibir leads gerados nas últimas 24h (08:00)",
+    "custom_extension": "Prospectar e enriquecer leads de vendas (a cada 2h)",
+    "custom_extension": "Relatório de vendas da semana (Seg 07:30)",
+    "custom_extension": "Exibir leads gerados nas últimas 24h (08:00)",
 }
 
 

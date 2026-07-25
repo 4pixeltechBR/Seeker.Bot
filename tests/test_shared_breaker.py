@@ -61,8 +61,8 @@ class TestSharedRateLimitBreaker(unittest.IsolatedAsyncioTestCase):
         await self.breaker.record_failure("test_api", 429)
         self.assertTrue(await self.breaker.is_blocked("test_api"))
 
-        # Aguarda expirar
-        await asyncio.sleep(2.1)
+        # Aguarda expirar (jitter pode adicionar até ~0.18s)
+        await asyncio.sleep(3.0)
         self.assertFalse(await self.breaker.is_blocked("test_api"))
 
 

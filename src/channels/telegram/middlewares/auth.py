@@ -28,11 +28,19 @@ class AuthMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         user_id = None
+        username = "?"
+        text_preview = "?"
         if hasattr(event, "from_user") and event.from_user:
             user_id = event.from_user.id
+            username = event.from_user.username or event.from_user.full_name or str(user_id)
+        if hasattr(event, "text") and event.text:
+            text_preview = event.text[:80]
+        elif hasattr(event, "data") and event.data:
+            text_preview = f"callback:{event.data[:80]}"
 
         if user_id and user_id in self.allowed_users:
+            log.info(f"[auth] Permitido — user={username} id={user_id} | msg='{text_preview}'")
             return await handler(event, data)
 
-        log.warning(f"[auth] Acesso negado — user_id={user_id}")
+        log.warning(f"[auth] Acesso NEGADO — user_id={user_id} username={username} | msg='{text_preview}'")
         return  # Drop the update silently

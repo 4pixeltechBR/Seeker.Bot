@@ -17,12 +17,11 @@ def import_cookies(browser_name: str, username: str):
     
     try:
         # Carrega os cookies do navegador usando a API interna do Instaloader (que utiliza browser-cookie3)
-        L.context.load_cookies(browser=browser_name)
+        from instaloader.__main__ import import_session
+        import_session(browser_name, L, None)
         
         # Tenta verificar se a sessão importada está ativa salvando-a no arquivo correspondente
         session_file = L.context.get_session_file_path(username)
-        
-        # Grava a sessão localmente
         L.save_session_to_file(username)
         
         print("\n🎉 SUCESSO ABSOLUTO!")

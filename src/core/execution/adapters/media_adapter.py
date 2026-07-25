@@ -55,6 +55,25 @@ def register():
             log.error(f"Falha na transcrição de áudio: {e}")
             return f"[ERRO ao transcrever áudio: {e}]"
 
-    register_adapter("media", "IMAGE_GEN", desc, execute_image_gen)
-    register_adapter("media", "TTS_GEN", "", execute_tts_gen)
-    register_adapter("media", "TRANSCRIBE_AUDIO", "", execute_transcribe_audio)
+    register_adapter(
+        "media", "IMAGE_GEN", desc, execute_image_gen,
+        examples=[
+            '[IMAGE_GEN: "um gato cibernético em estilo pixel art"]',
+            '[IMAGE_GEN: "logo minimalista para startup de IA, fundo branco"]',
+            '[IMAGE_GEN: "paisagem montanhosa ao pôr do sol,油画风格"]',
+        ],
+    )
+    register_adapter(
+        "media", "TTS_GEN", "", execute_tts_gen,
+        examples=[
+            '[TTS_GEN: "Olá, como posso ajudar?"]',
+            '[TTS_GEN: "Reunião marcada para amanhã às 14h."]',
+        ],
+    )
+    register_adapter(
+        "media", "TRANSCRIBE_AUDIO", "", execute_transcribe_audio,
+        examples=[
+            '[TRANSCRIBE_AUDIO: "audio.mp3"]',
+            '[TRANSCRIBE_AUDIO]',
+        ],
+    )

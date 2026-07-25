@@ -22,6 +22,16 @@ class RPCServer:
         self.port = port
         self.app = web.Application()
         self.app.router.add_post("/rpc", self.handle_rpc)
+
+        # MCP server routes (v3.11) — expõe tools do Seeker para clientes MCP
+        # externos (opencode, Claude Desktop). Auth via Bearer (loopback bypass).
+        try:
+            from src.core.execution import mcp_server
+            mcp_server.register_routes(self.app)
+            log.info("[rpc] MCP server routes registradas (POST /mcp, GET /mcp/sse)")
+        except ImportError as ie:
+            log.warning(f"[rpc] MCP server NÃO registrado (import falhou): {ie}")
+
         self.runner = None
 
     async def handle_rpc(self, request: web.Request) -> web.Response:
@@ -91,12 +101,48 @@ class RPCServer:
         return web.json_response({"result": result})
 
     async def start(self) -> None:
-        """Inicia o servidor RPC em background."""
+        """Inicia o servidor RPC em background.
+
+        Robusto contra porta ocupada: se a porta configurada estiver em uso
+        (típico quando o bot foi morto sem cleanup ou há instância órfã),
+        tenta portas adjacentes (port+1, port+2, ...) até achar uma livre.
+        Se nenhuma porta livre for encontrada nas próximas 10 tentativas,
+        loga warning e segue SEM RPC server (não bloqueia o bot).
+        """
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        site = web.TCPSite(self.runner, self.host, self.port)
-        await site.start()
-        log.info(f"[rpc] Servidor RPC Local ativo em http://{self.host}:{self.port}/rpc")
+
+        # Tenta porta configurada + 9 fallbacks
+        for attempt in range(10):
+            try_port = self.port + attempt
+            site = web.TCPSite(self.runner, self.host, try_port)
+            try:
+                await site.start()
+                self.port = try_port  # atualiza porta real em uso
+                if attempt > 0:
+                    log.warning(
+                        f"[rpc] Porta {self.port - attempt} ocupada; "
+                        f"RPC server subiu em fallback port {try_port}"
+                    )
+                log.info(f"[rpc] Servidor RPC Local ativo em http://{self.host}:{try_port}/rpc")
+                return
+            except OSError as e:
+                # winerror 10048 / errno 98 = address already in use
+                if attempt == 0:
+                    log.warning(f"[rpc] Porta {try_port} ocupada ({e}); tentando fallback...")
+                # tenta próxima porta
+                continue
+
+        # Nenhuma porta livre nas 10 tentativas — segue sem RPC
+        log.error(
+            f"[rpc] Nenhuma porta livre encontrada entre {self.port} e {self.port + 9}. "
+            f"Bot seguirá SEM servidor RPC local."
+        )
+        try:
+            await self.runner.cleanup()
+        except Exception:
+            pass
+        self.runner = None
 
     async def stop(self) -> None:
         """Encerra o servidor RPC."""

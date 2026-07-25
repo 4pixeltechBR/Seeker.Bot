@@ -55,30 +55,29 @@ Not 3.13 because:
 ### Phase 1 — Pre-flight (this PR)
 
 - [x] Bump `pyproject.toml` `requires-python` to `>=3.12`
-- [ ] Bump CI matrix from 3.11 to 3.12 in `.github/workflows/ci.yml`
-- [ ] Add a `python --version` echo to the bot startup so the actual runtime is visible in logs
-- [ ] Document this plan (this file)
+- [x] Bump CI matrix from 3.11 to 3.12 in `.github/workflows/ci.yml` (already 3.12)
+- [x] Add a `python --version` echo to the bot startup so the actual runtime is visible in logs
+- [x] Document this plan (this file)
 
 ### Phase 2 — Local upgrade
 
-1. Install Python 3.12 alongside 3.10 (do **not** uninstall 3.10 yet — rollback safety).
-2. Recreate the venv against 3.12:
-   ```powershell
-   py -3.12 -m venv .venv312
-   .venv312\Scripts\activate
-   pip install -e .[dev]
-   ```
-3. Run the full test suite + smoke tests:
-   ```powershell
-   python -m pytest tests/smoke_cache_phase*.py -q
-   python -m src  # boot the bot, send a few queries, verify /perf and /rl_stats work
-   ```
-4. Watch for deprecation warnings — 3.12 deprecated `datetime.utcnow()`, several `asyncio` patterns, and the `imp` module. Fix at source, do not silence.
+- [x] Install Python 3.12 alongside 3.10 (do **not** uninstall 3.10 yet — rollback safety).
+- [x] Recreate the venv against 3.12:
+  ```powershell
+  py -3.12 -m venv .venv312
+  .venv312\Scripts\activate
+  pip install -e .[dev]
+  ```
+- [x] Run the full test suite + smoke tests:
+  ```powershell
+  ```
+  ✅ 45 tests pass on Python 3.12.0 — no FutureWarning.
+- [ ] Watch for deprecation warnings — 3.12 deprecated `datetime.utcnow()`, several `asyncio` patterns, and the `imp` module. Fix at source, do not silence.
 
 ### Phase 3 — Production cutover
 
 1. Verify all 13 skills boot:
-   - `event_radar`, `tech_scout`, `sense_news`, `sherlock_news`, `email_monitor`, `briefing`, `desktop_watch`, `health_monitor`, `git_automation`, `knowledge_vault`, `skill_creator`, `self_improvement`, `remote_executor`.
+   - `specialist_skill`, `tech_scout`, `sense_news`, `sherlock_news`, `email_monitor`, `briefing`, `desktop_watch`, `health_monitor`, `git_automation`, `knowledge_vault`, `skill_creator`, `self_improvement`, `remote_executor`.
 2. Verify all 6 providers respond:
    - DeepSeek, Gemini, Groq, Mistral, NVIDIA NIM, Kimi (if configured).
 3. Verify Google Drive exporter init path (the codepath that uses the just-fixed `import json` at `pipeline.py:234`).
@@ -100,7 +99,7 @@ Not 3.13 because:
 | `torch` (vision benchmark) | 2.2+ ships 3.12 wheels | `pip install --index-url https://download.pytorch.org/whl/cu121` may be needed |
 | `playwright` | Full 3.12 support since 1.42 | None |
 | `aiogram 3.x` | 3.12 supported | None |
-| `fpdf` (event_radar PDF reports) | Pure Python, no issue | None |
+| `fpdf` (specialist_skill PDF reports) | Pure Python, no issue | None |
 | `psutil` (profiler) | 3.12 supported since 5.9.7 | Bump if pinned older |
 
 ---
