@@ -344,6 +344,7 @@ async def _build_quotas(pipeline: SeekerPipeline) -> List[str]:
     lines = ["🚀 <b>VIRALX9</b>"]
     
     try:
+        viralx9_data = _get_file_json("data/goals/custom_extension.json")
         
             
             lines.append(f"  🔄 Ciclos realizados: {_format_number(ciclos)}")

@@ -1,6 +1,6 @@
 # Seeker.Bot — Catálogo de Adaptadores e Skills (v3.12+)
 
-> Especificação técnica detalhada dos **10 adaptadores de execução** e **42 skills** ativas do Seeker.Bot.
+> Especificação técnica detalhada dos **9 adaptadores de execução** e **34 skills** ativas do Seeker.Bot.
 
 ---
 
@@ -12,7 +12,6 @@ Os adaptadores conectam o Seeker.Bot a serviços externos, subsistemas de IA e A
 |:---|:---|:---|:---|:---|
 | **MOA** | `MOA_QUERY` | `moa_adapter.py` | `PORTED_MOA_ENABLED=true` | Mixture of Agents. Executa consulta paralela em múltiplos LLMs e sintetiza uma resposta única refinada. |
 | **Browser Camo** | `BROWSER_CAMO`<br>`BROWSER_CAMO_CLICK`<br>`BROWSER_CAMO_TYPE`<br>`BROWSER_CAMO_SNAPSHOT` | `browser_camofox_adapter.py` | `PORTED_BROWSER_CAMO_ENABLED=true` | Automação e extração de páginas dinâmicas com navegador camuflado anti-bot (Camofox/Playwright). |
-| **CRM Query** | `CRM_QUERY` | `specialist_skill.py` | `PORTED_CRM_ENABLED=true` | Consultas estruturadas e busca de leads/contratos no banco de dados do ShowDeck CRM. |
 | **Cronjob** | `CRON_CREATE`<br>`CRON_LIST`<br>`CRON_REMOVE`<br>`CRON_PAUSE`<br>`CRON_RESUME` | `cronjob_adapter.py` | `PORTED_CRONJOB_ENABLED=true` | Agendamento e gerenciamento dinâmico de cronjobs e rotinas recorrentes. |
 | **Firecrawl** | `FIRECRAWL` | `firecrawl_adapter.py` | `PORTED_FIRECRAWL_ENABLED=true` | Deep crawling de websites com renderização JS e extração limpa formatada em Markdown. |
 | **Media** | `IMAGE_GEN`<br>`TTS_GEN`<br>`TRANSCRIBE_AUDIO` | `media_adapter.py` | `PORTED_MEDIA_ENABLED=true` | Pipeline unificado para geração de imagens, síntese de voz e transcrição de áudio via ffmpeg. |
@@ -25,7 +24,7 @@ Os adaptadores conectam o Seeker.Bot a serviços externos, subsistemas de IA e A
 
 ## 🧰 Part II: Catálogo de Skills (`src/skills/`)
 
-As 42 skills ativas estão organizadas por categoria operacional em `config/skills.yaml`:
+As 34 skills ativas estão organizadas por categoria operacional em `config/skills.yaml`:
 
 ### 🟢 1. Core & Saúde
 1. **`health_monitor`** (`src/skills/health_monitor/`): Dashboard de integridade do sistema, portas, memória e serviços.

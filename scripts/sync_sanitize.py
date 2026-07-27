@@ -43,6 +43,10 @@ COMMERCIAL_DIRS = [
     "src/skills/muni_discovery",
     "src/skills/muni_enrich",
     "src/skills/outreach",
+    "tests/skills/seeker_sales",
+    "tests/skills/muni_discovery",
+    "tests/skills/muni_enrich",
+    "tests/skills/outreach",
     # NOTA: drive_manager NAO eh comercial — eh o cliente Google Drive (/drive command)
 ]
 
@@ -531,6 +535,70 @@ def security_scan(root: Path) -> list[tuple[str, str, int]]:
     return issues
 
 
+def patch_public_readmes_and_docs(root: Path) -> list[str]:
+    """
+    Ajusta a documentação pública para refletir exatamente os números e recursos
+    da distribuição Open Source (34 skills públicos, 9 adaptadores, 58 comandos ativos).
+    """
+    patched: list[str] = []
+
+    # 1. README.md
+    readme_en = root / "README.md"
+    if readme_en.exists():
+        text = readme_en.read_text(encoding="utf-8")
+        text = text.replace("10 execution adapters, and 42 modular skills.", "9 execution adapters, and 34 modular skills.")
+        text = text.replace("runs 42 independent skills", "runs 34 independent skills")
+        text = text.replace("10 ported execution adapters", "9 ported execution adapters")
+        text = text.replace("10 Ported Execution Adapters (`src/core/execution/adapters/`):** Modular action adapters including Mixture of Agents (`MOA`), Camofox Browser Automation, Firecrawl Web Scraping, X/Twitter Intelligence, and CRM Querying.", "9 Ported Execution Adapters (`src/core/execution/adapters/`):** Modular action adapters including Mixture of Agents (`MOA`), Camofox Browser Automation, Firecrawl Web Scraping, and X/Twitter Intelligence.")
+        readme_en.write_text(text, encoding="utf-8")
+        patched.append("README.md")
+
+    # 2. README.pt-BR.md
+    readme_pt = root / "README.pt-BR.md"
+    if readme_pt.exists():
+        text = readme_pt.read_text(encoding="utf-8")
+        text = text.replace("10 adaptadores de execução e 42 skills modulares.", "9 adaptadores de execução e 34 skills modulares.")
+        text = text.replace("roda 42 skills independentes", "roda 34 skills independentes")
+        text = text.replace("10 adaptadores de execução portados", "9 adaptadores de execução portados")
+        text = text.replace("10 Adaptadores de Execução (`src/core/execution/adapters/`):** Módulos de ação incluindo Mixture of Agents (`MOA`), Automação Camofox, Web Scraping Firecrawl, Inteligência X/Twitter e Consultas CRM.", "9 Adaptadores de Execução (`src/core/execution/adapters/`):** Módulos de ação incluindo Mixture of Agents (`MOA`), Automação Camofox, Web Scraping Firecrawl e Inteligência X/Twitter.")
+        readme_pt.write_text(text, encoding="utf-8")
+        patched.append("README.pt-BR.md")
+
+    # 3. docs/ARCHITECTURE_OVERVIEW.md
+    arch_doc = root / "docs/ARCHITECTURE_OVERVIEW.md"
+    if arch_doc.exists():
+        text = arch_doc.read_text(encoding="utf-8")
+        text = text.replace("42 skills", "34 skills")
+        text = text.replace("10 adaptadores", "9 adaptadores")
+        text = text.replace("10 Adaptadores Registrados", "9 Adaptadores Registrados")
+        text = text.replace("42 Skills Especializadas", "34 Skills Especializadas")
+        arch_doc.write_text(text, encoding="utf-8")
+        patched.append("docs/ARCHITECTURE_OVERVIEW.md")
+
+    # 4. docs/ADAPTERS_AND_SKILLS_CATALOG.md
+    cat_doc = root / "docs/ADAPTERS_AND_SKILLS_CATALOG.md"
+    if cat_doc.exists():
+        text = cat_doc.read_text(encoding="utf-8")
+        text = text.replace("10 adaptadores de execução", "9 adaptadores de execução")
+        text = text.replace("42 skills", "34 skills")
+        text = text.replace("**42 Skills**", "**34 Skills**")
+        text = re.sub(r"\| \*\*CRM Query\*\* \|[^\n]+\n", "", text)
+        cat_doc.write_text(text, encoding="utf-8")
+        patched.append("docs/ADAPTERS_AND_SKILLS_CATALOG.md")
+
+    # 5. docs/HANDLERS_INVENTORY.md
+    inv_doc = root / "docs/HANDLERS_INVENTORY.md"
+    if inv_doc.exists():
+        text = inv_doc.read_text(encoding="utf-8")
+        text = text.replace("| **TOTAL** | **72** | |", "| **TOTAL** | **58** | |")
+        lines = text.splitlines(keepends=True)
+        new_lines = [l for l in lines if not any(k in l for k in ["/scout", "/crm", "/radar", "/viralx9", "sales.py", "radar.py", "specialist_skill.py"])]
+        inv_doc.write_text("".join(new_lines), encoding="utf-8")
+        patched.append("docs/HANDLERS_INVENTORY.md")
+
+    return patched
+
+
 # ============================================================
 # Entry point
 # ============================================================
@@ -589,7 +657,12 @@ def main() -> int:
     if patched_refs:
         print(f"  ~ patchado {len(patched_refs)} arquivos com referencias comerciais residuais")
 
-    # 8) security scan
+    # 8) patch de documentação pública (ajusta contadores e comandos públicos reais)
+    patched_docs = patch_public_readmes_and_docs(dest)
+    if patched_docs:
+        print(f"  ~ alinhado {len(patched_docs)} documentos para a precisao publica")
+
+    # 9) security scan
     print()
     issues = security_scan(dest)
     if issues:

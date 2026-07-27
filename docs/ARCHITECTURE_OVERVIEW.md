@@ -6,7 +6,7 @@
 
 ## 🏛️ Visão Geral
 
-O **Seeker.Bot** é um assistente cognitivo e executivo autônomo de classe mundial, orientado a eventos e executado no ambiente Windows/Linux. O sistema integra canais de mensageria (Telegram, WhatsApp, Email), uma engine de roteamento semântico de modelos LLM em cascata (6 provedores/tiers), execução de ferramentas com guardrails de segurança, memória hierárquica híbrida e uma rede extensível de 42 skills e 10 adaptadores de execução.
+O **Seeker.Bot** é um assistente cognitivo e executivo autônomo de classe mundial, orientado a eventos e executado no ambiente Windows/Linux. O sistema integra canais de mensageria (Telegram, WhatsApp, Email), uma engine de roteamento semântico de modelos LLM em cascata (6 provedores/tiers), execução de ferramentas com guardrails de segurança, memória hierárquica híbrida e uma rede extensível de 34 skills e 9 adaptadores de execução.
 
 ```mermaid
 graph TD
@@ -33,10 +33,10 @@ graph TD
     end
 
     subgraph Execution ["4. Camada de Execução & Conectividade"]
-        Adapters["10 Adaptadores Registrados\n(MOA, STT, TTS, Firecrawl, Browser Camo, CRM, X Search, etc.)"]
+        Adapters["9 Adaptadores Registrados\n(MOA, STT, TTS, Firecrawl, Browser Camo, CRM, X Search, etc.)"]
         Native["Ferramentas Nativas\nREAD_FILE, WRITE_FILE, PATCH_FILE, TERMINAL_EXECUTE, SEARCH"]
         RPC["RPC Server Local (:8001)\n& HTTP/SSE MCP Server (:8000)"]
-        Skills["42 Skills Especializadas\n(src/skills/*)"]
+        Skills["34 Skills Especializadas\n(src/skills/*)"]
     end
 
     subgraph Storage ["5. Memória & Armazenamento"]
@@ -87,7 +87,7 @@ graph TD
 - Sistema de tolerância a falhas em 6 tiers. Se uma API atinge rate-limit ou timeout, a requisição sofre fallback gracioso para o próximo nível sem interromper o usuário.
 
 ### 4. Camada de Execução (`src/core/execution/`)
-- **Adapter Manager (`adapters/manager.py`):** Registra e gerencia 10 adaptadores modulares que podem ser ativados individualmente via `config/.env`.
+- **Adapter Manager (`adapters/manager.py`):** Registra e gerencia 9 adaptadores modulares que podem ser ativados individualmente via `config/.env`.
 - **Nativo (`registry.py`):** Operações cirúrgicas de arquivo (`PATCH_FILE`), leitura/escrita e execução de terminal auditada por regras de segurança.
 - **MCP & RPC Server:** Servidor HTTP/SSE nativo do Model Context Protocol exposto para clientes externos e servidor RPC local na porta 8001.
 

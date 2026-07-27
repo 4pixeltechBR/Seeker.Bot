@@ -2,7 +2,7 @@
 
 # 🤖 Seeker.Bot
 
-**Autonomous cognitive agent for Telegram & WhatsApp with persistent memory, computer vision, 10 execution adapters, and 42 modular skills.**
+**Autonomous cognitive agent for Telegram & WhatsApp with persistent memory, computer vision, 9 execution adapters, and 34 modular skills.**
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-3776ab?logo=python&logoColor=white)](https://python.org)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
@@ -19,9 +19,9 @@
 
 ## ✨ What is Seeker?
 
-Seeker.Bot is not a chatbot — it's an **autonomous cognitive agent** that lives in your Telegram and WhatsApp. It decides how to think about each message (reflexive, deliberate, or deep analysis), searches the web, remembers everything you've discussed, and runs 42 independent skills in the background — from CRM intelligence to daily news curation and WhatsApp knowledge vault ingestion.
+Seeker.Bot is not a chatbot — it's an **autonomous cognitive agent** that lives in your Telegram and WhatsApp. It decides how to think about each message (reflexive, deliberate, or deep analysis), searches the web, remembers everything you've discussed, and runs 34 independent skills in the background — from CRM intelligence to daily news curation and WhatsApp knowledge vault ingestion.
 
-What makes it different: a **multi-provider API cascade (6 Tiers)** that never stops working, 10 ported execution adapters (`MOA`, `BROWSER_CAMO`, `CRM`, `FIRECRAWL`, `CRONJOB`, etc.), a **Reinforcement Learning bandit** that learns which AI model works best for each task, a native **Model Context Protocol (MCP) Server**, and **Evidence Arbitrage** to catch hallucinations.
+What makes it different: a **multi-provider API cascade (6 Tiers)** that never stops working, 9 ported execution adapters (`MOA`, `BROWSER_CAMO`, `CRM`, `FIRECRAWL`, `CRONJOB`, etc.), a **Reinforcement Learning bandit** that learns which AI model works best for each task, a native **Model Context Protocol (MCP) Server**, and **Evidence Arbitrage** to catch hallucinations.
 
 You can run it entirely in the cloud with free API tiers, or **100% locally** on your GPU with no internet needed.
 
@@ -32,7 +32,7 @@ You can run it entirely in the cloud with free API tiers, or **100% locally** on
 - **WhatsApp Vault Pipeline (`src/skills/whatsapp_vault/`):** Real-time webhook & multi-slot polling via Evolution API v2.3.7. Automatically extracts 9 media types (Florence-2 OCR, PyMuPDF, Whisper transcription, DOCX/XLSX/PPTX tables, vCard, geolocalizations) and ingests them directly into your Obsidian Vault with atomic deduplication (`SeenIdsStore`).
 - **Interactive `/wa_config` & `/wa_resend` Panel:** Control WhatsApp target groups, daily schedules, and message reprocessing directly in Telegram with live hot-reload.
 - **Native MCP & RPC Servers (`src/core/execution/`):** Streamable HTTP & SSE Model Context Protocol server (`POST /mcp`, `GET /mcp/sse`) on port 8000 and JSON-RPC 2.0 on port 8001.
-- **10 Ported Execution Adapters (`src/core/execution/adapters/`):** Modular action adapters including Mixture of Agents (`MOA`), Camofox Browser Automation, Firecrawl Web Scraping, X/Twitter Intelligence, and CRM Querying.
+- **9 Ported Execution Adapters (`src/core/execution/adapters/`):** Modular action adapters including Mixture of Agents (`MOA`), Camofox Browser Automation, Firecrawl Web Scraping, and X/Twitter Intelligence.
 - **Orchestrator v2 & Watchdogs:** Simplified execution via `seeker_orchestrator.py` and `seeker_watchdog.py` with singleton lockfiles, heartbeat monitoring, and automated recovery.
 
 

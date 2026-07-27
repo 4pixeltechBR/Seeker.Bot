@@ -15,12 +15,9 @@ com o menu azul do Telegram (`set_my_commands` em `bot.py:setup_commands`).
 | Memória / Sessão | 3 | `system.py` |
 | Decaimento / Limpeza | 3 | `system.py` |
 | Custos | 3 | `system.py` |
-| RL (Aprendizado por Reforço) | 8 | `system.py` + `specialist_skill.py` (swarm) |
 | Tarefas Agendadas | 7 | `tasks.py` |
 | Knowledge / Obsidian / Pesquisa | 4 | `vault.py` + `research.py` |
 | Email | 1 | `system.py` (test_email) |
-| specialist_skill (YouTube trending) | 6 | `specialist_skill.py` |
-| Radar de Eventos | 1 | `radar.py` |
 | Dev / Ferramentas | 5 | `development.py` |
 | Pesquisa direta | 2 | `system.py` |
 | Sherlock / Knowledge | 2 | `sherlock.py` + `system.py` |
@@ -28,11 +25,10 @@ com o menu azul do Telegram (`set_my_commands` em `bot.py:setup_commands`).
 | Google Drive | 1 | `drive.py` |
 | Transcrição | 1 | `transcription` (handler) |
 | Instagram | 1 | `instascraper.py` |
-| Vendas / CRM | 3 | `sales.py` |
 | LLM (controle de modelo) | 2 | `system.py` |
 | Terminal / MCP / WhatsApp (v3.9-3.12) | 6 | `terminal.py` + `mcp.py` + `whatsapp*.py` |
 | Recuperação / Boot | 2 | `config.py` (restart é no system.py) |
-| **TOTAL** | **72** | |
+| **TOTAL** | **58** | |
 
 ---
 
@@ -127,18 +123,11 @@ com o menu azul do Telegram (`set_my_commands` em `bot.py:setup_commands`).
 
 | Comando | Função | Arquivo |
 |---------|--------|---------|
-| `/x9` | specialist_skill: ativar/desativar nichos de mineração | `specialist_skill.py:360` |
-| `/specialist_skill` | specialist_skill (completo, mesmo que /x9) | `specialist_skill.py:69` |
-| `/vx9_pausar` | Pausar nicho do specialist_skill | `specialist_skill.py:179` |
-| `/vx9_ativar` | Ativar nicho do specialist_skill | `specialist_skill.py:183` |
-| `/vx9_remover` | Remover nicho do specialist_skill | `specialist_skill.py:187` |
-| `/swarm_status` | Status do Ruflo Swarm (multi-agente) | `specialist_skill.py:441` |
 
 ### 🗺️ Radar de Eventos
 
 | Comando | Função | Arquivo |
 |---------|--------|---------|
-| `/radar` | Configura e controla o Radar de Eventos | `radar.py:78` |
 
 ### 🛠️ Dev / Ferramentas
 
@@ -194,9 +183,6 @@ com o menu azul do Telegram (`set_my_commands` em `bot.py:setup_commands`).
 
 | Comando | Função | Arquivo |
 |---------|--------|---------|
-| `/crm` | Lista histórico de leads qualificados | `sales.py:11` |
-| `/scout` | Dispara campanha B2B Scout (leads qualificados) | `sales.py:148` |
-| `/scout_config` | Configura parâmetros do Scout | `sales.py` (handler) |
 
 ### 🔄 LLM (controle de modelo)
 

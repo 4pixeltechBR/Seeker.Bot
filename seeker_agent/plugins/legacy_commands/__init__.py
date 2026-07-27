@@ -465,7 +465,6 @@ async def cmd_radar(args: str) -> Optional[str]:
     if pipeline is None:
         await initialize_pipeline_and_loops()
 
-    state_path = project_root / "data" / "custom_extension" / "event_radar_state.json"
     
     if not state_path.exists():
         return "❌ Estado do EventRadar não encontrado. Aguarde a inicialização da pipeline ou configure manualmente."
@@ -707,7 +706,6 @@ async def handle_news_callback(query, nicho_input: str, adapter):
 
 async def handle_radar_callback(query, action_data: str, adapter):
     """Manipula cliques inline para preferências do EventRadar."""
-    state_path = project_root / "data" / "custom_extension" / "event_radar_state.json"
     if not state_path.exists():
         await query.answer(text="❌ Estado do Radar não encontrado")
         return
