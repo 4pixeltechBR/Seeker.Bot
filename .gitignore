@@ -1,0 +1,12 @@
+.venv/
+.env
+mcp.json
+config.toml
+data/
+logs/
+cerebro/
+Estudo/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/

@@ -1,0 +1,53 @@
+# Ordem = cascata. O primeiro que responder leva a mensagem.
+# Para incluir outro provedor compatível com a API da OpenAI, copie um bloco
+# [[providers]] com kind = "openai", a base_url e o nome da variável no .env.
+#
+# Acrescente pastas que o Seeker pode ler. Exemplo:
+# roots = ["workspace", "C:\\Users\\SeuNome", "D:\\"]
+
+roots = ["workspace"]
+shell_timeout_seconds = 30
+max_tool_steps = 8
+output_cap_chars = 8000
+file_cap_chars = 100000
+
+[[providers]]
+name = "Gemini"
+kind = "gemini"
+model = "gemini-2.5-flash"
+env_key = "GEMINI_API_KEY"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+
+[[providers]]
+name = "Maritaca"
+kind = "openai"
+model = "sabia-4-thinking"
+env_key = "MARITACA_API_KEY"
+base_url = "https://chat.maritaca.ai/api"
+
+[[providers]]
+name = "NVIDIA"
+kind = "openai"
+model = "nvidia/nemotron-3-super-120b-a12b"
+env_key = "NVIDIA_API_KEY"
+base_url = "https://integrate.api.nvidia.com/v1"
+
+[brain]
+vault = "cerebro"
+review_hour = 21
+morning_hour = 8
+morning_minute = 30
+
+[voice]
+engine = "kokoro"
+device = "cuda"
+voice = "pm_santa"
+language = "pt-BR"
+
+[radar]
+tarefa = true
+disco = true
+email = true
+agenda = true
+whatsapp = true
+calendar_ics = ""

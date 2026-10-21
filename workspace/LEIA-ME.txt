@@ -1,0 +1,3 @@
+Esta é a pasta de trabalho do Seeker.
+Ele lista e lê os arquivos daqui.
+Um comando no PowerShell só roda depois que você autoriza, e esse comando roda com o seu usuário.

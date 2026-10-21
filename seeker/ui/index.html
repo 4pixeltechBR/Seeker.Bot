@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Seeker</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="rail" id="rail">
+      <header class="who">
+        <span class="mark" id="mark" aria-hidden="true"></span>
+        <div>
+          <h1>Seeker</h1>
+          <p>Assistente pessoal</p>
+        </div>
+      </header>
+      <button type="button" id="new-chat">Nova conversa</button>
+      <button type="button" id="open-settings">Configurar</button>
+      <ul class="chats" id="chats"></ul>
+      <section class="agenda" aria-labelledby="agenda-title">
+        <h2 id="agenda-title">Agenda</h2>
+        <div class="agenda-body">
+          <ul id="radar"></ul>
+          <ul id="tasks"></ul>
+        </div>
+      </section>
+      <ul class="providers" id="providers"></ul>
+    </aside>
+    <div class="splitter" id="split-rail" role="separator" aria-orientation="vertical" aria-label="Largura da agenda"></div>
+
+    <main class="stage">
+      <header class="stage-bar">
+        <svg class="avatar avatar-mini" viewBox="0 0 200 200" aria-hidden="true">
+          <path class="avatar-body" fill="#2a1468" stroke="#8a4dff" stroke-width="8" d="M100 34c28 2 48 18 56 42 8 22 6 46-6 64-14 20-38 32-62 30-26-2-48-20-54-46-6-28 2-58 24-74 16-12 26-18 42-16z"/>
+          <g class="avatar-eyes">
+            <rect x="78" y="86" width="9" height="24" rx="4.5"/>
+            <rect x="113" y="86" width="9" height="24" rx="4.5"/>
+          </g>
+        </svg>
+        <div class="modes" role="group" aria-label="Modo">
+          <button type="button" id="mode-chat" aria-pressed="true">Chat</button>
+          <button type="button" id="mode-voice" aria-pressed="false">Voz</button>
+        </div>
+        <p class="hint" id="hint">Fechar a janela deixa o Seeker de prontidão.</p>
+      </header>
+
+      <section class="voice" id="voice" hidden>
+        <div class="voice-stage">
+          <button type="button" class="panel" id="orb" aria-describedby="voice-state">
+            <svg class="avatar" viewBox="0 0 200 200" aria-hidden="true">
+              <defs>
+                <radialGradient id="avatar-fill" cx="50%" cy="42%" r="58%">
+                  <stop offset="0%" stop-color="#3b1c8a"/>
+                  <stop offset="100%" stop-color="#12061f"/>
+                </radialGradient>
+                <linearGradient id="avatar-rim" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#d7cbff"/>
+                  <stop offset="48%" stop-color="#8a4dff"/>
+                  <stop offset="100%" stop-color="#3d78ff"/>
+                </linearGradient>
+              </defs>
+              <path class="avatar-body" fill="url(#avatar-fill)" stroke="url(#avatar-rim)" stroke-width="3.5" d="M100 34c28 2 48 18 56 42 8 22 6 46-6 64-14 20-38 32-62 30-26-2-48-20-54-46-6-28 2-58 24-74 16-12 26-18 42-16z"/>
+              <g class="avatar-eyes">
+                <rect x="78" y="86" width="9" height="24" rx="4.5"/>
+                <rect x="113" y="86" width="9" height="24" rx="4.5"/>
+              </g>
+            </svg>
+            <span id="voice-state">Pronto</span>
+          </button>
+        <form class="voice-form" id="voice-form">
+          <label class="follow"><input type="checkbox" id="follow" checked> Seguir conversando</label>
+          <label for="voice-prompt">Como é a voz</label>
+          <textarea id="voice-prompt" rows="3"></textarea>
+          <label for="voice-style">Como fala agora</label>
+          <input id="voice-style" type="text">
+          <label for="voice-gender">Registro</label>
+          <select id="voice-gender">
+            <option value="">Sem preferência</option>
+            <option value="female">Feminina</option>
+            <option value="male" selected>Masculina</option>
+          </select>
+          <button type="submit" id="voice-save">Ouvir esta voz</button>
+        </form>
+        </div>
+      </section>
+
+      <div class="thread" id="thread" aria-live="polite"></div>
+      <p class="empty" id="empty">Escreva abaixo. Ele lê a pasta, pesquisa, agenda e roda comandos. O que apaga, ele confirma com um sim no chat.</p>
+
+      <section class="suggest" id="suggest" hidden>
+        <p id="suggest-text"></p>
+        <div>
+          <button type="button" id="suggest-yes">Pode ser</button>
+          <button type="button" id="suggest-no">Agora não</button>
+        </div>
+      </section>
+
+      <form class="composer" id="composer">
+        <label class="sr" for="input">Mensagem</label>
+        <textarea id="input" rows="2" placeholder="Diga o que você quer."></textarea>
+        <button type="submit" id="send">Enviar</button>
+      </form>
+    </main>
+    <div class="splitter" id="split-activity" role="separator" aria-orientation="vertical" aria-label="Largura da atividade"></div>
+
+    <aside class="activity" id="activity" aria-live="polite">
+      <h2>Agora</h2>
+      <section class="secret" id="secret" hidden>
+        <p id="secret-title">Cofre seguro</p>
+        <p class="quiet">O valor não entra no chat. O Seeker não vê a chave.</p>
+        <label id="secret-pick">Qual chave
+          <select id="secret-name"></select>
+        </label>
+        <label>Valor
+          <input id="secret-value" type="password" autocomplete="off" spellcheck="false" placeholder="Cole aqui">
+        </label>
+        <div class="approval-actions">
+          <button type="button" id="secret-cancel">Agora não</button>
+          <button type="button" id="secret-save">Guardar com segurança</button>
+        </div>
+      </section>
+      <section class="approval" id="approval" hidden>
+        <p>Responda sim no chat para autorizar.</p>
+        <pre id="approval-command"></pre>
+        <div class="approval-actions">
+          <button type="button" id="deny">Recusar</button>
+        </div>
+      </section>
+      <div id="steps"></div>
+      <p class="quiet" id="steps-empty">Nada em execução.</p>
+      <section class="terminal" aria-label="Terminal">
+        <h2>Terminal</h2>
+        <p class="quiet" id="term-cwd"></p>
+        <pre id="term-log">O terminal está pronto.</pre>
+        <form id="term-form">
+          <label class="sr" for="term-input">Comando</label>
+          <input id="term-input" type="text" placeholder="PowerShell" autocomplete="off" spellcheck="false">
+        </form>
+      </section>
+    </aside>
+  </div>
+  <dialog id="settings">
+    <form id="settings-form">
+      <h2>Configurar</h2>
+      <section>
+        <h3>Chaves</h3>
+        <p class="quiet">A chave guardada não aparece. Cole uma nova para trocar. No chat, peça para guardar a chave: o cartão abre ao lado.</p>
+        <div id="settings-keys"></div>
+      </section>
+      <section>
+        <h3>Modelos</h3>
+        <div id="settings-models"></div>
+      </section>
+      <section>
+        <h3>Cores</h3>
+        <div class="themes">
+          <button type="button" data-theme="atual">Atual</button>
+          <button type="button" data-theme="fria">Fria</button>
+          <button type="button" data-theme="clara">Clara</button>
+        </div>
+        <label>Destaque <input id="accent" type="color" value="#e0a23a"></label>
+        <label>Balão <input id="balloon" type="color" value="#e0a23a"></label>
+      </section>
+      <div class="approval-actions">
+        <button type="button" id="settings-close">Fechar</button>
+        <button type="submit" id="settings-save">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+  <script src="/app.js"></script>
+</body>
+</html>
