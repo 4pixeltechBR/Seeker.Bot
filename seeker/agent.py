@@ -364,7 +364,7 @@ class Agent:
         if self.routine_mode:
             return "Uma rotina não guarda chave.", "denied"
         if not name:
-            return "Diga qual chave: Gemini, Maritaca, NVIDIA, Groq, e-mail ou Telegram. Não cole o valor.", "error"
+            return "Diga qual chave do cofre. Não cole o valor.", "error"
         return self._secret_wait(name, emit)
 
     def _secret_from_paste(self, user_text: str, emit) -> tuple[str, str]:

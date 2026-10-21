@@ -151,6 +151,28 @@ const SECRET_KEYS = [
   ["MARITACA_API_KEY", "Maritaca"],
   ["NVIDIA_API_KEY", "NVIDIA"],
   ["GROQ_API_KEY", "Groq"],
+  ["MISTRAL_API_KEY", "Mistral"],
+  ["OPENROUTER_API_KEY", "OpenRouter"],
+  ["DEEPSEEK_API_KEY", "DeepSeek"],
+  ["SILICONFLOW_API_KEY", "SiliconFlow"],
+  ["HYPERBOLIC_API_KEY", "Hyperbolic"],
+  ["FIREWORKS_API_KEY", "Fireworks"],
+  ["SAMBANOVA_API_KEY", "SambaNova"],
+  ["COHERE_API_KEY", "Cohere"],
+  ["HUGGINGFACE_API_KEY", "Hugging Face"],
+  ["INCEPTION_API_KEY", "Inception"],
+  ["REKA_API_KEY", "Reka"],
+  ["CLOUDFLARE_API_TOKEN", "Cloudflare"],
+  ["ZHIPU_API_KEY", "Zhipu"],
+  ["STEPFUN_API_KEY", "StepFun"],
+  ["YI_API_KEY", "01.AI"],
+  ["TAVILY_API_KEY", "Tavily"],
+  ["EXA_API_KEY", "Exa"],
+  ["JINA_API_KEY", "Jina"],
+  ["DEEPGRAM_API_KEY", "Deepgram"],
+  ["ASSEMBLYAI_API_KEY", "AssemblyAI"],
+  ["ELEVENLABS_API_KEY", "ElevenLabs"],
+  ["CARTESIA_API_KEY", "Cartesia"],
   ["IMAP_PASSWORD", "E-mail"],
   ["TELEGRAM_BOT_TOKEN", "Telegram"],
 ]
@@ -168,6 +190,28 @@ function guessKey(text) {
   if (folded.includes("groq")) return "GROQ_API_KEY"
   if (folded.includes("nvidia") || folded.includes("nim")) return "NVIDIA_API_KEY"
   if (folded.includes("maritaca") || folded.includes("sabia") || folded.includes("sabiá")) return "MARITACA_API_KEY"
+  if (folded.includes("mistral")) return "MISTRAL_API_KEY"
+  if (folded.includes("openrouter")) return "OPENROUTER_API_KEY"
+  if (folded.includes("deepseek")) return "DEEPSEEK_API_KEY"
+  if (folded.includes("siliconflow")) return "SILICONFLOW_API_KEY"
+  if (folded.includes("hyperbolic")) return "HYPERBOLIC_API_KEY"
+  if (folded.includes("fireworks")) return "FIREWORKS_API_KEY"
+  if (folded.includes("sambanova")) return "SAMBANOVA_API_KEY"
+  if (folded.includes("cohere")) return "COHERE_API_KEY"
+  if (folded.includes("hugging")) return "HUGGINGFACE_API_KEY"
+  if (folded.includes("inception") || folded.includes("mercury")) return "INCEPTION_API_KEY"
+  if (folded.includes("reka")) return "REKA_API_KEY"
+  if (folded.includes("cloudflare")) return "CLOUDFLARE_API_TOKEN"
+  if (folded.includes("zhipu") || folded.includes("glm")) return "ZHIPU_API_KEY"
+  if (folded.includes("stepfun")) return "STEPFUN_API_KEY"
+  if (folded.includes("01.ai") || folded.includes("lingyi")) return "YI_API_KEY"
+  if (folded.includes("tavily")) return "TAVILY_API_KEY"
+  if (folded.includes("exa")) return "EXA_API_KEY"
+  if (folded.includes("jina")) return "JINA_API_KEY"
+  if (folded.includes("deepgram")) return "DEEPGRAM_API_KEY"
+  if (folded.includes("assembly")) return "ASSEMBLYAI_API_KEY"
+  if (folded.includes("eleven")) return "ELEVENLABS_API_KEY"
+  if (folded.includes("cartesia")) return "CARTESIA_API_KEY"
   if (folded.includes("telegram")) return "TELEGRAM_BOT_TOKEN"
   if (folded.includes("imap") || folded.includes("senha do e-mail") || folded.includes("senha do email")) return "IMAP_PASSWORD"
   return ""

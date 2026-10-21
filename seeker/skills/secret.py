@@ -10,7 +10,7 @@ def request_secret_skill() -> Skill:
     def run(arguments: dict) -> str:
         name = known_name(str(arguments.get("name") or ""))
         if not name:
-            return "Diga qual chave: Gemini, Maritaca, NVIDIA, Groq, e-mail ou Telegram. Não cole o valor."
+            return "Diga qual chave do cofre. Não cole o valor."
         return f"O cartão da chave {label_for(name)} abre no cofre. O valor não entra aqui."
 
     return Skill(

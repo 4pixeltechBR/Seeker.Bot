@@ -1,6 +1,6 @@
 # Seeker
 
-Personal desktop agent for Windows. One Python process, a WebView2 window, and online models. It talks, reads files, researches with sources, watches mail and the clock, and waits for a yes before it changes anything that matters.
+Version 1.0.0. Personal desktop agent for Windows. One Python process, a WebView2 window, and online models. It talks, reads files, researches with sources, watches mail and the clock, and waits for a yes before it changes anything that matters.
 
 The window has three columns: agenda on the left, the conversation in the center, and the current work on the right. The center is **Chat** or **Voice**.
 
@@ -40,6 +40,8 @@ NVIDIA_API_KEY=
 
 One key is enough. Without Gemini, web research and the Gemini transcription fallback stay off.
 
+`.env.example` also has empty slots for the free-tier providers in [awesome-ai-free-tiers](https://github.com/4pixeltechBR/awesome-ai-free-tiers): Mistral, OpenRouter, DeepSeek, SiliconFlow, Hyperbolic, Fireworks, SambaNova, Cohere, Hugging Face, Inception, Reka, Cloudflare, Zhipu, StepFun, and 01.AI, plus Tavily, Exa, and Jina for search, and Deepgram, AssemblyAI, ElevenLabs, and Cartesia for audio. An empty line stays off. The chat cascade uses only the provider blocks in `config.toml`. Ask in the chat to store a key in the masked card.
+
 Add your own folders under `roots` in `config.toml`. Restart after changing roots or keys from the file. A key saved in the secure card is picked up by the running app.
 
 ## Tests
@@ -60,7 +62,7 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 # Seeker
 
-Agente pessoal para Windows. Um processo Python, uma janela WebView2 e modelos online. Ele conversa, lê arquivos, pesquisa com fonte, olha o e-mail e o relógio, e espera um sim antes de mudar o que importa.
+Versão 1.0.0. Agente pessoal para Windows. Um processo Python, uma janela WebView2 e modelos online. Ele conversa, lê arquivos, pesquisa com fonte, olha o e-mail e o relógio, e espera um sim antes de mudar o que importa.
 
 A janela tem três colunas: agenda à esquerda, conversa no centro e o trabalho atual à direita. No centro, **Chat** ou **Voz**.
 
@@ -99,6 +101,8 @@ NVIDIA_API_KEY=
 ```
 
 Uma chave basta. Sem o Gemini, a pesquisa na web e a transcrição de reserva ficam desligadas.
+
+O `.env.example` também tem vagas vazias para os provedores do catálogo [awesome-ai-free-tiers](https://github.com/4pixeltechBR/awesome-ai-free-tiers): Mistral, OpenRouter, DeepSeek, SiliconFlow, Hyperbolic, Fireworks, SambaNova, Cohere, Hugging Face, Inception, Reka, Cloudflare, Zhipu, StepFun e 01.AI, além de Tavily, Exa e Jina para busca, e Deepgram, AssemblyAI, ElevenLabs e Cartesia para áudio. Linha vazia fica desligada. A cascata da conversa usa só os blocos de provedor do `config.toml`. Peça no chat para guardar uma chave no cartão mascarado.
 
 Acrescente as suas pastas em `roots`, no `config.toml`. Reinicie depois de mudar as pastas ou as chaves pelo arquivo. Uma chave salva no cartão seguro passa a valer no app que está aberto.
 

@@ -32,6 +32,18 @@ model = "nvidia/nemotron-3-super-120b-a12b"
 env_key = "NVIDIA_API_KEY"
 base_url = "https://integrate.api.nvidia.com/v1"
 
+# Provedores livres extras. Copie um bloco e preencha a chave no .env.
+# Groq:    kind openai, env_key GROQ_API_KEY,          base_url https://api.groq.com/openai/v1
+# Mistral: kind openai, env_key MISTRAL_API_KEY,       base_url https://api.mistral.ai/v1
+# OpenRouter: env_key OPENROUTER_API_KEY,              base_url https://openrouter.ai/api/v1
+# DeepSeek: env_key DEEPSEEK_API_KEY,                  base_url https://api.deepseek.com
+# SiliconFlow: env_key SILICONFLOW_API_KEY,            base_url https://api.siliconflow.cn/v1
+# Hyperbolic: env_key HYPERBOLIC_API_KEY,              base_url https://api.hyperbolic.xyz/v1
+# Fireworks: env_key FIREWORKS_API_KEY,                base_url https://api.fireworks.ai/inference/v1
+# SambaNova: env_key SAMBANOVA_API_KEY,                base_url https://api.sambanova.ai/v1
+# Cohere: env_key COHERE_API_KEY,                      base_url https://api.cohere.ai/compatibility/v1
+# Inception: env_key INCEPTION_API_KEY,                base_url https://api.inceptionlabs.ai/v1
+
 [brain]
 vault = "cerebro"
 review_hour = 21
